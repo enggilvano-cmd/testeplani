@@ -1,50 +1,90 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { useOnlineStatus } from './useOnlineStatus';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { offlineDatabase } from '@/lib/offlineDatabase';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
+import type { User } from '@supabase/supabase-js';
+
+const USER_CACHE_KEY = 'planiflow_offline_user';
 
 export function useOfflineAuth() {
   const isOnline = useOnlineStatus();
   const auth = useAuth();
   const { toast } = useToast();
+  
+  // Cache local para persistir o usuário mesmo se o Supabase falhar offline
+  const [cachedUser, setCachedUser] = useState<User | null>(() => {
+    try {
+      const stored = localStorage.getItem(USER_CACHE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.error('Erro ao ler cache de usuário:', e);
+      return null;
+    }
+  });
+
+  // Mantém o cache atualizado sempre que o usuário online mudar
+  useEffect(() => {
+    if (auth.user) {
+      setCachedUser(auth.user);
+      localStorage.setItem(USER_CACHE_KEY, JSON.stringify(auth.user));
+    }
+  }, [auth.user]);
 
   const signOut = useCallback(async () => {
+    // 1. Limpeza imediata do cache local (crítico para segurança)
+    localStorage.removeItem(USER_CACHE_KEY);
+    setCachedUser(null);
+
+    // 2. Limpeza do banco de dados local
+    try {
+      await offlineDatabase.clearAll();
+    } catch (e) {
+      logger.error("Erro ao limpar banco local no logout", e);
+    }
+
     if (isOnline) {
       return auth.signOut();
     }
 
-    // Offline: enqueue logout operation
+    // 3. Processo Offline: Enfileira o logout para o servidor saber depois
     try {
       await offlineQueue.enqueue({
         type: 'logout',
         data: {}
       });
 
-      // Clear local database immediately
-      await offlineDatabase.clearAll();
-
-      // Clear local session immediately
+      // Força o redirecionamento visual
       window.location.href = '/auth';
-
       
       return { error: null };
     } catch (error) {
       logger.error('Failed to queue logout:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível fazer logout offline',
-        variant: 'destructive',
-      });
+      // Mesmo com erro, garante a saída do usuário
+      window.location.href = '/auth';
       return { error: error as any };
     }
   }, [isOnline, auth, toast]);
 
+  // Se auth.user for nulo (ex: sem net), usa o cachedUser
+  const effectiveUser = auth.user || cachedUser;
+  
+  // Se temos cache, a UI não precisa ficar em "loading" infinito
+  const effectiveLoading = cachedUser ? false : auth.loading;
+
   return {
     ...auth,
+    user: effectiveUser,
+    loading: effectiveLoading,
     signOut,
     isOnline,
+    // Helper para verificar admin de forma segura
+    isAdmin: () => {
+       const email = effectiveUser?.email;
+       // Substitua pelo seu e-mail de admin real se necessário
+       return email === 'eng.gilvano@gmail.com'; 
+    }
   };
 }

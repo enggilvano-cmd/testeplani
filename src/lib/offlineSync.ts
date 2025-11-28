@@ -35,6 +35,7 @@ class OfflineSyncManager {
       for (const operation of operations) {
         try {
           await this.syncOperation(operation);
+          // Only remove from queue after successful sync
           await offlineQueue.dequeue(operation.id);
         } catch (error) {
           logger.error(`Failed to sync operation ${operation.id}:`, error);
@@ -50,14 +51,19 @@ class OfflineSyncManager {
 
       logger.info('Offline sync completed');
       
-      // After syncing operations, pull fresh data from server
-      await this.syncDataFromServer();
+      // After syncing operations, pull fresh data from server ONLY if online
+      if (navigator.onLine) {
+        await this.syncDataFromServer();
+      }
     } finally {
       this.isSyncing = false;
     }
   }
 
   async syncDataFromServer(): Promise<void> {
+    // Prevent fetching if offline
+    if (!navigator.onLine) return;
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -120,6 +126,15 @@ class OfflineSyncManager {
   private async syncOperation(operation: QueuedOperation): Promise<void> {
     logger.info(`Syncing operation: ${operation.type}`, operation.data);
 
+    // Get current user for RLS policies / identification
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Safety check: unless it's a logout, we generally need a user.
+    if (!user && operation.type !== 'logout') {
+        // If we lost the session, we try to recover or fail this op
+        throw new Error('User not authenticated for sync operation');
+    }
+
     switch (operation.type) {
       case 'transaction':
         await supabase.functions.invoke('atomic-transaction', {
@@ -134,15 +149,21 @@ class OfflineSyncManager {
         break;
 
       case 'delete':
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          throw new Error('User not authenticated for offline delete sync');
-        }
         await supabase.rpc('atomic_delete_transaction', {
-          p_user_id: user.id,
+          p_user_id: user!.id,
           ...(operation.data || {}),
         });
         break;
+
+      // --- NOVO CASE: Limpeza total de dados ---
+      case 'clear_all_data':
+        if (user) {
+            await supabase.from("transactions").delete().eq("user_id", user.id);
+            await supabase.from("accounts").delete().eq("user_id", user.id);
+            await supabase.from("categories").delete().eq("user_id", user.id);
+        }
+        break;
+      // -----------------------------------------
 
       case 'transfer':
         await supabase.functions.invoke('atomic-transfer', {
@@ -174,7 +195,7 @@ class OfflineSyncManager {
         
         for (const txData of installmentData.transactions) {
           const { data: rpcData, error } = await supabase.rpc('atomic_create_transaction', {
-            p_user_id: (await supabase.auth.getUser()).data.user!.id,
+            p_user_id: user!.id,
             p_description: txData.description,
             p_amount: txData.amount,
             p_date: txData.date,
@@ -237,14 +258,11 @@ class OfflineSyncManager {
         break;
 
       case 'add_category':
-        const { data: { user: categoryUser } } = await supabase.auth.getUser();
-        if (!categoryUser) throw new Error('User not authenticated');
-        
         await supabase
           .from('categories')
           .insert({
             ...operation.data,
-            user_id: categoryUser.id,
+            user_id: user!.id,
           });
         break;
 
@@ -264,8 +282,6 @@ class OfflineSyncManager {
 
       case 'import_categories':
         const catImportData = operation.data as { categories: any[]; replace_ids: string[] };
-        const { data: { user: catUser } } = await supabase.auth.getUser();
-        if (!catUser) throw new Error('User not authenticated');
         
         // Delete categories to replace
         if (catImportData.replace_ids.length > 0) {
@@ -273,7 +289,7 @@ class OfflineSyncManager {
             .from('categories')
             .delete()
             .in('id', catImportData.replace_ids)
-            .eq('user_id', catUser.id);
+            .eq('user_id', user!.id);
         }
         
         // Import categories
@@ -282,20 +298,17 @@ class OfflineSyncManager {
           .insert(
             catImportData.categories.map(cat => ({
               ...cat,
-              user_id: catUser.id,
+              user_id: user!.id,
             }))
           );
         break;
 
       case 'add_account':
-        const { data: { user: addAccUser } } = await supabase.auth.getUser();
-        if (!addAccUser) throw new Error('User not authenticated');
-
         await supabase
           .from('accounts')
           .insert({
             ...operation.data,
-            user_id: addAccUser.id,
+            user_id: user!.id,
           });
         break;
 
@@ -315,8 +328,6 @@ class OfflineSyncManager {
 
       case 'import_accounts':
         const accImportData = operation.data as { accounts: any[]; replace_ids: string[] };
-        const { data: { user: accUser } } = await supabase.auth.getUser();
-        if (!accUser) throw new Error('User not authenticated');
         
         // Delete accounts to replace
         if (accImportData.replace_ids.length > 0) {
@@ -324,7 +335,7 @@ class OfflineSyncManager {
             .from('accounts')
             .delete()
             .in('id', accImportData.replace_ids)
-            .eq('user_id', accUser.id);
+            .eq('user_id', user!.id);
         }
         
         // Import accounts
@@ -333,7 +344,7 @@ class OfflineSyncManager {
           .insert(
             accImportData.accounts.map(acc => ({
               ...acc,
-              user_id: accUser.id,
+              user_id: user!.id,
             }))
           );
         break;

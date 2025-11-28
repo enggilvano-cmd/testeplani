@@ -9,8 +9,6 @@ import AnalyticsPage from "@/components/AnalyticsPage";
 import SystemSettings from "@/components/SystemSettings";
 import { UserManagement } from "@/components/UserManagement";
 import { FixedTransactionsPage } from "@/components/FixedTransactionsPage";
-
-
 import { UserProfile } from "@/components/UserProfile";
 import { SettingsPage } from "@/components/SettingsPage";
 import BybitPage from "@/pages/BybitPage";
@@ -39,6 +37,11 @@ import { MarkAsPaidModal } from "@/components/MarkAsPaidModal";
 import { FormErrorBoundary } from "@/components/ui/form-error-boundary";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 
+// Hooks de infraestrutura offline
+import { offlineDatabase } from "@/lib/offlineDatabase";
+import { offlineQueue } from "@/lib/offlineQueue";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+
 interface TransactionsFilters {
   search: string;
   filterType: "all" | "income" | "expense" | "transfer";
@@ -62,6 +65,7 @@ const PlaniFlowApp = () => {
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState("dashboard");
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus(); // Status de conexão para decisões de UI
 
   // Pagination state
   const [transactionsPage, setTransactionsPage] = useState(0);
@@ -198,30 +202,58 @@ const PlaniFlowApp = () => {
   const { handleTransfer } = useOfflineTransferMutations();
   const { handleCreditPayment, handleReversePayment } = useOfflineCreditPaymentMutations();
 
+  // --- LÓGICA DE LIMPEZA DE DADOS OFFLINE-FIRST ---
   const handleClearAllData = async () => {
     if (!user) return;
+    
+    if (!window.confirm("ATENÇÃO: Isso apagará TODOS os dados (transações, contas, categorias). Esta ação é irreversível.")) {
+      return;
+    }
+
     try {
-      await supabase.from("transactions").delete().eq("user_id", user.id);
-      await supabase.from("accounts").delete().eq("user_id", user.id);
-      await supabase.from("categories").delete().eq("user_id", user.id);
+      // 1. Limpeza Local Imediata (Dexie)
+      await offlineDatabase.clearAll();
+      
+      // 2. Limpeza de Cache do React Query para atualizar UI
+      queryClient.removeQueries();
+      
+      // 3. Gerenciar dados remotos
+      if (isOnline) {
+        await supabase.from("transactions").delete().eq("user_id", user.id);
+        await supabase.from("accounts").delete().eq("user_id", user.id);
+        await supabase.from("categories").delete().eq("user_id", user.id);
+        
+        toast({
+          title: "Dados limpos",
+          description: "Todos os dados foram removidos local e remotamente.",
+        });
+      } else {
+        // Modo Offline: Agenda a limpeza
+        await offlineQueue.enqueue({
+            type: 'clear_all_data',
+            data: { timestamp: Date.now() }
+        });
+        
+        toast({
+          title: "Limpeza Local Concluída",
+          description: "Dados locais removidos. A limpeza no servidor será sincronizada quando houver conexão.",
+          variant: "default",
+        });
+      }
 
-      await queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.categories });
-
-      toast({
-        title: "Dados limpos",
-        description: "Todos os dados foram removidos com sucesso",
-      });
+      // 4. Invalidação forçada para garantir UI vazia
+      await queryClient.invalidateQueries();
+      
     } catch (error) {
       logger.error("Error clearing data:", error);
       toast({
         title: "Erro",
-        description: "Erro ao limpar dados",
+        description: "Erro ao processar limpeza de dados",
         variant: "destructive",
       });
     }
   };
+  // ------------------------------------------------
 
   const openEditAccount = (account: Account) => {
     setEditingAccount(account);
@@ -259,8 +291,6 @@ const PlaniFlowApp = () => {
   ) => {
     const transaction = markingAsPaidTransaction;
     if (!transaction) return;
-
-    // Processar diretamente - sempre marcar apenas a transação atual
     await processMarkAsPaid(transaction, 'current', { date, amount, accountId });
   };
 
@@ -359,43 +389,30 @@ const PlaniFlowApp = () => {
         customStartDate,
         customEndDate
       ) => {
-        // Apply filters
-        if (filterType) {
-          setTransactionsFilterType(filterType);
-        }
-        if (filterStatus) {
-          setTransactionsFilterStatus(filterStatus);
-        }
-        if (filterAccountType) {
-          setTransactionsFilterAccountType(filterAccountType);
-        }
+        if (filterType) setTransactionsFilterType(filterType);
+        if (filterStatus) setTransactionsFilterStatus(filterStatus);
+        if (filterAccountType) setTransactionsFilterAccountType(filterAccountType);
         
-        // Sincronizar o período filter
         setTransactionsPeriodFilter(dateFilter || 'all');
         
-        // Apply date filters based on dateFilter type
         if (dateFilter === 'current_month') {
-          // Use actual current date, not the selected month parameter
           const now = new Date();
           const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
           const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
           setTransactionsDateFrom(startOfMonth.toISOString().split('T')[0]);
           setTransactionsDateTo(endOfMonth.toISOString().split('T')[0]);
         } else if (dateFilter === 'month_picker' && selectedMonth) {
-          // Use the selected month from dashboard filter
           setTransactionsSelectedMonth(selectedMonth);
           const startOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
           const endOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
           setTransactionsDateFrom(startOfMonth.toISOString().split('T')[0]);
           setTransactionsDateTo(endOfMonth.toISOString().split('T')[0]);
         } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
-          // Use custom date range
           setTransactionsCustomStartDate(customStartDate);
           setTransactionsCustomEndDate(customEndDate);
           setTransactionsDateFrom(customStartDate.toISOString().split('T')[0]);
           setTransactionsDateTo(customEndDate.toISOString().split('T')[0]);
         } else if (dateFilter === 'all') {
-          // Clear date filters to show all transactions
           setTransactionsDateFrom(undefined);
           setTransactionsDateTo(undefined);
         }
@@ -422,7 +439,7 @@ const PlaniFlowApp = () => {
       case "credit-bills":
         return <CreditBillsPage 
                   onPayCreditCard={openCreditPayment} 
-                  onReversePayment={handleReversePayment} // <-- ADICIONADO
+                  onReversePayment={handleReversePayment} 
                />;
       case "transactions":
         return (
