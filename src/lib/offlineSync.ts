@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { logger } from './logger';
 import type { Transaction, Account, Category } from '@/types';
 import { toast } from 'sonner';
+import { queryClient, queryKeys } from './queryClient';
 
 const MAX_RETRIES = 5;
 const SYNC_MONTHS = 6;
@@ -130,6 +131,13 @@ class OfflineSyncManager {
       }
 
       await offlineDatabase.setLastSync('full-sync', Date.now());
+
+      // ✅ Invalidate queries to update UI with fresh data (from DB or Server)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.categories }),
+      ]);
 
     } catch (error) {
       logger.error('Failed to sync data from server:', error);

@@ -231,8 +231,8 @@ export function BalanceCards({
               <Clock className="h-3.5 w-3.5 text-success" />
             </div>
             {pendingIncomeCount > 0 && (
-              <div className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-success text-success-foreground">
-                <span className="text-caption font-semibold">{pendingIncomeCount}</span>
+              <div className="flex items-center justify-center min-w-[30px] h-[30px] px-2 rounded-full bg-success text-white">
+                <span className="text-base font-bold">{pendingIncomeCount}</span>
               </div>
             )}
           </div>
@@ -272,8 +272,8 @@ export function BalanceCards({
               <Clock className="h-3.5 w-3.5 text-destructive" />
             </div>
             {pendingExpensesCount > 0 && (
-              <div className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground">
-                <span className="text-caption font-semibold">{pendingExpensesCount}</span>
+              <div className="flex items-center justify-center min-w-[30px] h-[30px] px-2 rounded-full bg-destructive text-white">
+                <span className="text-base font-bold">{pendingExpensesCount}</span>
               </div>
             )}
           </div>
