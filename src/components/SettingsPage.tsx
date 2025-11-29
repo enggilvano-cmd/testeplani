@@ -290,7 +290,7 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
     <div className="space-y-6 fade-in pb-6 sm:pb-8 max-w-[1400px] mx-auto">
       {/* Seção: Preferências */}
       <div>
-        <h2 className="text-headline text-white font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-headline font-semibold mb-4 flex items-center gap-2">
           <Settings className="h-5 w-5" />
           Preferências
         </h2>
