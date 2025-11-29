@@ -1,3 +1,7 @@
+import { useFixedTransactions } from "@/hooks/useFixedTransactions";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { offlineQueue } from "@/lib/offlineQueue";
+import { offlineDatabase } from "@/lib/offlineDatabase";
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,43 +81,14 @@ export function FixedTransactionsPage() {
   const setSearchTerm = (value: string) => setFilters((prev) => ({ ...prev, searchTerm: value }));
   const setFilterType = (value: typeof filters.filterType) => setFilters((prev) => ({ ...prev, filterType: value }));
   
-  // ✅ P0-7 FIX: Remover dual state - usar apenas React Query
+  const isOnline = useOnlineStatus();
+
+  // ✅ P0-7 FIX: Usar hook híbrido offline/online para transações fixas
   const { 
     data: transactions = [], 
     isLoading: loading, 
     refetch: loadFixedTransactions 
-  } = useQuery({
-    queryKey: [...queryKeys.transactions(), 'fixed'],
-    queryFn: async () => {
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from("transactions")
-        .select(`
-          id,
-          description,
-          amount,
-          date,
-          type,
-          category_id,
-          account_id,
-          is_fixed,
-          parent_transaction_id,
-          category:categories(name, color),
-          account:accounts!transactions_account_id_fkey(name)
-        `)
-        .eq("user_id", user.id)
-        .eq("is_fixed", true)
-        .is("parent_transaction_id", null)
-        .neq("type", "transfer")
-        .order("date", { ascending: false });
-
-      if (error) throw error;
-      return data as FixedTransaction[];
-    },
-    enabled: !!user,
-    staleTime: 30 * 1000,
-  });
+  } = useFixedTransactions();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactionToDelete, setTransactionToDelete] = useState<FixedTransaction | null>(null);
@@ -176,6 +151,57 @@ export function FixedTransactionsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      if (!isOnline) {
+        const tempId = `temp-${Date.now()}`;
+        const newTransaction = {
+          ...transaction,
+          id: tempId,
+          user_id: user.id,
+          is_fixed: true,
+          status: transaction.status || "pending",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          parent_transaction_id: null,
+        };
+
+        // Enriquecer com dados de categoria/conta para UI
+        let categoryData = null;
+        if (transaction.category_id) {
+            const cats = await offlineDatabase.getCategories(user.id);
+            const cat = cats.find(c => c.id === transaction.category_id);
+            if (cat) categoryData = { name: cat.name, color: cat.color };
+        }
+        
+        let accountData = null;
+        if (transaction.account_id) {
+            const accs = await offlineDatabase.getAccounts(user.id);
+            const acc = accs.find(a => a.id === transaction.account_id);
+            if (acc) accountData = { name: acc.name };
+        }
+
+        // @ts-ignore
+        newTransaction.category = categoryData;
+        // @ts-ignore
+        newTransaction.account = accountData;
+
+        await offlineDatabase.saveTransactions([newTransaction as any]);
+        
+        await offlineQueue.enqueue({
+          type: 'add_fixed_transaction',
+          data: newTransaction,
+          retries: 0,
+        });
+
+        toast({
+          title: "Transação salva offline",
+          description: "Será sincronizada quando houver conexão.",
+        });
+
+        loadFixedTransactions();
+        setAddModalOpen(false);
+        return;
+      }
 
       // Usar edge function atômica para garantir integridade dos dados
       const { data, error } = await supabase.functions.invoke('atomic-create-fixed', {
@@ -269,6 +295,27 @@ export function FixedTransactionsPage() {
         return;
       }
 
+      if (!isOnline) {
+        const updatedTransaction = { ...transactionToEdit, ...updates };
+        await offlineDatabase.saveTransactions([updatedTransaction as any]);
+        
+        await offlineQueue.enqueue({
+          type: 'edit',
+          data: {
+            transaction_id: transaction.id,
+            updates,
+            scope: 'current',
+          },
+          retries: 0
+        });
+
+        toast({ title: "Editado offline", description: "Sincronizará quando online." });
+        loadFixedTransactions();
+        setEditModalOpen(false);
+        setTransactionToEdit(null);
+        return;
+      }
+
       // 1) Buscar status da transação principal
       const { data: mainTransaction, error: statusError } = await supabase
         .from("transactions")
@@ -356,6 +403,22 @@ export function FixedTransactionsPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+
+      if (!isOnline) {
+        await offlineDatabase.deleteTransaction(transactionToDelete.id);
+        
+        await offlineQueue.enqueue({
+          type: 'delete',
+          data: { id: transactionToDelete.id },
+          retries: 0
+        });
+
+        toast({ title: "Removido offline", description: "Sincronizará quando online." });
+        loadFixedTransactions();
+        setTransactionToDelete(null);
+        setDeleteDialogOpen(false);
+        return;
+      }
 
       // 1) Buscar transação principal (fixa) com status
       const { data: mainTransaction, error: mainError } = await supabase

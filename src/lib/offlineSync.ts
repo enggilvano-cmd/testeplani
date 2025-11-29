@@ -90,6 +90,20 @@ class OfflineSyncManager {
         await offlineDatabase.syncTransactions(transactions as Transaction[], user.id, dateFrom);
       }
 
+      // Fixed Transactions (Sync separado para garantir que todas sejam baixadas, independente da data)
+      const { data: fixedTransactions } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_fixed', true)
+        .is('parent_transaction_id', null);
+
+      if (fixedTransactions) {
+        // Salvar transações fixas no banco local
+        // Usamos saveTransactions pois syncTransactions tem lógica de limpeza baseada em data que não queremos aqui
+        await offlineDatabase.saveTransactions(fixedTransactions as Transaction[]);
+      }
+
       // Accounts
       const { data: accounts } = await supabase
         .from('accounts')

@@ -95,7 +95,10 @@ class OfflineDatabase {
            const txDate = new Date(tx.date).getTime();
            const isInSyncWindow = txDate >= cutoffTime;
            const isOfficialId = !tx.id.startsWith('temp-'); 
-           return isInSyncWindow && isOfficialId && !serverIds.has(tx.id);
+           // PROTEÇÃO: Não deletar transações fixas durante o sync de transações normais
+           // Transações fixas são sincronizadas separadamente ou devem ser preservadas
+           const isFixed = tx.is_fixed === true;
+           return isInSyncWindow && isOfficialId && !serverIds.has(tx.id) && !isFixed;
         });
 
         toDelete.forEach(tx => store.delete(tx.id));
@@ -164,6 +167,29 @@ class OfflineDatabase {
       transactions.forEach(txData => store.put(txData));
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async getFixedTransactions(userId: string): Promise<Transaction[]> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readonly');
+      const store = tx.objectStore(STORES.TRANSACTIONS);
+      const index = store.index('user_id');
+      const request = index.getAll(userId);
+
+      request.onsuccess = () => {
+        const allTransactions = request.result || [];
+        // Filtrar apenas transações fixas (is_fixed = true e parent_transaction_id = null)
+        const fixedTransactions = allTransactions.filter(txData => 
+          txData.is_fixed === true && 
+          (txData.parent_transaction_id === null || txData.parent_transaction_id === undefined)
+        );
+
+        fixedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        resolve(fixedTransactions);
+      };
+      request.onerror = () => reject(request.error);
     });
   }
 
