@@ -29,18 +29,24 @@ class OfflineSyncManager {
         let failCount = 0;
 
         for (const operation of operations) {
+          // Skip operations that have already failed permanently
+          if (operation.status === 'failed') continue;
+
           try {
             await this.syncOperation(operation);
             await offlineQueue.dequeue(operation.id);
             successCount++;
-          } catch (error) {
+          } catch (error: any) {
             logger.error(`Failed to sync operation ${operation.id}:`, error);
             failCount++;
             
             if (operation.retries >= MAX_RETRIES) {
-              toast.error(`Não foi possível sincronizar: ${operation.type}`);
-              // Removemos da fila para não travar o app eternamente
-              await offlineQueue.dequeue(operation.id);
+              const errorMessage = error?.message || 'Unknown error';
+              toast.error(`Falha permanente ao sincronizar: ${operation.type}. Verifique os logs.`);
+              
+              // CRITICAL FIX: Mark as failed instead of removing
+              // This prevents data loss. The user (or a future UI) can decide what to do.
+              await offlineQueue.markAsFailed(operation.id, errorMessage);
             } else {
               await offlineQueue.updateRetries(operation.id, operation.retries + 1);
             }
@@ -398,6 +404,12 @@ class OfflineSyncManager {
         logger.info(`Successfully imported ${successCount}/${accounts.length} accounts`);
         break;
       }
+
+      case 'clear_all_data':
+        await supabase.from("transactions").delete().eq("user_id", user!.id);
+        await supabase.from("accounts").delete().eq("user_id", user!.id);
+        await supabase.from("categories").delete().eq("user_id", user!.id);
+        break;
 
       default:
         logger.warn(`Operation type ${operation.type} not fully implemented in sync.`);

@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ReloadPrompt } from "@/components/ReloadPrompt";
 import { OfflineSyncIndicator } from "@/components/OfflineSyncIndicator";
+import { PWADebug } from "@/components/PWADebug";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -48,6 +49,7 @@ const App = () => (
                       </ProtectedRoute>
                     }
                   />
+                  <Route path="/debug-pwa" element={<PWADebug />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>

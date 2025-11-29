@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOfflineAuth } from "@/hooks/useOfflineAuth";
 import { NotificationBell } from "@/components/NotificationBell";
+import { InstallPWA } from "@/components/InstallPWA";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -200,6 +201,9 @@ function AppSidebar({ currentPage, onPageChange }: { currentPage: string; onPage
                ? "px-0 py-4 flex justify-center" 
                : "px-4 py-4"
         )}>
+          <div className="mb-2">
+            <InstallPWA />
+          </div>
           {profile && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

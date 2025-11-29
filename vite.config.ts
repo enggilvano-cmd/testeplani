@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => ({
         type: 'module',
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 3000000,
         navigateFallback: 'index.html',
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg,webp,woff,woff2,ttf,eot}'
@@ -92,6 +93,7 @@ export default defineConfig(({ mode }) => ({
         'pwa-icon-512-v2.png'
       ],
       manifest: {
+        id: '/',
         name: 'PlaniFlow - Gestão Financeira',
         short_name: 'PlaniFlow',
         description: 'Aplicativo completo para gestão financeira pessoal com funcionalidade offline',

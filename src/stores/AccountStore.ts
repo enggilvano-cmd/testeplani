@@ -4,6 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { format } from 'date-fns';
 
+/**
+ * @deprecated This store is deprecated and will be removed in future versions.
+ * Please use React Query hooks (useAccounts) and useOfflineAccountMutations instead.
+ * This file is kept only for backward compatibility with existing tests.
+ */
 type AddAccountPayload = Omit<Account, 'id' | 'user_id' | 'created_at'>;
 
 interface PayBillParams {

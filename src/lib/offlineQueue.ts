@@ -19,10 +19,13 @@ export interface QueuedOperation {
     | 'add_account'
     | 'edit_account'
     | 'delete_account'
-    | 'import_accounts';
+    | 'import_accounts'
+    | 'clear_all_data';
   data: any;
   timestamp: number;
   retries: number;
+  status?: 'pending' | 'processing' | 'failed';
+  lastError?: string;
 }
 
 const DB_NAME = 'planiflow-offline';
@@ -139,6 +142,32 @@ class OfflineQueueManager {
         const operation = getRequest.result;
         if (operation) {
           operation.retries = retries;
+          const putRequest = store.put(operation);
+          
+          putRequest.onsuccess = () => resolve();
+          putRequest.onerror = () => reject(putRequest.error);
+        } else {
+          resolve();
+        }
+      };
+
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async markAsFailed(id: string, error: string): Promise<void> {
+    if (!this.db) await this.init();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        const operation = getRequest.result;
+        if (operation) {
+          operation.status = 'failed';
+          operation.lastError = error;
           const putRequest = store.put(operation);
           
           putRequest.onsuccess = () => resolve();
