@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+﻿import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreditPaymentMutations } from './useCreditPaymentMutations';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -46,7 +46,7 @@ export function useOfflineCreditPaymentMutations() {
 
         logger.info('Credit payment queued for offline sync');
 
-        // ✅ Invalidar queries para refetch imediato
+        //  Invalidar queries para refetch imediato
         queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
         
@@ -92,44 +92,64 @@ export function useOfflineCreditPaymentMutations() {
   }, [isOnline, onlineMutations, toast, queryClient]);
 
   const handleReversePayment = useCallback(async (paymentsToReverse: Transaction[]) => {
+    const enqueueOfflineReverse = async () => {
+      try {
+        await Promise.all(
+          paymentsToReverse.map(payment =>
+            offlineQueue.enqueue({
+              type: 'delete',
+              data: {
+                transaction_id: payment.id,
+                scope: 'current',
+              }
+            })
+          )
+        );
+
+        toast({
+          title: 'Estorno registrado',
+          description: 'Será sincronizado quando você voltar online.',
+          duration: 3000,
+        });
+
+        logger.info('Reverse payment queued for offline sync');
+
+        //  Invalidar queries para refetch imediato
+        queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      } catch (error) {
+        logger.error('Failed to queue reverse payment:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível registrar o estorno offline.',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    };
+
     if (isOnline) {
-      return onlineMutations.handleReversePayment(paymentsToReverse);
+      try {
+        return await onlineMutations.handleReversePayment(paymentsToReverse);
+      } catch (error) {
+        const message = getErrorMessage(error);
+        if (
+          message.toLowerCase().includes('failed to fetch') || 
+          message.toLowerCase().includes('network') ||
+          message.toLowerCase().includes('failed to send a request to the edge function') ||
+          message.toLowerCase().includes('edge function') ||
+          message.toLowerCase().includes('timeout') ||
+          message.toLowerCase().includes('connection refused')
+        ) {
+          logger.warn('Network/Edge Function error ao registrar estorno, usando modo offline.', error);
+          await enqueueOfflineReverse();
+          return;
+        }
+        throw error;
+      }
     }
 
-    // Offline: enqueue reverse payment operations
-    try {
-      await Promise.all(
-        paymentsToReverse.map(payment =>
-          offlineQueue.enqueue({
-            type: 'delete',
-            data: {
-              transaction_id: payment.id,
-              scope: 'current',
-            }
-          })
-        )
-      );
-
-      toast({
-        title: 'Estorno registrado',
-        description: 'Será sincronizado quando você voltar online.',
-        duration: 3000,
-      });
-
-      logger.info('Reverse payment queued for offline sync');
-
-      // ✅ Invalidar queries para refetch imediato
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
-    } catch (error) {
-      logger.error('Failed to queue reverse payment:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível registrar o estorno offline.',
-        variant: 'destructive',
-      });
-      throw error;
-    }
+    await enqueueOfflineReverse();
   }, [isOnline, onlineMutations, toast, queryClient]);
 
   return {

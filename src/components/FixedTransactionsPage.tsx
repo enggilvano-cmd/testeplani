@@ -85,10 +85,12 @@ export function FixedTransactionsPage() {
 
   // ✅ P0-7 FIX: Usar hook híbrido offline/online para transações fixas
   const { 
-    data: transactions = [], 
+    data, 
     isLoading: loading, 
     refetch: loadFixedTransactions 
   } = useFixedTransactions();
+
+  const transactions = data || [];
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactionToDelete, setTransactionToDelete] = useState<FixedTransaction | null>(null);
@@ -148,61 +150,65 @@ export function FixedTransactionsPage() {
   };
 
   const handleAdd = async (transaction: Omit<FixedTransaction, "id"> & { status?: "pending" | "completed" }) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-      if (!isOnline) {
-        const tempId = `temp-${Date.now()}`;
-        const newTransaction = {
-          ...transaction,
-          id: tempId,
-          user_id: user.id,
-          is_fixed: true,
-          status: transaction.status || "pending",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          parent_transaction_id: null,
-        };
+    const saveOffline = async () => {
+      const tempId = `temp-${Date.now()}`;
+      const newTransaction = {
+        ...transaction,
+        id: tempId,
+        user_id: user.id,
+        is_fixed: true,
+        status: transaction.status || "pending",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        parent_transaction_id: null,
+      };
 
-        // Enriquecer com dados de categoria/conta para UI
-        let categoryData = null;
-        if (transaction.category_id) {
-            const cats = await offlineDatabase.getCategories(user.id);
-            const cat = cats.find(c => c.id === transaction.category_id);
-            if (cat) categoryData = { name: cat.name, color: cat.color };
-        }
-        
-        let accountData = null;
-        if (transaction.account_id) {
-            const accs = await offlineDatabase.getAccounts(user.id);
-            const acc = accs.find(a => a.id === transaction.account_id);
-            if (acc) accountData = { name: acc.name };
-        }
-
-        // @ts-ignore
-        newTransaction.category = categoryData;
-        // @ts-ignore
-        newTransaction.account = accountData;
-
-        await offlineDatabase.saveTransactions([newTransaction as any]);
-        
-        await offlineQueue.enqueue({
-          type: 'add_fixed_transaction',
-          data: newTransaction,
-          retries: 0,
-        });
-
-        toast({
-          title: "Transação salva offline",
-          description: "Será sincronizada quando houver conexão.",
-        });
-
-        loadFixedTransactions();
-        setAddModalOpen(false);
-        return;
+      // Enriquecer com dados de categoria/conta para UI
+      let categoryData = null;
+      if (transaction.category_id) {
+          const cats = await offlineDatabase.getCategories(user.id);
+          const cat = cats.find(c => c.id === transaction.category_id);
+          if (cat) categoryData = { name: cat.name, color: cat.color };
+      }
+      
+      let accountData = null;
+      if (transaction.account_id) {
+          const accs = await offlineDatabase.getAccounts(user.id);
+          const acc = accs.find(a => a.id === transaction.account_id);
+          if (acc) accountData = { name: acc.name };
       }
 
+      // @ts-ignore
+      newTransaction.category = categoryData;
+      // @ts-ignore
+      newTransaction.account = accountData;
+
+      await offlineDatabase.saveTransactions([newTransaction as any]);
+      
+      await offlineQueue.enqueue({
+        type: 'add_fixed_transaction',
+        data: newTransaction,
+        retries: 0,
+      });
+
+      toast({
+        title: "Transação salva offline",
+        description: "Será sincronizada quando houver conexão.",
+      });
+
+      loadFixedTransactions();
+      setAddModalOpen(false);
+    };
+
+    if (!isOnline) {
+      await saveOffline();
+      return;
+    }
+
+    try {
       // Usar edge function atômica para garantir integridade dos dados
       const { data, error } = await supabase.functions.invoke('atomic-create-fixed', {
         body: {
@@ -216,7 +222,19 @@ export function FixedTransactionsPage() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        const errorMessage = error.message || JSON.stringify(error);
+        // Detectar erros de rede e fazer fallback
+        if (errorMessage.includes("Failed to send a request") || 
+            errorMessage.includes("NetworkError") || 
+            errorMessage.includes("fetch failed") ||
+            errorMessage.includes("Load failed")) {
+          logger.warn("Network error detected during Edge Function call, falling back to offline mode.");
+          await saveOffline();
+          return;
+        }
+        throw error;
+      }
 
       const result = data?.[0];
       if (!result?.success) {
@@ -241,6 +259,17 @@ export function FixedTransactionsPage() {
       loadFixedTransactions(); // Refetch fixed transactions
       setAddModalOpen(false);
     } catch (error) {
+      // Catch também para exceções de rede lançadas pelo invoke
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("Failed to send a request") || 
+          errorMessage.includes("NetworkError") || 
+          errorMessage.includes("fetch failed") ||
+          errorMessage.includes("Load failed")) {
+        logger.warn("Network error exception detected, falling back to offline mode.");
+        await saveOffline();
+        return;
+      }
+
       logger.error("Error adding fixed transaction:", error);
       toast({
         title: "Erro ao adicionar transação",
@@ -256,66 +285,72 @@ export function FixedTransactionsPage() {
   };
 
   const handleEdit = async (transaction: FixedTransaction) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    if (!transactionToEdit) return;
+
+    // Comparar valores originais com editados e enviar apenas os campos alterados
+    const updates: Record<string, unknown> = {};
+
+    if (transaction.description !== transactionToEdit.description) {
+      updates.description = transaction.description;
+    }
+    if (transaction.amount !== transactionToEdit.amount) {
+      updates.amount = transaction.amount;
+    }
+    if (transaction.type !== transactionToEdit.type) {
+      updates.type = transaction.type;
+    }
+    if (transaction.category_id !== transactionToEdit.category_id && transaction.category_id) {
+      // Só envia category_id se houver um valor válido (string)
+      updates.category_id = transaction.category_id;
+    }
+    if (transaction.account_id !== transactionToEdit.account_id) {
+      updates.account_id = transaction.account_id;
+    }
+    if (transaction.date !== transactionToEdit.date) {
+      updates.date = transaction.date;
+    }
+
+    // Se nenhum campo foi alterado, não fazer nada
+    if (Object.keys(updates).length === 0) {
+      toast({
+        title: "Nenhuma alteração",
+        description: "Nenhum campo foi modificado.",
+      });
+      setEditModalOpen(false);
+      return;
+    }
+
+    const isTempId = transaction.id.startsWith('temp-');
+
+    const saveOffline = async () => {
+      const updatedTransaction = { ...transactionToEdit, ...updates };
+      await offlineDatabase.saveTransactions([updatedTransaction as any]);
+      
+      await offlineQueue.enqueue({
+        type: 'edit',
+        data: {
+          transaction_id: transaction.id,
+          updates,
+          scope: 'current',
+        },
+        retries: 0
+      });
+
+      toast({ title: "Editado offline", description: "Sincronizará quando online." });
+      loadFixedTransactions();
+      setEditModalOpen(false);
+      setTransactionToEdit(null);
+    };
+
+    if (!isOnline || isTempId) {
+      await saveOffline();
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      if (!transactionToEdit) return;
-
-      // Comparar valores originais com editados e enviar apenas os campos alterados
-      const updates: Record<string, unknown> = {};
-
-      if (transaction.description !== transactionToEdit.description) {
-        updates.description = transaction.description;
-      }
-      if (transaction.amount !== transactionToEdit.amount) {
-        updates.amount = transaction.amount;
-      }
-      if (transaction.type !== transactionToEdit.type) {
-        updates.type = transaction.type;
-      }
-      if (transaction.category_id !== transactionToEdit.category_id && transaction.category_id) {
-        // Só envia category_id se houver um valor válido (string)
-        updates.category_id = transaction.category_id;
-      }
-      if (transaction.account_id !== transactionToEdit.account_id) {
-        updates.account_id = transaction.account_id;
-      }
-      if (transaction.date !== transactionToEdit.date) {
-        updates.date = transaction.date;
-      }
-
-      // Se nenhum campo foi alterado, não fazer nada
-      if (Object.keys(updates).length === 0) {
-        toast({
-          title: "Nenhuma alteração",
-          description: "Nenhum campo foi modificado.",
-        });
-        setEditModalOpen(false);
-        return;
-      }
-
-      if (!isOnline) {
-        const updatedTransaction = { ...transactionToEdit, ...updates };
-        await offlineDatabase.saveTransactions([updatedTransaction as any]);
-        
-        await offlineQueue.enqueue({
-          type: 'edit',
-          data: {
-            transaction_id: transaction.id,
-            updates,
-            scope: 'current',
-          },
-          retries: 0
-        });
-
-        toast({ title: "Editado offline", description: "Sincronizará quando online." });
-        loadFixedTransactions();
-        setEditModalOpen(false);
-        setTransactionToEdit(null);
-        return;
-      }
-
       // 1) Buscar status da transação principal
       const { data: mainTransaction, error: statusError } = await supabase
         .from("transactions")
@@ -381,6 +416,16 @@ export function FixedTransactionsPage() {
       setEditModalOpen(false);
       setTransactionToEdit(null);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("Failed to send a request") || 
+          errorMessage.includes("NetworkError") || 
+          errorMessage.includes("fetch failed") ||
+          errorMessage.includes("Load failed")) {
+        logger.warn("Network error exception detected during edit, falling back to offline mode.");
+        await saveOffline();
+        return;
+      }
+
       logger.error("Error updating transaction:", error);
       toast({
         title: "Erro ao atualizar",
@@ -398,28 +443,37 @@ export function FixedTransactionsPage() {
   const handleConfirmDelete = async () => {
     if (!transactionToDelete) return;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const isTempId = transactionToDelete.id.startsWith('temp-');
+
+    const deleteOffline = async () => {
+      await offlineDatabase.deleteTransaction(transactionToDelete.id);
+      
+      // Se for temp, não precisamos mandar delete pro servidor se a criação ainda não foi processada.
+      // Mas como não temos controle fino da fila, mandamos o delete e o sync que se vire (ou ignoramos se for temp).
+      // Se for temp, o sync de 'delete' já ignora. Então é seguro enfileirar.
+      await offlineQueue.enqueue({
+        type: 'delete',
+        data: { id: transactionToDelete.id },
+        retries: 0
+      });
+
+      toast({ title: "Removido offline", description: "Sincronizará quando online." });
+      loadFixedTransactions();
+      setTransactionToDelete(null);
+      setDeleteDialogOpen(false);
+    };
+
+    if (!isOnline || isTempId) {
+      await deleteOffline();
+      return;
+    }
+
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      if (!isOnline) {
-        await offlineDatabase.deleteTransaction(transactionToDelete.id);
-        
-        await offlineQueue.enqueue({
-          type: 'delete',
-          data: { id: transactionToDelete.id },
-          retries: 0
-        });
-
-        toast({ title: "Removido offline", description: "Sincronizará quando online." });
-        loadFixedTransactions();
-        setTransactionToDelete(null);
-        setDeleteDialogOpen(false);
-        return;
-      }
-
       // 1) Buscar transação principal (fixa) com status
       const { data: mainTransaction, error: mainError } = await supabase
         .from("transactions")
@@ -479,14 +533,25 @@ export function FixedTransactionsPage() {
       ]);
 
       loadFixedTransactions();
+      setTransactionToDelete(null);
+      setDeleteDialogOpen(false);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("Failed to send a request") || 
+          errorMessage.includes("NetworkError") || 
+          errorMessage.includes("fetch failed") ||
+          errorMessage.includes("Load failed")) {
+        logger.warn("Network error exception detected during delete, falling back to offline mode.");
+        await deleteOffline();
+        return;
+      }
+
       logger.error("Error deleting transaction:", error);
       toast({
         title: "Erro ao remover",
         description: "Não foi possível remover a transação.",
         variant: "destructive",
       });
-    } finally {
       setTransactionToDelete(null);
       setDeleteDialogOpen(false);
     }
@@ -496,6 +561,16 @@ export function FixedTransactionsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      const isTempId = transactionId.startsWith('temp-');
+      if (isTempId) {
+        toast({
+          title: "Aguarde a sincronização",
+          description: "Esta transação ainda não foi sincronizada com o servidor. Tente novamente em instantes.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Buscar a transação fixa principal
       const { data: mainTransaction, error: fetchError } = await supabase

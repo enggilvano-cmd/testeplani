@@ -1,9 +1,11 @@
 import { useMemo, useEffect, useState } from 'react';
-import type { Account, DateFilterType } from '@/types';
+import type { Account, DateFilterType, Transaction } from '@/types';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { offlineDatabase } from '@/lib/offlineDatabase';
 
 export function useDashboardCalculations(
   accounts: Account[],
@@ -12,6 +14,8 @@ export function useDashboardCalculations(
   customStartDate: Date | undefined,
   customEndDate: Date | undefined
 ) {
+  const isOnline = useOnlineStatus();
+  
   // Saldo total das contas (excluindo credit e investment)
   const totalBalance = useMemo(() => 
     accounts
@@ -73,6 +77,83 @@ export function useDashboardCalculations(
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        if (!isOnline) {
+          // Lógica Offline: Calcular em memória
+          const allTransactions = await offlineDatabase.getTransactions(user.id, 12); // 1 ano
+          const accounts = await offlineDatabase.getAccounts(user.id);
+          const accountMap = new Map(accounts.map(a => [a.id, a]));
+
+          const filterTransactions = (
+            type: 'income' | 'expense' | 'all',
+            status: 'pending' | 'completed' | 'all',
+            accountType: 'checking' | 'savings' | 'credit' | 'investment' | 'all'
+          ) => {
+            return allTransactions.filter(t => {
+              // Excluir apenas o PAI das transações fixas (mantém as filhas)
+              if (t.is_fixed && !t.parent_transaction_id) return false;
+              
+              // Date Range
+              if (dateRange.dateFrom && t.date < dateRange.dateFrom) return false;
+              if (dateRange.dateTo && t.date > dateRange.dateTo) return false;
+
+              // Type
+              if (type !== 'all') {
+                 if (t.type !== type) return false;
+                 // Excluir transferências dos totais de receita/despesa se type for income/expense
+                 if (t.to_account_id) return false; 
+              }
+
+              // Status
+              if (status !== 'all' && t.status !== status) return false;
+
+              // Account Type
+              if (accountType !== 'all') {
+                const acc = accountMap.get(t.account_id);
+                if (!acc || acc.type !== accountType) return false;
+              }
+
+              return true;
+            });
+          };
+
+          // Totais Gerais
+          const generalTransactions = filterTransactions('all', 'all', 'all');
+          const periodIncome = generalTransactions
+            .filter(t => t.type === 'income' && !t.to_account_id)
+            .reduce((sum, t) => sum + t.amount, 0);
+          const periodExpenses = generalTransactions
+            .filter(t => t.type === 'expense' && !t.to_account_id)
+            .reduce((sum, t) => sum + t.amount, 0);
+          
+          // Credit Card Expenses
+          const creditTransactions = filterTransactions('expense', 'all', 'credit');
+          const creditCardExpenses = creditTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+          // Pending Expenses
+          const pendingExpTransactions = filterTransactions('expense', 'pending', 'all');
+          const pendingExpenses = pendingExpTransactions.reduce((sum, t) => sum + t.amount, 0);
+          const pendingExpensesCount = pendingExpTransactions.length;
+
+          // Pending Income
+          const pendingIncTransactions = filterTransactions('income', 'pending', 'all');
+          const pendingIncome = pendingIncTransactions.reduce((sum, t) => sum + t.amount, 0);
+          const pendingIncomeCount = pendingIncTransactions.length;
+
+          setAggregatedTotals({
+            periodIncome,
+            periodExpenses,
+            balance: periodIncome - periodExpenses,
+            creditCardExpenses,
+            pendingExpenses,
+            pendingIncome,
+            pendingExpensesCount,
+            pendingIncomeCount,
+          });
+
+          return;
+        }
+
+        // Lógica Online (RPC)
         // Buscar totais gerais do período
         const { data: totalsData, error: totalsError } = await supabase.rpc('get_transactions_totals', {
           p_user_id: user.id,
@@ -194,7 +275,7 @@ export function useDashboardCalculations(
     };
 
     fetchAggregatedTotals();
-  }, [dateRange]);
+  }, [dateRange, isOnline]); // Adicionado isOnline como dependência
 
 
   const getPeriodLabel = () => {

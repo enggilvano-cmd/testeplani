@@ -7,6 +7,8 @@ import { queryKeys } from '@/lib/queryClient';
 import { createDateFromString } from '@/lib/dateUtils';
 import { addTransactionSchema, editTransactionSchema } from '@/lib/validationSchemas';
 import { z } from 'zod';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { offlineDatabase } from '@/lib/offlineDatabase';
 
 interface UseTransactionsParams {
   page?: number;
@@ -85,12 +87,73 @@ export function useTransactions(params: UseTransactionsParams = {}) {
   } = params;
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
+
+  // Helper para filtrar transações em memória (usado offline)
+  const filterTransactionsInMemory = async (transactions: Transaction[]) => {
+    // Carregar contas e categorias para enriquecer dados e filtrar por tipo de conta
+    const accounts = await offlineDatabase.getAccounts(user!.id);
+    const categories = await offlineDatabase.getCategories(user!.id);
+    
+    const accountMap = new Map(accounts.map(a => [a.id, a]));
+    const categoryMap = new Map(categories.map(c => [c.id, c]));
+
+    return transactions.filter(t => {
+      // Excluir apenas o PAI das transações fixas (mantém as filhas)
+      if (t.is_fixed && !t.parent_transaction_id) return false;
+
+      // Search
+      if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
+
+      // Type
+      if (type !== 'all') {
+        if (type === 'transfer') {
+          if (!t.to_account_id) return false;
+        } else {
+          if (t.type !== type || t.to_account_id) return false;
+        }
+      }
+
+      // Account
+      if (accountId !== 'all' && t.account_id !== accountId) return false;
+
+      // Category
+      if (categoryId !== 'all' && t.category_id !== categoryId) return false;
+
+      // Status
+      if (status !== 'all' && t.status !== status) return false;
+
+      // Date Range
+      if (dateFrom && t.date < dateFrom) return false;
+      if (dateTo && t.date > dateTo) return false;
+
+      // Account Type
+      if (accountType !== 'all') {
+        const acc = accountMap.get(t.account_id);
+        if (!acc || acc.type !== accountType) return false;
+      }
+
+      return true;
+    }).map(t => ({
+      ...t,
+      date: createDateFromString(t.date),
+      category: t.category_id ? categoryMap.get(t.category_id) : undefined,
+      account: accountMap.get(t.account_id),
+      to_account: t.to_account_id ? accountMap.get(t.to_account_id) : undefined,
+    })) as TransactionWithRelations[];
+  };
 
   // Query for total count with filters
   const countQuery = useQuery({
-    queryKey: [...queryKeys.transactions(), 'count', search, type, accountId, categoryId, status, accountType, dateFrom, dateTo],
+    queryKey: [...queryKeys.transactions(), 'count', search, type, accountId, categoryId, status, accountType, dateFrom, dateTo, isOnline],
     queryFn: async () => {
       if (!user) return 0;
+
+      if (!isOnline) {
+        const allTransactions = await offlineDatabase.getTransactions(user.id, 12); // Busca 1 ano offline
+        const filtered = await filterTransactionsInMemory(allTransactions);
+        return filtered.length;
+      }
 
       let query = supabase
         .from('transactions')
@@ -150,9 +213,34 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
   // Query for paginated data with filters
   const query = useQuery({
-    queryKey: [...queryKeys.transactions(), page, pageSize, search, type, accountId, categoryId, status, accountType, dateFrom, dateTo, sortBy, sortOrder],
+    queryKey: [...queryKeys.transactions(), page, pageSize, search, type, accountId, categoryId, status, accountType, dateFrom, dateTo, sortBy, sortOrder, isOnline],
     queryFn: async () => {
       if (!user) return [];
+
+      if (!isOnline) {
+        const allTransactions = await offlineDatabase.getTransactions(user.id, 12);
+        let filtered = await filterTransactionsInMemory(allTransactions);
+
+        // Sort
+        filtered.sort((a, b) => {
+          if (sortBy === 'date') {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+          } else {
+            return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+          }
+        });
+
+        // Pagination
+        if (pageSize !== null) {
+          const from = page * pageSize;
+          const to = from + pageSize;
+          filtered = filtered.slice(from, to);
+        }
+
+        return filtered;
+      }
 
       let query = supabase
         .from('transactions')

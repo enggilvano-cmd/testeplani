@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+﻿import { useCallback } from 'react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +14,31 @@ export function useOfflineFixedTransactionMutations() {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  const processOfflineAdd = useCallback(async (transactionData: any) => {
+    try {
+      await offlineQueue.enqueue({
+        type: 'add_fixed_transaction',
+        data: transactionData,
+      });
+
+      toast({
+        title: 'Transação fixa registrada',
+        description: 'Será sincronizada quando você voltar online.',
+        duration: 3000,
+      });
+
+      logger.info('Fixed transaction queued for offline sync');
+    } catch (error) {
+      logger.error('Failed to queue fixed transaction:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível registrar a transação fixa offline.',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  }, [toast]);
 
   const handleAddFixedTransaction = useCallback(async (transactionData: {
     description: string;
@@ -46,10 +71,19 @@ export function useOfflineFixedTransactionMutations() {
 
         return data;
       } catch (error: unknown) {
+        const message = getErrorMessage(error);
+        if (message.toLowerCase().includes('failed to fetch') || 
+            message.toLowerCase().includes('network request failed') ||
+            message.toLowerCase().includes('connection error')) {
+          logger.warn('Network error during fixed transaction creation, falling back to offline mode');
+          await processOfflineAdd(transactionData);
+          return;
+        }
+
         logger.error('Error adding fixed transaction:', error);
         toast({
           title: 'Erro',
-          description: getErrorMessage(error) || 'Erro ao criar transação fixa',
+          description: message || 'Erro ao criar transação fixa',
           variant: 'destructive',
         });
         throw error;
@@ -57,30 +91,37 @@ export function useOfflineFixedTransactionMutations() {
       return;
     }
 
-    // Offline: enqueue fixed transaction
+    await processOfflineAdd(transactionData);
+  }, [isOnline, user, queryClient, toast, processOfflineAdd]);
+
+  const processOfflineEdit = useCallback(async (transactionId: string, updates: any, scope: any) => {
     try {
       await offlineQueue.enqueue({
-        type: 'add_fixed_transaction',
-        data: transactionData,
+        type: 'edit',
+        data: {
+          transaction_id: transactionId,
+          updates,
+          scope,
+        }
       });
 
       toast({
-        title: 'Transação fixa registrada',
+        title: 'Edição registrada',
         description: 'Será sincronizada quando você voltar online.',
         duration: 3000,
       });
 
-      logger.info('Fixed transaction queued for offline sync');
+      logger.info('Fixed transaction edit queued for offline sync');
     } catch (error) {
-      logger.error('Failed to queue fixed transaction:', error);
+      logger.error('Failed to queue fixed transaction edit:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível registrar a transação fixa offline.',
+        description: 'Não foi possível registrar a edição offline.',
         variant: 'destructive',
       });
       throw error;
     }
-  }, [isOnline, user, queryClient, toast]);
+  }, [toast]);
 
   const handleEditFixedTransaction = useCallback(async (
     transactionId: string,
@@ -109,10 +150,19 @@ export function useOfflineFixedTransactionMutations() {
           description: 'Transação fixa atualizada com sucesso',
         });
       } catch (error: unknown) {
+        const message = getErrorMessage(error);
+        if (message.toLowerCase().includes('failed to fetch') || 
+            message.toLowerCase().includes('network request failed') ||
+            message.toLowerCase().includes('connection error')) {
+          logger.warn('Network error during fixed transaction update, falling back to offline mode');
+          await processOfflineEdit(transactionId, updates, scope);
+          return;
+        }
+
         logger.error('Error editing fixed transaction:', error);
         toast({
           title: 'Erro',
-          description: getErrorMessage(error) || 'Erro ao editar transação fixa',
+          description: message || 'Erro ao editar transação fixa',
           variant: 'destructive',
         });
         throw error;
@@ -120,34 +170,36 @@ export function useOfflineFixedTransactionMutations() {
       return;
     }
 
-    // Offline: enqueue edit fixed transaction
+    await processOfflineEdit(transactionId, updates, scope);
+  }, [isOnline, user, queryClient, toast, processOfflineEdit]);
+
+  const processOfflineDelete = useCallback(async (transactionId: string, scope: any) => {
     try {
       await offlineQueue.enqueue({
-        type: 'edit',
+        type: 'delete',
         data: {
           transaction_id: transactionId,
-          updates,
           scope,
         }
       });
 
       toast({
-        title: 'Edição registrada',
+        title: 'Exclusão registrada',
         description: 'Será sincronizada quando você voltar online.',
         duration: 3000,
       });
 
-      logger.info('Fixed transaction edit queued for offline sync');
+      logger.info('Fixed transaction deletion queued for offline sync');
     } catch (error) {
-      logger.error('Failed to queue fixed transaction edit:', error);
+      logger.error('Failed to queue fixed transaction deletion:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível registrar a edição offline.',
+        description: 'Não foi possível registrar a exclusão offline.',
         variant: 'destructive',
       });
       throw error;
     }
-  }, [isOnline, user, queryClient, toast]);
+  }, [toast]);
 
   const handleDeleteFixedTransaction = useCallback(async (
     transactionId: string,
@@ -174,10 +226,19 @@ export function useOfflineFixedTransactionMutations() {
           description: 'Transação fixa excluída com sucesso',
         });
       } catch (error: unknown) {
+        const message = getErrorMessage(error);
+        if (message.toLowerCase().includes('failed to fetch') || 
+            message.toLowerCase().includes('network request failed') ||
+            message.toLowerCase().includes('connection error')) {
+          logger.warn('Network error during fixed transaction deletion, falling back to offline mode');
+          await processOfflineDelete(transactionId, scope);
+          return;
+        }
+
         logger.error('Error deleting fixed transaction:', error);
         toast({
           title: 'Erro',
-          description: getErrorMessage(error) || 'Erro ao excluir transação fixa',
+          description: message || 'Erro ao excluir transação fixa',
           variant: 'destructive',
         });
         throw error;
@@ -185,33 +246,8 @@ export function useOfflineFixedTransactionMutations() {
       return;
     }
 
-    // Offline: enqueue delete fixed transaction
-    try {
-      await offlineQueue.enqueue({
-        type: 'delete',
-        data: {
-          transaction_id: transactionId,
-          scope,
-        }
-      });
-
-      toast({
-        title: 'Exclusão registrada',
-        description: 'Será sincronizada quando você voltar online.',
-        duration: 3000,
-      });
-
-      logger.info('Fixed transaction deletion queued for offline sync');
-    } catch (error) {
-      logger.error('Failed to queue fixed transaction deletion:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível registrar a exclusão offline.',
-        variant: 'destructive',
-      });
-      throw error;
-    }
-  }, [isOnline, user, queryClient, toast]);
+    await processOfflineDelete(transactionId, scope);
+  }, [isOnline, user, queryClient, toast, processOfflineDelete]);
 
   return {
     handleAddFixedTransaction,

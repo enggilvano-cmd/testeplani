@@ -1,22 +1,18 @@
-import { useCallback } from 'react';
+﻿import { useCallback } from 'react';
 import { useInstallmentMutations } from './useInstallmentMutations';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
 import { InstallmentTransactionInput } from '@/types';
+import { getErrorMessage } from '@/types/errors';
 
 export function useOfflineInstallmentMutations() {
   const isOnline = useOnlineStatus();
   const onlineMutations = useInstallmentMutations();
   const { toast } = useToast();
 
-  const handleAddInstallmentTransactions = useCallback(async (transactionsData: InstallmentTransactionInput[]) => {
-    if (isOnline) {
-      return onlineMutations.handleAddInstallmentTransactions(transactionsData);
-    }
-
-    // Offline: enqueue installment transactions
+  const processOfflineInstallments = useCallback(async (transactionsData: InstallmentTransactionInput[]) => {
     try {
       await offlineQueue.enqueue({
         type: 'add_installments',
@@ -52,7 +48,27 @@ export function useOfflineInstallmentMutations() {
       });
       throw error;
     }
-  }, [isOnline, onlineMutations, toast]);
+  }, [toast]);
+
+  const handleAddInstallmentTransactions = useCallback(async (transactionsData: InstallmentTransactionInput[]) => {
+    if (isOnline) {
+      try {
+        return await onlineMutations.handleAddInstallmentTransactions(transactionsData);
+      } catch (error: unknown) {
+        const message = getErrorMessage(error);
+        if (message.toLowerCase().includes('failed to fetch') || 
+            message.toLowerCase().includes('network request failed') ||
+            message.toLowerCase().includes('connection error')) {
+          logger.warn('Network error during installment creation, falling back to offline mode');
+          await processOfflineInstallments(transactionsData);
+          return;
+        }
+        throw error;
+      }
+    }
+
+    await processOfflineInstallments(transactionsData);
+  }, [isOnline, onlineMutations, toast, processOfflineInstallments]);
 
   return {
     handleAddInstallmentTransactions,

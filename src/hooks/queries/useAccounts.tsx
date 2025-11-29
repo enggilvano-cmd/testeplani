@@ -4,16 +4,28 @@ import { useAuth } from '@/hooks/useAuth';
 import { Account } from '@/types';
 import { logger } from '@/lib/logger';
 import { queryKeys } from '@/lib/queryClient';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { offlineDatabase } from '@/lib/offlineDatabase';
+import { offlineSync } from '@/lib/offlineSync';
 
 export function useAccounts() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
 
   const query = useQuery({
     queryKey: queryKeys.accounts,
     queryFn: async () => {
       if (!user) return [];
       
+      // Estratégia Offline-First
+      if (!isOnline) {
+        const localAccounts = await offlineDatabase.getAccounts(user.id);
+        return localAccounts.sort((a, b) => 
+          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        );
+      }
+
       const { data, error } = await supabase
         .from('accounts')
         .select('id, name, type, balance, limit_amount, due_date, closing_date, color, created_at, updated_at')
@@ -22,10 +34,17 @@ export function useAccounts() {
 
       if (error) throw error;
 
-      return (data || []).map((acc) => ({
+      const accounts = (data || []).map((acc) => ({
         ...acc,
         limit: acc.limit_amount,
       })) as Account[];
+
+      // Atualizar cache local em background
+      offlineDatabase.saveAccounts(accounts).catch(err => 
+        logger.error('Failed to update local accounts cache:', err)
+      );
+
+      return accounts;
     },
     enabled: !!user,
     // Otimização: dados de contas são relatively stable após mutações
