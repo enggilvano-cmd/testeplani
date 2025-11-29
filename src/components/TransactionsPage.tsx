@@ -60,6 +60,7 @@ interface TransactionsPageProps {
   onCustomStartDateChange: (date: Date | undefined) => void;
   customEndDate: Date | undefined;
   onCustomEndDateChange: (date: Date | undefined) => void;
+  allTransactions?: Transaction[];
 }
 
 export function TransactionsPage({
@@ -106,6 +107,7 @@ export function TransactionsPage({
   onCustomStartDateChange,
   customEndDate,
   onCustomEndDateChange,
+  allTransactions,
 }: TransactionsPageProps) {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const { settings, formatCurrency } = useSettings();
@@ -250,7 +252,7 @@ export function TransactionsPage({
         open={importModalOpen}
         onOpenChange={setImportModalOpen}
         accounts={accounts}
-        transactions={transactions}
+        transactions={allTransactions || transactions}
         onImportTransactions={onImportTransactions}
       />
 

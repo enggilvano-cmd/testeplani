@@ -13,6 +13,13 @@ export function ReloadPrompt() {
   } = useRegisterSW({
     onRegistered(r: ServiceWorkerRegistration | undefined) {
       logger.info('Service Worker registered', r);
+      if (r) {
+        // Verificar atualizações a cada hora
+        setInterval(() => {
+          logger.info('Checking for sw update');
+          r.update();
+        }, 60 * 60 * 1000);
+      }
     },
     onRegisterError(error: Error) {
       logger.error('Service Worker registration error', error);
@@ -49,6 +56,7 @@ export function ReloadPrompt() {
 
   useEffect(() => {
     if (needRefresh) {
+      logger.info('New content available, showing reload prompt');
       toast({
         title: "Nova versão disponível",
         description: "Uma nova versão do aplicativo está disponível.",

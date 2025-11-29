@@ -135,11 +135,17 @@ const PlaniFlowApp = () => {
 
   // React Query hooks - fonte única de verdade
   const { accounts, isLoading: loadingAccounts } = useAccounts();
+  
+  // 1. Transações para a Lista (Filtradas e Paginadas)
   const {
-    transactions, 
-    isLoading: loadingTransactions,
+    transactions: filteredTransactions, 
+    isLoading: loadingFilteredTransactions,
     totalCount,
     pageCount,
+    addTransaction,
+    editTransaction,
+    deleteTransaction,
+    importTransactions,
   } = useTransactions({
     page: transactionsPage,
     pageSize: transactionsPageSize,
@@ -154,12 +160,23 @@ const PlaniFlowApp = () => {
     sortBy: transactionsFilters.sortBy,
     sortOrder: transactionsFilters.sortOrder,
   });
+
+  // 2. Transações para Dashboard e Analytics (Sem filtros de lista e sem paginação)
+  // Isso garante que os gráficos mostrem todos os dados, independente dos filtros da tabela
+  const {
+    transactions: allTransactions,
+    isLoading: loadingAllTransactions,
+  } = useTransactions({
+    pageSize: null, // Buscar todas para cálculos corretos
+    // Sem filtros aplicados
+  });
+
   const { categories, loading: loadingCategories } = useCategories();
 
   // Computed loading state otimizado com useMemo
   const loadingData = useMemo(() => 
-    authLoading || loadingAccounts || loadingTransactions || loadingCategories,
-    [authLoading, loadingAccounts, loadingTransactions, loadingCategories]
+    authLoading || loadingAccounts || loadingFilteredTransactions || loadingAllTransactions || loadingCategories,
+    [authLoading, loadingAccounts, loadingFilteredTransactions, loadingAllTransactions, loadingCategories]
   );
 
   // Modal states
@@ -337,14 +354,14 @@ const PlaniFlowApp = () => {
   };
 
   const analyticsTransactions = useMemo(() => 
-    transactions.map(t => ({ ...t, category: t.category_id || "" })),
-    [transactions]
+    allTransactions.map(t => ({ ...t, category: t.category_id || "" })),
+    [allTransactions]
   );
 
   const renderDashboard = () => (
     <Dashboard
       accounts={accounts}
-      transactions={transactions}
+      transactions={allTransactions}
       categories={categories}
       onTransfer={() => setTransferModalOpen(true)}
       onAddAccount={() => setAddAccountModalOpen(true)}
@@ -444,7 +461,7 @@ const PlaniFlowApp = () => {
       case "transactions":
         return (
           <TransactionsPage
-            transactions={transactions}
+            transactions={filteredTransactions}
             accounts={accounts}
             categories={categories}
             onAddTransaction={() => setAddTransactionModalOpen(true)}
@@ -478,7 +495,7 @@ const PlaniFlowApp = () => {
             onSortByChange={setTransactionsSortBy}
             sortOrder={transactionsSortOrder}
             onSortOrderChange={setTransactionsSortOrder}
-            isLoading={loadingTransactions}
+            isLoading={loadingFilteredTransactions}
             periodFilter={transactionsPeriodFilter}
             onPeriodFilterChange={setTransactionsPeriodFilter}
             selectedMonth={transactionsSelectedMonth}
@@ -487,6 +504,7 @@ const PlaniFlowApp = () => {
             onCustomStartDateChange={setTransactionsCustomStartDate}
             customEndDate={transactionsCustomEndDate}
             onCustomEndDateChange={setTransactionsCustomEndDate}
+            allTransactions={allTransactions}
           />
         );
       case "fixed":

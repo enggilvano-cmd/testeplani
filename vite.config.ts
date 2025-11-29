@@ -25,6 +25,8 @@ export default defineConfig(({ mode }) => ({
         type: 'module',
       },
       workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
         maximumFileSizeToCacheInBytes: 3000000,
         navigateFallback: 'index.html',
         globPatterns: [
@@ -99,7 +101,7 @@ export default defineConfig(({ mode }) => ({
         short_name: 'PlaniFlow',
         description: 'Aplicativo completo para gestão financeira pessoal com funcionalidade offline',
         theme_color: '#1469B6',
-        background_color: '#F7F9FB',
+        background_color: '#1469B6',
         display: 'standalone',
         start_url: '/',
         scope: '/',
