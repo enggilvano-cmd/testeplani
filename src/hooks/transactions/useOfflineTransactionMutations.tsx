@@ -5,7 +5,7 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { offlineDatabase } from '@/lib/offlineDatabase';
 import { useToast } from '@/hooks/use-toast';
-import { TransactionInput, TransactionUpdate } from '@/types';
+import { TransactionInput, TransactionUpdate, Category, Account } from '@/types';
 import { EditScope } from '@/components/TransactionScopeDialog';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/hooks/useAuth';
@@ -60,7 +60,49 @@ export function useOfflineTransactionMutations() {
           },
         });
 
-        // ✅ Invalidar queries para refetch imediato da lista de transações
+        // ✅ Optimistic Update: Injeta a transação diretamente no cache do React Query
+        // Isso garante que a UI atualize imediatamente mesmo sem internet
+        const categories = queryClient.getQueryData<Category[]>(queryKeys.categories) || [];
+        const accounts = queryClient.getQueryData<Account[]>(queryKeys.accounts) || [];
+        const category = categories.find(c => c.id === transactionData.category_id);
+        const account = accounts.find(a => a.id === transactionData.account_id);
+
+        const optimisticTxForUI = {
+          ...optimisticTx,
+          date: new Date(optimisticTx.date), // UI espera Date object
+          category: category,
+          account: account,
+          to_account: null, // Default para não quebrar UI
+          installments: 1,
+          current_installment: 1,
+          is_recurring: false,
+          is_fixed: false,
+        };
+
+        // Atualiza todas as listas de transações ativas
+        queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+          if (!oldData) return [optimisticTxForUI];
+          if (Array.isArray(oldData)) {
+            return [optimisticTxForUI, ...oldData];
+          }
+          return oldData;
+        });
+
+        // Atualiza saldo da conta otimisticamente
+        if (account) {
+          queryClient.setQueryData<Account[]>(queryKeys.accounts, (oldAccounts) => {
+            if (!oldAccounts) return oldAccounts;
+            return oldAccounts.map(acc => {
+              if (acc.id === account.id) {
+                const newBalance = acc.balance + optimisticTx.amount;
+                return { ...acc, balance: newBalance };
+              }
+              return acc;
+            });
+          });
+        }
+
+        // ✅ Invalidar queries para garantir consistência eventual
         queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       } catch (error) {
@@ -151,6 +193,39 @@ export function useOfflineTransactionMutations() {
               scope: editScope || 'current',
             },
           });
+
+          // ✅ Optimistic Update para Edição
+          queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+            if (!oldData || !Array.isArray(oldData)) return oldData;
+            
+            return oldData.map((tx: any) => {
+              if (tx.id === updatedTransaction.id) {
+                // Se mudou categoria ou conta, precisamos buscar os objetos completos
+                let newCategory = tx.category;
+                let newAccount = tx.account;
+
+                if (updates.category_id && updates.category_id !== tx.category_id) {
+                   const categories = queryClient.getQueryData<Category[]>(queryKeys.categories) || [];
+                   newCategory = categories.find(c => c.id === updates.category_id) || newCategory;
+                }
+
+                if (updates.account_id && updates.account_id !== tx.account_id) {
+                   const accounts = queryClient.getQueryData<Account[]>(queryKeys.accounts) || [];
+                   newAccount = accounts.find(a => a.id === updates.account_id) || newAccount;
+                }
+
+                return {
+                  ...tx,
+                  ...updates,
+                  date: updates.date ? new Date(updates.date) : tx.date,
+                  category: newCategory,
+                  account: newAccount,
+                };
+              }
+              return tx;
+            });
+          });
+
         } catch (error) {
           logger.error('Failed to queue edit:', error);
           toast({
@@ -215,6 +290,13 @@ export function useOfflineTransactionMutations() {
               p_scope: editScope || 'current',
             },
           });
+
+          // ✅ Optimistic Update para Exclusão
+          queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+            if (!oldData || !Array.isArray(oldData)) return oldData;
+            return oldData.filter((tx: any) => tx.id !== transactionId);
+          });
+
         } catch (error) {
           logger.error('Failed to queue delete:', error);
           toast({
