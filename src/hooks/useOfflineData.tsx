@@ -30,17 +30,18 @@ export function useOfflineTransactions(): UseOfflineDataResult<Transaction[]> {
     try {
       setIsLoading(true);
       
-      // Always load from cache first (instant)
-      const cachedData = await offlineDatabase.getTransactions(user.id, 3);
+      // Carrega do cache primeiro (instantâneo)
+      const cachedData = await offlineDatabase.getTransactions(user.id, 6); // Aumentado para 6 meses
       setData(cachedData);
       setIsLoading(false);
 
-      // If online, sync in background
+      // Se online, sincroniza em background
       if (isOnline) {
-        await offlineSync.syncDataFromServer();
+        // Dispara o sync (que vai atualizar o DB local)
+        await offlineSync.syncAll(); // Alterado para syncAll para processar fila + baixar dados
         
-        // Reload from cache after sync
-        const freshData = await offlineDatabase.getTransactions(user.id, 3);
+        // Recarrega do cache após o sync terminar
+        const freshData = await offlineDatabase.getTransactions(user.id, 6);
         setData(freshData);
       }
     } catch (err) {
@@ -73,15 +74,12 @@ export function useOfflineAccounts(): UseOfflineDataResult<Account[]> {
 
     try {
       setIsLoading(true);
-      
-      // Load from cache first
       const cachedData = await offlineDatabase.getAccounts(user.id);
       setData(cachedData);
       setIsLoading(false);
 
-      // Sync in background if online
       if (isOnline) {
-        await offlineSync.syncDataFromServer();
+        await offlineSync.syncAll();
         const freshData = await offlineDatabase.getAccounts(user.id);
         setData(freshData);
       }
@@ -115,15 +113,12 @@ export function useOfflineCategories(): UseOfflineDataResult<Category[]> {
 
     try {
       setIsLoading(true);
-      
-      // Load from cache first
       const cachedData = await offlineDatabase.getCategories(user.id);
       setData(cachedData);
       setIsLoading(false);
 
-      // Sync in background if online
       if (isOnline) {
-        await offlineSync.syncDataFromServer();
+        await offlineSync.syncAll();
         const freshData = await offlineDatabase.getCategories(user.id);
         setData(freshData);
       }

@@ -2,7 +2,8 @@ import { logger } from './logger';
 import type { Transaction, Account, Category } from '@/types';
 
 const DB_NAME = 'planiflow-offline';
-const DB_VERSION = 2;
+// MUDANÇA CRÍTICA: Incrementado para 3 para forçar atualização da estrutura no navegador do usuário
+const DB_VERSION = 3;
 
 const STORES = {
   TRANSACTIONS: 'transactions',
@@ -16,6 +17,8 @@ class OfflineDatabase {
   private db: IDBDatabase | null = null;
 
   async init(): Promise<void> {
+    if (this.db) return;
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -26,12 +29,13 @@ class OfflineDatabase {
 
       request.onsuccess = () => {
         this.db = request.result;
-        logger.info('IndexedDB initialized successfully');
+        logger.info(`IndexedDB (v${DB_VERSION}) initialized successfully`);
         resolve();
       };
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
+        logger.info(`Upgrading Database to version ${DB_VERSION}...`);
 
         // Transactions store
         if (!db.objectStoreNames.contains(STORES.TRANSACTIONS)) {
@@ -70,222 +74,213 @@ class OfflineDatabase {
     });
   }
 
-  // Transactions
-  async saveTransactions(transactions: Transaction[]): Promise<void> {
+  // === MÉTODOS DE SINCRONIZAÇÃO INTELIGENTE ===
+
+  async syncTransactions(transactions: Transaction[], userId: string, dateFrom: string): Promise<void> {
     if (!this.db) await this.init();
 
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.TRANSACTIONS], 'readwrite');
       const store = transaction.objectStore(STORES.TRANSACTIONS);
+      const index = store.index('user_id');
 
-      transactions.forEach(tx => store.put(tx));
+      const request = index.getAll(userId);
+
+      request.onsuccess = () => {
+        const localTxs = request.result as Transaction[];
+        const serverIds = new Set(transactions.map(t => t.id));
+        const cutoffTime = new Date(dateFrom).getTime();
+
+        const toDelete = localTxs.filter(tx => {
+           const txDate = new Date(tx.date).getTime();
+           const isInSyncWindow = txDate >= cutoffTime;
+           const isOfficialId = !tx.id.startsWith('temp-'); 
+           return isInSyncWindow && isOfficialId && !serverIds.has(tx.id);
+        });
+
+        toDelete.forEach(tx => store.delete(tx.id));
+        transactions.forEach(tx => store.put(tx));
+      };
 
       transaction.oncomplete = () => {
-        logger.info(`Saved ${transactions.length} transactions to cache`);
+        logger.info(`Sync transactions: Updated ${transactions.length}, cleaned obsoletes.`);
         resolve();
       };
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
 
-      transaction.onerror = () => {
-        logger.error('Failed to save transactions:', transaction.error);
-        reject(transaction.error);
+  async syncAccounts(accounts: Account[], userId: string): Promise<void> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([STORES.ACCOUNTS], 'readwrite');
+      const store = tx.objectStore(STORES.ACCOUNTS);
+      const index = store.index('user_id');
+      const req = index.openCursor(IDBKeyRange.only(userId));
+      
+      req.onsuccess = (e) => {
+        const cursor = (e.target as IDBRequest).result;
+        if (cursor) {
+          if (!cursor.value.id.startsWith('temp-')) cursor.delete();
+          cursor.continue();
+        } else {
+          accounts.forEach(acc => store.put(acc));
+        }
       };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async syncCategories(categories: Category[], userId: string): Promise<void> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([STORES.CATEGORIES], 'readwrite');
+      const store = tx.objectStore(STORES.CATEGORIES);
+      const index = store.index('user_id');
+      const req = index.openCursor(IDBKeyRange.only(userId));
+      
+      req.onsuccess = (e) => {
+        const cursor = (e.target as IDBRequest).result;
+        if (cursor) {
+          if (!cursor.value.id.startsWith('temp-')) cursor.delete();
+          cursor.continue();
+        } else {
+          categories.forEach(cat => store.put(cat));
+        }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // === MÉTODOS CRUD ===
+
+  async saveTransactions(transactions: Transaction[]): Promise<void> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readwrite');
+      const store = tx.objectStore(STORES.TRANSACTIONS);
+      transactions.forEach(txData => store.put(txData));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   }
 
   async getTransactions(userId: string, monthsBack: number = 3): Promise<Transaction[]> {
     if (!this.db) await this.init();
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.TRANSACTIONS], 'readonly');
-      const store = transaction.objectStore(STORES.TRANSACTIONS);
+      const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readonly');
+      const store = tx.objectStore(STORES.TRANSACTIONS);
       const index = store.index('user_id');
       const request = index.getAll(userId);
 
       request.onsuccess = () => {
         const allTransactions = request.result || [];
-        
-        // Filter last N months
         const cutoffDate = new Date();
         cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
         
-        const filtered = allTransactions.filter(tx => {
-          const txDate = new Date(tx.date);
+        const filtered = allTransactions.filter(txData => {
+          const txDate = new Date(txData.date);
           return txDate >= cutoffDate;
         });
 
+        filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         resolve(filtered);
       };
-
-      request.onerror = () => {
-        logger.error('Failed to get transactions:', request.error);
-        reject(request.error);
-      };
+      request.onerror = () => reject(request.error);
     });
   }
 
   async deleteTransaction(id: string): Promise<void> {
     if (!this.db) await this.init();
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.TRANSACTIONS], 'readwrite');
-      const store = transaction.objectStore(STORES.TRANSACTIONS);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readwrite');
+      const store = tx.objectStore(STORES.TRANSACTIONS);
+      store.delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   }
 
-  // Accounts
   async saveAccounts(accounts: Account[]): Promise<void> {
     if (!this.db) await this.init();
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.ACCOUNTS], 'readwrite');
-      const store = transaction.objectStore(STORES.ACCOUNTS);
-
+      const tx = this.db!.transaction([STORES.ACCOUNTS], 'readwrite');
+      const store = tx.objectStore(STORES.ACCOUNTS);
       accounts.forEach(acc => store.put(acc));
-
-      transaction.oncomplete = () => {
-        logger.info(`Saved ${accounts.length} accounts to cache`);
-        resolve();
-      };
-
-      transaction.onerror = () => {
-        logger.error('Failed to save accounts:', transaction.error);
-        reject(transaction.error);
-      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   }
 
   async getAccounts(userId: string): Promise<Account[]> {
     if (!this.db) await this.init();
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.ACCOUNTS], 'readonly');
-      const store = transaction.objectStore(STORES.ACCOUNTS);
+      const tx = this.db!.transaction([STORES.ACCOUNTS], 'readonly');
+      const store = tx.objectStore(STORES.ACCOUNTS);
       const index = store.index('user_id');
       const request = index.getAll(userId);
-
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async deleteAccount(id: string): Promise<void> {
-    if (!this.db) await this.init();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.ACCOUNTS], 'readwrite');
-      const store = transaction.objectStore(STORES.ACCOUNTS);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // Categories
   async saveCategories(categories: Category[]): Promise<void> {
     if (!this.db) await this.init();
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.CATEGORIES], 'readwrite');
-      const store = transaction.objectStore(STORES.CATEGORIES);
-
+      const tx = this.db!.transaction([STORES.CATEGORIES], 'readwrite');
+      const store = tx.objectStore(STORES.CATEGORIES);
       categories.forEach(cat => store.put(cat));
-
-      transaction.oncomplete = () => {
-        logger.info(`Saved ${categories.length} categories to cache`);
-        resolve();
-      };
-
-      transaction.onerror = () => {
-        logger.error('Failed to save categories:', transaction.error);
-        reject(transaction.error);
-      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   }
 
   async getCategories(userId: string): Promise<Category[]> {
     if (!this.db) await this.init();
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.CATEGORIES], 'readonly');
-      const store = transaction.objectStore(STORES.CATEGORIES);
+      const tx = this.db!.transaction([STORES.CATEGORIES], 'readonly');
+      const store = tx.objectStore(STORES.CATEGORIES);
       const index = store.index('user_id');
       const request = index.getAll(userId);
-
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async deleteCategory(id: string): Promise<void> {
+  async getTransaction(id: string): Promise<Transaction | undefined> {
     if (!this.db) await this.init();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.CATEGORIES], 'readwrite');
-      const store = transaction.objectStore(STORES.CATEGORIES);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+    return new Promise((resolve) => {
+       const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readonly');
+       const req = tx.objectStore(STORES.TRANSACTIONS).get(id);
+       req.onsuccess = () => resolve(req.result);
+       req.onerror = () => resolve(undefined);
     });
   }
 
-  // Metadata (for sync tracking)
   async setLastSync(key: string, timestamp: number): Promise<void> {
     if (!this.db) await this.init();
-
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.METADATA], 'readwrite');
-      const store = transaction.objectStore(STORES.METADATA);
-      const request = store.put({ key, timestamp });
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      const tx = this.db!.transaction([STORES.METADATA], 'readwrite');
+      const store = tx.objectStore(STORES.METADATA);
+      store.put({ key, timestamp });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   }
 
-  async getLastSync(key: string): Promise<number | null> {
-    if (!this.db) await this.init();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.METADATA], 'readonly');
-      const store = transaction.objectStore(STORES.METADATA);
-      const request = store.get(key);
-
-      request.onsuccess = () => {
-        const result = request.result;
-        resolve(result ? result.timestamp : null);
-      };
-
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  // Clear all data (for logout or reset)
   async clearAll(): Promise<void> {
     if (!this.db) await this.init();
-
     return new Promise((resolve, reject) => {
       const storeNames = [STORES.TRANSACTIONS, STORES.ACCOUNTS, STORES.CATEGORIES, STORES.METADATA];
-      const transaction = this.db!.transaction(storeNames, 'readwrite');
-
-      storeNames.forEach(storeName => {
-        transaction.objectStore(storeName).clear();
-      });
-
-      transaction.oncomplete = () => {
+      const tx = this.db!.transaction(storeNames, 'readwrite');
+      storeNames.forEach(name => tx.objectStore(name).clear());
+      tx.oncomplete = () => {
         logger.info('Cleared all offline data');
         resolve();
       };
-
-      transaction.onerror = () => {
-        logger.error('Failed to clear data:', transaction.error);
-        reject(transaction.error);
-      };
+      tx.onerror = () => reject(tx.error);
     });
   }
 }

@@ -78,8 +78,11 @@ define(['./workbox-1c2fcea1'], (function (workbox) { 'use strict';
    * See https://goo.gl/S9QRab
    */
   workbox.precacheAndRoute([{
+    "url": "suppress-warnings.js",
+    "revision": "d41d8cd98f00b204e9800998ecf8427e"
+  }, {
     "url": "index.html",
-    "revision": "0.tg4ri4k6g7g"
+    "revision": "0.ccam2j2sk24"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
@@ -102,7 +105,7 @@ define(['./workbox-1c2fcea1'], (function (workbox) { 'use strict';
   workbox.registerRoute(/^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i, new workbox.StaleWhileRevalidate({
     "cacheName": "supabase-storage-cache",
     plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 50,
+      maxEntries: 100,
       maxAgeSeconds: 604800
     })]
   }), 'GET');
@@ -110,8 +113,8 @@ define(['./workbox-1c2fcea1'], (function (workbox) { 'use strict';
     "cacheName": "supabase-api-cache",
     "networkTimeoutSeconds": 5,
     plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 100,
-      maxAgeSeconds: 86400
+      maxEntries: 200,
+      maxAgeSeconds: 172800
     }), new workbox.CacheableResponsePlugin({
       statuses: [0, 200]
     })]

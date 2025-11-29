@@ -27,7 +27,7 @@ export interface QueuedOperation {
 
 const DB_NAME = 'planiflow-offline';
 const STORE_NAME = 'operations-queue';
-const DB_VERSION = 2; // Must match offlineDatabase.ts version
+const DB_VERSION = 3; // Must match offlineDatabase.ts version
 
 class OfflineQueueManager {
   private db: IDBDatabase | null = null;

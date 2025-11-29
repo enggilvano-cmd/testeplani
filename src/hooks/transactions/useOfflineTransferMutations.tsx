@@ -1,15 +1,18 @@
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTransferMutations } from './useTransferMutations';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
 import { getErrorMessage } from '@/types/errors';
+import { queryKeys } from '@/lib/queryClient';
 
 export function useOfflineTransferMutations() {
   const isOnline = useOnlineStatus();
   const onlineMutations = useTransferMutations();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const handleTransfer = useCallback(
     async (
@@ -37,6 +40,10 @@ export function useOfflineTransferMutations() {
           });
 
           logger.info('Transfer queued for offline sync');
+
+          // ✅ Invalidar queries para refetch imediato
+          queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
+          queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
         } catch (error) {
           logger.error('Failed to queue transfer:', error);
           toast({
@@ -58,8 +65,15 @@ export function useOfflineTransferMutations() {
           );
         } catch (error) {
           const message = getErrorMessage(error);
-          if (message.toLowerCase().includes('failed to fetch') || message.toLowerCase().includes('network')) {
-            logger.warn('Network error ao registrar transferência, usando modo offline.', error);
+          if (
+            message.toLowerCase().includes('failed to fetch') || 
+            message.toLowerCase().includes('network') ||
+            message.toLowerCase().includes('failed to send a request to the edge function') ||
+            message.toLowerCase().includes('edge function') ||
+            message.toLowerCase().includes('timeout') ||
+            message.toLowerCase().includes('connection refused')
+          ) {
+            logger.warn('Network/Edge Function error ao registrar transferência, usando modo offline.', error);
             await enqueueOfflineTransfer();
             return;
           }
@@ -69,7 +83,7 @@ export function useOfflineTransferMutations() {
 
       await enqueueOfflineTransfer();
     },
-    [isOnline, onlineMutations, toast]
+    [isOnline, onlineMutations, toast, queryClient]
   );
 
   return {
