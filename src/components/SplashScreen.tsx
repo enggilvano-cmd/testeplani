@@ -28,10 +28,8 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
           <img
             src="/logo.svg"
             alt="PlaniFlow"
-            className="w-32 h-32 rounded-3xl shadow-xl"
+            className="w-32 h-32 rounded-3xl animate-pulse"
           />
-          {/* Pulse ring animation */}
-          <div className="absolute inset-0 rounded-3xl bg-primary-foreground/20 animate-pulse" />
         </div>
 
         {/* App name */}
