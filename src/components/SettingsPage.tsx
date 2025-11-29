@@ -368,7 +368,7 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
 
       {/* Seção: Gerenciamento de Dados */}
       <div>
-        <h2 className="text-headline text-white font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-headline font-semibold mb-4 flex items-center gap-2">
           <Database className="h-5 w-5" />
           Gerenciamento de Dados
         </h2>
@@ -459,7 +459,7 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
 
       {/* Backups Agendados */}
       <div>
-        <h2 className="text-headline text-white font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-headline font-semibold mb-4 flex items-center gap-2">
           <Clock className="h-5 w-5" />
           Backups Agendados
         </h2>
@@ -627,7 +627,7 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
 
       {/* About */}
       <div>
-        <h2 className="text-lg text-white font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-headline font-semibold mb-4 flex items-center gap-2">
           <FileText className="h-5 w-5" />
           Sobre o Aplicativo
         </h2>
@@ -644,6 +644,15 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
                   Aplicativo completo para gestão financeira pessoal, desenvolvido para 
                   ajudar você a controlar suas finanças de forma simples e eficiente.
                 </p>
+
+                <div className="pt-4 mt-2 border-t border-border/40">
+                  <p className="text-sm font-medium text-foreground mb-1">Desenvolvido por:</p>
+                  <p className="text-sm text-muted-foreground">Gilvano de Almeida Pinheiro, Eng., MSc</p>
+                  <p className="text-sm text-muted-foreground">CREASP - 5.062.231.028</p>
+                  <a href="mailto:contato@planiflow.com.br" className="text-sm text-primary hover:underline">
+                    contato@planiflow.com.br
+                  </a>
+                </div>
               </div>
 
               <div className="space-y-4">

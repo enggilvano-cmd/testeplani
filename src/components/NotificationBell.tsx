@@ -1,4 +1,4 @@
-import { Bell, X, AlertCircle, Info, BellRing } from 'lucide-react';
+import { Bell, X, AlertCircle, Info, BellRing, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -19,6 +19,7 @@ export function NotificationBell() {
     unreadCount, 
     markAsRead, 
     markAllAsRead, 
+    dismissNotification,
     clearAll,
     pushEnabled,
     isPushSupported,
@@ -168,9 +169,22 @@ export function NotificationBell() {
                         <p className="font-medium text-sm">
                           {notification.title}
                         </p>
-                        {!notification.read && (
-                          <div className="h-2 w-2 rounded-full bg-primary mt-1" />
-                        )}
+                        <div className="flex items-center gap-2">
+                          {!notification.read && (
+                            <div className="h-2 w-2 rounded-full bg-primary" />
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 -mr-2 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dismissNotification(notification.id);
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {notification.message}

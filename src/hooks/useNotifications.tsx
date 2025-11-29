@@ -3,6 +3,7 @@ import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import type { Notification, NotificationSettings } from '@/lib/notifications';
+import { differenceInDays, parseISO } from 'date-fns';
 import {
   getDueDateReminders,
   getLowBalanceAlerts,
@@ -17,7 +18,7 @@ import {
 } from '@/lib/pushNotifications';
 
 export function useNotifications() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<NotificationSettings>({
     billReminders: true,
@@ -27,6 +28,10 @@ export function useNotifications() {
   });
   const [unreadCount, setUnreadCount] = useState(0);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('dismissed_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // Load notification settings
   useEffect(() => {
@@ -74,13 +79,67 @@ export function useNotifications() {
         newNotifications.push(...alerts);
       }
 
+      // Check for subscription expiration
+      if (profile) {
+        let expiresAt: Date | null = null;
+
+        if (profile.role === 'trial' && profile.trial_expires_at) {
+          expiresAt = parseISO(profile.trial_expires_at);
+        } else if (profile.role === 'subscriber' && profile.subscription_expires_at) {
+          expiresAt = parseISO(profile.subscription_expires_at);
+        }
+
+        if (expiresAt) {
+          const today = new Date();
+          const daysRemaining = differenceInDays(expiresAt, today);
+          const triggers = [30, 5, 2, 1, 0];
+
+          if (triggers.includes(daysRemaining) || daysRemaining < 0) {
+            let title = '';
+            let message = '';
+            let type: 'alert' | 'reminder' = 'reminder';
+
+            if (daysRemaining < 0) {
+              title = 'Assinatura Expirada';
+              message = 'Sua assinatura expirou. Renove para continuar acessando todos os recursos.';
+              type = 'alert';
+            } else if (daysRemaining === 0) {
+              title = 'Assinatura Expirando Hoje!';
+              message = 'Sua assinatura expira hoje. Renove para continuar acessando todos os recursos.';
+              type = 'alert';
+            } else if (daysRemaining === 1) {
+              title = 'Assinatura Expira Amanhã';
+              message = 'Falta apenas 1 dia para sua assinatura expirar.';
+              type = 'alert';
+            } else {
+              title = 'Aviso de Expiração';
+              message = `Sua assinatura expira em ${daysRemaining} dias.`;
+              type = daysRemaining <= 5 ? 'alert' : 'reminder';
+            }
+
+            newNotifications.push({
+              id: `expiration_${daysRemaining}_${today.toISOString().split('T')[0]}`,
+              title,
+              message,
+              type,
+              date: today,
+              read: false,
+              actionType: 'account_low', // Reusing existing type or add new one if needed
+            });
+          }
+        }
+      }
+
       // Update notifications
-      setNotifications(newNotifications);
-      setUnreadCount(newNotifications.filter(n => !n.read).length);
+      const filteredNotifications = newNotifications.filter(n => !dismissedIds.includes(n.id));
+      setNotifications(filteredNotifications);
+      setUnreadCount(filteredNotifications.filter(n => !n.read).length);
 
       // Show browser notifications for new critical notifications
-      if (newNotifications.length > 0 && Notification.permission === 'granted') {
-        newNotifications.slice(0, 3).forEach(notification => {
+      if (filteredNotifications.length > 0 && Notification.permission === 'granted') {
+        filteredNotifications.slice(0, 3).forEach(notification => {
+          // Only show if not already shown (this is a simple check, ideally we'd track shown IDs too)
+          // For now, we rely on the fact that we only show the top 3
           if (notification.type === 'reminder' || notification.type === 'alert') {
             showSystemNotification(notification.title, {
               body: notification.message,
@@ -92,7 +151,7 @@ export function useNotifications() {
     } catch (error) {
       logger.error('Error checking notifications:', error);
     }
-  }, [user, settings]);
+  }, [user, settings, profile, dismissedIds]);
 
   // Check notifications on mount and periodically
   useEffect(() => {
@@ -108,7 +167,22 @@ export function useNotifications() {
   useEffect(() => {
     const checkPushStatus = async () => {
       if (user && isPushNotificationSupported()) {
-        const subscribed = await isPushSubscribed();
+        let subscribed = await isPushSubscribed();
+        
+        // Auto-recovery: If not subscribed but permission granted, try to resubscribe
+        if (!subscribed && Notification.permission === 'granted') {
+           logger.info('Permission granted but no subscription found. Attempting to restore...');
+           try {
+             const subscription = await subscribeToPushNotifications(user.id);
+             if (subscription) {
+               subscribed = true;
+               logger.success('Push subscription restored automatically');
+             }
+           } catch (e) {
+             logger.error('Failed to restore push subscription:', e);
+           }
+        }
+        
         setPushEnabled(subscribed);
       }
     };
@@ -166,10 +240,26 @@ export function useNotifications() {
     setUnreadCount(0);
   }, []);
 
-  const clearAll = useCallback(() => {
-    setNotifications([]);
-    setUnreadCount(0);
+  const dismissNotification = useCallback((notificationId: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    setDismissedIds(prev => {
+      const newIds = [...prev, notificationId];
+      localStorage.setItem('dismissed_notifications', JSON.stringify(newIds));
+      return newIds;
+    });
+    setUnreadCount(prev => Math.max(0, prev - 1));
   }, []);
+
+  const clearAll = useCallback(() => {
+    const idsToDismiss = notifications.map(n => n.id);
+    setNotifications([]);
+    setDismissedIds(prev => {
+      const newIds = [...prev, ...idsToDismiss];
+      localStorage.setItem('dismissed_notifications', JSON.stringify(newIds));
+      return newIds;
+    });
+    setUnreadCount(0);
+  }, [notifications]);
 
   return {
     notifications,
@@ -177,6 +267,7 @@ export function useNotifications() {
     settings,
     markAsRead,
     markAllAsRead,
+    dismissNotification,
     clearAll,
     refresh: checkNotifications,
     pushEnabled,

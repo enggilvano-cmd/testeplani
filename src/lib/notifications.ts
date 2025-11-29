@@ -95,12 +95,13 @@ export function getDueDateReminders(accounts: NotificationAccount[], settings: N
 export function getLowBalanceAlerts(accounts: NotificationAccount[], threshold: number = 100): Notification[] {
   const alerts: Notification[] = [];
   const today = new Date();
+  const dateStr = today.toISOString().split('T')[0]; // Stable for the day
   
   accounts
     .filter(acc => acc.type !== "credit" && acc.balance > 0 && acc.balance <= threshold)
     .forEach(account => {
       alerts.push({
-        id: `low_balance_${account.id}_${today.getTime()}`,
+        id: `low_balance_${account.id}_${dateStr}`,
         title: "Saldo Baixo",
         message: `A conta ${account.name} está com saldo baixo: R$ ${account.balance.toFixed(2)}`,
         type: "alert",
