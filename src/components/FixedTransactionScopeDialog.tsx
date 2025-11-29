@@ -54,15 +54,15 @@ export function FixedTransactionScopeDialog({
         <div className="space-y-3 pt-4">
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4 hover:bg-accent"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
             onClick={() => handleScopeSelection("current")}
           >
             <div className="text-left">
-              <div className="font-medium">Apenas Esta Transação</div>
+              <div className="font-medium">Apenas Esta Ocorrência</div>
               <div className="text-sm text-muted-foreground">
                 {isDelete 
-                  ? "Excluir somente esta transação específica (a principal)"
-                  : "Editar somente esta transação específica (a principal)"
+                  ? "Excluir apenas esta transação específica deste mês"
+                  : "Editar apenas esta transação específica deste mês"
                 }
               </div>
             </div>
@@ -70,15 +70,15 @@ export function FixedTransactionScopeDialog({
 
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4 hover:bg-accent"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
             onClick={() => handleScopeSelection("current-and-remaining")}
           >
             <div className="text-left">
-              <div className="font-medium">Esta e Todas as Pendentes Futuras</div>
+              <div className="font-medium">Esta e Próximas Ocorrências</div>
               <div className="text-sm text-muted-foreground">
                 {isDelete 
-                  ? `Excluir esta transação principal e as ${pendingCount} transação(ões) pendente(s) geradas`
-                  : `Editar esta transação principal e as ${pendingCount} transação(ões) pendente(s) geradas`
+                  ? `Excluir esta e todas as futuras (${pendingCount} pendentes)`
+                  : `Editar esta e todas as futuras (${pendingCount} pendentes)`
                 }
               </div>
             </div>
@@ -86,15 +86,15 @@ export function FixedTransactionScopeDialog({
 
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4 hover:bg-accent"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
             onClick={() => handleScopeSelection("all")}
           >
             <div className="text-left">
-              <div className="font-medium">Todas (Incluindo Concluídas)</div>
+              <div className="font-medium">Todas as Ocorrências</div>
               <div className="text-sm text-muted-foreground">
                 {isDelete 
-                  ? `Excluir a transação principal e TODAS as transações geradas, incluindo as já concluídas`
-                  : `Editar a transação principal e TODAS as transações geradas, incluindo as já concluídas`
+                  ? "Excluir todo o histórico e remover a recorrência fixa"
+                  : "Editar todo o histórico e atualizar a recorrência fixa"
                 }
               </div>
             </div>

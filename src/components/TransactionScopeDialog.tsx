@@ -1,5 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export type EditScope = "current" | "current-and-remaining" | "all";
 
@@ -11,6 +13,8 @@ interface TransactionScopeDialogProps {
   totalInstallments?: number;
   isRecurring?: boolean;
   mode?: "edit" | "delete";
+  hasCompleted?: boolean;
+  pendingCount?: number;
 }
 
 export function TransactionScopeDialog({
@@ -20,7 +24,9 @@ export function TransactionScopeDialog({
   currentInstallment = 1,
   totalInstallments = 1,
   isRecurring = false,
-  mode = "edit"
+  mode = "edit",
+  hasCompleted = false,
+  pendingCount = 0,
 }: TransactionScopeDialogProps) {
   const handleScopeSelection = (scope: EditScope) => {
     onScopeSelected(scope);
@@ -46,18 +52,27 @@ export function TransactionScopeDialog({
             </DialogDescription>
           </DialogHeader>
           
+          {hasCompleted && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Algumas transações já foram concluídas e não poderão ser {isDelete ? "excluídas" : "editadas"} em alguns escopos.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-3 pt-4">
             <Button 
               variant="outline" 
-              className="w-full justify-start h-auto p-4"
+              className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
               onClick={() => handleScopeSelection("current")}
             >
               <div className="text-left">
                 <div className="font-medium">Apenas Esta Ocorrência</div>
                 <div className="text-sm text-muted-foreground">
                   {isDelete 
-                    ? "Deletar apenas esta transação recorrente"
-                    : "Editar apenas esta transação recorrente"
+                    ? "Excluir apenas esta transação específica"
+                    : "Editar apenas esta transação específica"
                   }
                 </div>
               </div>
@@ -65,15 +80,15 @@ export function TransactionScopeDialog({
 
             <Button 
               variant="outline" 
-              className="w-full justify-start h-auto p-4"
+              className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
               onClick={() => handleScopeSelection("current-and-remaining")}
             >
               <div className="text-left">
                 <div className="font-medium">Esta e Próximas Ocorrências</div>
                 <div className="text-sm text-muted-foreground">
                   {isDelete 
-                    ? "Deletar esta e todas as próximas transações recorrentes"
-                    : "Editar esta e todas as próximas transações recorrentes"
+                    ? `Excluir esta e todas as futuras (${pendingCount > 0 ? `${pendingCount} pendentes` : 'transações adicionais'})`
+                    : `Editar esta e todas as futuras (${pendingCount > 0 ? `${pendingCount} pendentes` : 'transações adicionais'})`
                   }
                 </div>
               </div>
@@ -81,14 +96,14 @@ export function TransactionScopeDialog({
 
             <Button 
               variant="outline" 
-              className="w-full justify-start h-auto p-4"
+              className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
               onClick={() => handleScopeSelection("all")}
             >
               <div className="text-left">
                 <div className="font-medium">Todas as Ocorrências</div>
                 <div className="text-sm text-muted-foreground">
                   {isDelete 
-                    ? "Deletar toda a série de transações recorrentes"
+                    ? "Excluir toda a série de transações recorrentes"
                     : "Editar toda a série de transações recorrentes"
                   }
                 </div>
@@ -122,17 +137,26 @@ export function TransactionScopeDialog({
           </DialogDescription>
         </DialogHeader>
         
+        {hasCompleted && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Algumas parcelas já foram pagas e não poderão ser {isDelete ? "excluídas" : "editadas"} em alguns escopos.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="space-y-3 pt-4">
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
             onClick={() => handleScopeSelection("current")}
           >
             <div className="text-left">
               <div className="font-medium">Apenas Esta Parcela</div>
               <div className="text-sm text-muted-foreground">
                 {isDelete 
-                  ? `Deletar apenas a parcela ${currentInstallment} de ${totalInstallments}`
+                  ? `Excluir apenas a parcela ${currentInstallment} de ${totalInstallments}`
                   : `Editar apenas a parcela ${currentInstallment} de ${totalInstallments}`
                 }
               </div>
@@ -142,15 +166,15 @@ export function TransactionScopeDialog({
           {currentInstallment < totalInstallments && (
             <Button 
               variant="outline" 
-              className="w-full justify-start h-auto p-4"
+              className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
               onClick={() => handleScopeSelection("current-and-remaining")}
             >
               <div className="text-left">
                 <div className="font-medium">Esta e Próximas Parcelas</div>
                 <div className="text-sm text-muted-foreground">
                   {isDelete 
-                    ? `Deletar da parcela ${currentInstallment} até a ${totalInstallments}`
-                    : `Editar da parcela ${currentInstallment} até a ${totalInstallments}`
+                    ? `Excluir da parcela ${currentInstallment} até a ${totalInstallments} (${pendingCount > 0 ? `${pendingCount} pendentes` : 'restantes'})`
+                    : `Editar da parcela ${currentInstallment} até a ${totalInstallments} (${pendingCount > 0 ? `${pendingCount} pendentes` : 'restantes'})`
                   }
                 </div>
               </div>
@@ -159,14 +183,14 @@ export function TransactionScopeDialog({
 
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
             onClick={() => handleScopeSelection("all")}
           >
             <div className="text-left">
               <div className="font-medium">Todas as Parcelas</div>
               <div className="text-sm text-muted-foreground">
                 {isDelete 
-                  ? `Deletar todas as ${totalInstallments} parcelas`
+                  ? `Excluir todas as ${totalInstallments} parcelas`
                   : `Editar todas as ${totalInstallments} parcelas`
                 }
               </div>

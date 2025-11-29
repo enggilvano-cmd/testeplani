@@ -293,7 +293,7 @@ export function UserManagement() {
       case 'admin':
         return 'Administrador';
       case 'user':
-        return 'Usuário';
+        return 'Vitalício';
       case 'trial':
         return 'Trial';
       case 'subscriber':
@@ -447,7 +447,7 @@ export function UserManagement() {
                             <SelectContent>
                               <SelectItem value="admin">Administrador</SelectItem>
                               <SelectItem value="trial">Trial</SelectItem>
-                              <SelectItem value="user">Usuário</SelectItem>
+                              <SelectItem value="user">Vitalício</SelectItem>
                               <SelectItem value="subscriber">Assinante</SelectItem>
                             </SelectContent>
                           </Select>
@@ -539,7 +539,7 @@ export function UserManagement() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-xs sm:text-sm pl-3 sm:pl-4">Usuário</TableHead>
-                        <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Função</TableHead>
+                        <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Tipo</TableHead>
                         <TableHead className="text-xs sm:text-sm">Status</TableHead>
                         <TableHead className="text-xs sm:text-sm hidden md:table-cell">Criado</TableHead>
                         <TableHead className="text-xs sm:text-sm pr-3 sm:pr-4">Ações</TableHead>
@@ -590,7 +590,7 @@ export function UserManagement() {
                                 <SelectContent>
                                   <SelectItem value="admin">Administrador</SelectItem>
                                   <SelectItem value="trial">Trial</SelectItem>
-                                  <SelectItem value="user">Usuário</SelectItem>
+                                  <SelectItem value="user">Vitalício</SelectItem>
                                   <SelectItem value="subscriber">Assinante</SelectItem>
                                 </SelectContent>
                               </Select>

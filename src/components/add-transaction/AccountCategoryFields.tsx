@@ -34,9 +34,7 @@ export function AccountCategoryFields({
             value={categoryId}
             onValueChange={onCategoryChange}
           >
-            <SelectTrigger
-              disabled={!type || type === "transfer"}
-            >
+            <SelectTrigger>
               <SelectValue placeholder="Selecione uma categoria" />
             </SelectTrigger>
             <SelectContent>

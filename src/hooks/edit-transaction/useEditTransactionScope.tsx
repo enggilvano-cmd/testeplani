@@ -19,10 +19,19 @@ export function useEditTransactionScope(transaction: Transaction | null) {
         const parentId = transaction.parent_transaction_id || transaction.id;
         const { data: childTransactions } = await supabase
           .from("transactions")
-          .select("id, status")
+          .select("id, status, date")
           .eq("parent_transaction_id", parentId);
 
-        const pendingCount = childTransactions?.filter(t => t.status === "pending").length || 0;
+        // Filtrar apenas transações pendentes que são futuras ou iguais à atual
+        const currentTransactionDate = new Date(transaction.date);
+
+        const pendingCount = childTransactions?.filter(t => {
+          if (t.status !== "pending") return false;
+          const tDate = new Date(t.date);
+          // Considera pendentes da mesma data ou futuras
+          return tDate >= currentTransactionDate;
+        }).length || 0;
+
         const hasCompleted = childTransactions?.some(t => t.status === "completed") || false;
 
         setPendingTransactionsCount(pendingCount);

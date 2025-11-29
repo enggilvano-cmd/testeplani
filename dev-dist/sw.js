@@ -69,6 +69,7 @@ if (!self.define) {
 }
 define(['./workbox-1c2fcea1'], (function (workbox) { 'use strict';
 
+  importScripts("/push-sw.js");
   self.addEventListener('message', event => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
       self.skipWaiting();
@@ -86,7 +87,7 @@ define(['./workbox-1c2fcea1'], (function (workbox) { 'use strict';
     "revision": "d41d8cd98f00b204e9800998ecf8427e"
   }, {
     "url": "index.html",
-    "revision": "0.884d4ipvc5k"
+    "revision": "0.1e7iasp3m4k"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {

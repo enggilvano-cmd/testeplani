@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => ({
         type: 'module',
       },
       workbox: {
+        importScripts: ['/push-sw.js'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 10000000,

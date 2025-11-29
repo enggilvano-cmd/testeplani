@@ -146,6 +146,8 @@ export function EditTransactionModal({
           totalInstallments={transaction?.installments || 1}
           isRecurring={Boolean(transaction?.is_recurring)}
           mode="edit"
+          hasCompleted={hasCompletedTransactions}
+          pendingCount={pendingTransactionsCount}
         />
       )}
     </>

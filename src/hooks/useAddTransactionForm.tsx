@@ -139,7 +139,8 @@ export function useAddTransactionForm({
   }, [formData.date, formData.status, manualStatusChange]);
 
   const filteredCategories = useMemo(() => {
-    if (!formData.type || formData.type === "transfer") return [];
+    if (!formData.type) return categories;
+    if (formData.type === "transfer") return [];
     return categories.filter(
       (cat) => cat.type === formData.type || cat.type === "both"
     );
@@ -344,10 +345,12 @@ export function useAddTransactionForm({
         return;
       }
 
-      if (!data.success) {
+      const result = Array.isArray(data) ? data[0] : data;
+
+      if (!result?.success) {
         toast({
           title: 'Erro',
-          description: data.error || 'Erro ao criar transação fixa',
+          description: result?.error || 'Erro ao criar transação fixa',
           variant: 'destructive',
         });
         return;
@@ -355,7 +358,7 @@ export function useAddTransactionForm({
 
       toast({
         title: 'Sucesso',
-        description: `Transação fixa criada com ${data.created_count} ocorrências`,
+        description: `Transação fixa criada com ${result.created_count} ocorrências`,
       });
 
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -394,8 +397,10 @@ export function useAddTransactionForm({
         throw new Error(error.message || 'Erro ao criar transação recorrente');
       }
 
-      if (!data?.success) {
-        throw new Error(data?.error || 'Erro ao criar transação recorrente');
+      const result = Array.isArray(data) ? data[0] : data;
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Erro ao criar transação recorrente');
       }
 
       await Promise.all([
@@ -409,7 +414,7 @@ export function useAddTransactionForm({
 
       toast({
         title: "Transação Recorrente Criada",
-        description: `${data.created_count} transações foram geradas com sucesso`,
+        description: `${result.created_count} transações foram geradas com sucesso`,
         variant: "default",
       });
 

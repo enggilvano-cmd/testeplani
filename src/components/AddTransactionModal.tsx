@@ -108,9 +108,16 @@ export function AddTransactionModal({
             onAccountChange={(value) =>
               setFormData((prev) => ({ ...prev, account_id: value }))
             }
-            onCategoryChange={(value) =>
-              setFormData((prev) => ({ ...prev, category_id: value }))
-            }
+            onCategoryChange={(value) => {
+              const selectedCategory = filteredCategories.find(c => c.id === value);
+              setFormData((prev) => {
+                let newType = prev.type;
+                if (!newType && selectedCategory && selectedCategory.type !== 'both') {
+                  newType = selectedCategory.type as "income" | "expense";
+                }
+                return { ...prev, category_id: value, type: newType };
+              });
+            }}
           />
 
           {formData.account_id && selectedAccount?.type === "credit" && (

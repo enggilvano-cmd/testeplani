@@ -218,9 +218,10 @@ export function UserProfile() {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'admin': return 'Administrador';
-      case 'user': return 'Usuário';
+      case 'user': return 'Vitalício';
+      case 'subscriber': return 'Assinante';
       case 'lifetime': return 'Vitalício';
-      case 'trial': return 'Teste';
+      case 'trial': return 'Trial';
       case 'limited': return 'Limitado';
       default: return role;
     }
@@ -430,6 +431,19 @@ export function UserProfile() {
                 <span className="text-xs sm:text-sm font-medium">Membro desde</span>
                 <span className="text-xs sm:text-sm text-muted-foreground">
                   {new Date(profile.created_at).toLocaleDateString()}
+                </span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-xs sm:text-sm font-medium">Expiração</span>
+                <span className="text-xs sm:text-sm text-muted-foreground">
+                  {(profile.role === 'admin' || profile.role === 'user') 
+                    ? 'Vitalício' 
+                    : (profile.role === 'trial' && profile.trial_expires_at)
+                      ? new Date(profile.trial_expires_at).toLocaleDateString()
+                      : (profile.role === 'subscriber' && profile.subscription_expires_at)
+                        ? new Date(profile.subscription_expires_at).toLocaleDateString()
+                        : '-'}
                 </span>
               </div>
             </CardContent>

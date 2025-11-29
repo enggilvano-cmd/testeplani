@@ -29,8 +29,8 @@ export function NotificationBell() {
 
   const handlePushToggle = async (enabled: boolean) => {
     if (enabled) {
-      const success = await enablePushNotifications();
-      if (success) {
+      const result = await enablePushNotifications();
+      if (result.success) {
         toast({
           title: 'Notificações Push Ativadas',
           description: 'Você receberá notificações mesmo quando o app estiver fechado.',
@@ -38,7 +38,7 @@ export function NotificationBell() {
       } else {
         toast({
           title: 'Erro ao Ativar Notificações',
-          description: 'Não foi possível ativar as notificações push. Verifique as permissões.',
+          description: `Não foi possível ativar as notificações push: ${result.error || 'Verifique as permissões.'}`,
           variant: 'destructive',
         });
       }

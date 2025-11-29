@@ -236,14 +236,15 @@ export function FixedTransactionsPage() {
         throw error;
       }
 
-      const result = data?.[0];
+      const result = Array.isArray(data) ? data[0] : data;
+      
       if (!result?.success) {
         throw new Error(result?.error_message || 'Erro ao criar transação fixa');
       }
 
       toast({
         title: "Transação fixa adicionada",
-        description: `${result.created_count} transações foram geradas com sucesso`,
+        description: `${result.created_count || 1} transações foram geradas com sucesso`,
       });
 
       // 🔄 Sincronizar listas e dashboard imediatamente
@@ -357,13 +358,13 @@ export function FixedTransactionsPage() {
         .select("status")
         .eq("id", transaction.id)
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (statusError) throw statusError;
 
       // Editar a transação principal SOMENTE se estiver PENDENTE
       if (mainTransaction?.status === "pending") {
-        const { error: mainError } = await supabase.functions.invoke('atomic-edit-transaction', {
+        const { data, error: mainError } = await supabase.functions.invoke('atomic-edit-transaction', {
           body: {
             transaction_id: transaction.id,
             updates,
@@ -372,6 +373,11 @@ export function FixedTransactionsPage() {
         });
 
         if (mainError) throw mainError;
+
+        const result = Array.isArray(data) ? data[0] : data;
+        if (result && !result.success) {
+             throw new Error(result.error || 'Erro ao editar transação');
+        }
       }
 
       // 2) Buscar e editar todas as filhas PENDENTES dessa fixa
@@ -387,13 +393,20 @@ export function FixedTransactionsPage() {
       // Editar apenas as filhas pendentes com os mesmos campos alterados
       if (childTransactions && childTransactions.length > 0) {
         for (const child of childTransactions) {
-          await supabase.functions.invoke('atomic-edit-transaction', {
+          const { data, error } = await supabase.functions.invoke('atomic-edit-transaction', {
             body: {
               transaction_id: child.id,
               updates,
               scope: 'current',
             },
           });
+
+          if (error) throw error;
+
+          const result = Array.isArray(data) ? data[0] : data;
+          if (result && !result.success) {
+               throw new Error(result.error || 'Erro ao editar transação filha');
+          }
         }
       }
 
@@ -480,11 +493,11 @@ export function FixedTransactionsPage() {
         .select("id, status")
         .eq("id", transactionToDelete.id)
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (mainError) throw mainError;
 
-      // 2) Remover TODAS as filhas PENDENTES dessa fixa
+      // 2) Tentar remover filhas PENDENTES
       const { error: deleteChildrenError } = await supabase
         .from("transactions")
         .delete()
@@ -492,11 +505,29 @@ export function FixedTransactionsPage() {
         .eq("user_id", user.id)
         .eq("status", "pending");
 
-      if (deleteChildrenError) throw deleteChildrenError;
+      if (deleteChildrenError) {
+        logger.warn("Erro ao excluir filhas pendentes:", deleteChildrenError);
+        // Não lançamos erro aqui para tentar pelo menos remover a principal da lista (soft delete)
+      }
 
-      // 3) Se a principal estiver CONCLUÍDA, apenas desmarcar como fixa (is_fixed = false)
-      //    para sumir da página Transações Fixas mas continuar aparecendo em Transações.
-      if (mainTransaction?.status === "completed") {
+      // Verificar se restaram filhos (completados ou os que não conseguimos deletar)
+      const { count: remainingChildrenCount, error: countError } = await supabase
+        .from("transactions")
+        .select("*", { count: 'exact', head: true })
+        .eq("parent_transaction_id", transactionToDelete.id);
+      
+      if (countError) throw countError;
+
+      const hasChildren = remainingChildrenCount !== null && remainingChildrenCount > 0;
+      const isCompleted = mainTransaction?.status === "completed";
+      const childrenDeletionFailed = !!deleteChildrenError;
+
+      // 3) Decidir se fazemos Soft Delete ou Hard Delete
+      // Soft Delete (apenas desmarcar is_fixed) se:
+      // - Principal está concluída
+      // - Tem filhos restantes
+      // - Falhou ao deletar filhos (para segurança)
+      if (isCompleted || hasChildren || childrenDeletionFailed) {
         const { error: updateMainError } = await supabase
           .from("transactions")
           .update({ is_fixed: false })
@@ -504,8 +535,23 @@ export function FixedTransactionsPage() {
           .eq("user_id", user.id);
 
         if (updateMainError) throw updateMainError;
+
+        if (childrenDeletionFailed) {
+           toast({
+             title: "Transação atualizada",
+             description: "A transação foi removida da lista de fixas, mas algumas ocorrências pendentes podem não ter sido excluídas devido a um erro.",
+           });
+        } else {
+           toast({
+             title: "Transação removida",
+             description: "A transação foi removida da lista de fixas.",
+           });
+        }
+        
+        // Atualizar banco local imediatamente para refletir a remoção na UI
+        await offlineDatabase.deleteTransaction(transactionToDelete.id);
       } else {
-        // 4) Se a principal estiver PENDENTE, removê-la de fato
+        // 4) Hard Delete da principal (se estiver pendente e sem filhos)
         const { error: deleteMainError } = await supabase
           .from("transactions")
           .delete()
@@ -513,14 +559,33 @@ export function FixedTransactionsPage() {
           .eq("user_id", user.id)
           .eq("status", "pending");
 
-        if (deleteMainError) throw deleteMainError;
-      }
+        if (deleteMainError) {
+          // Se falhar ao deletar (ex: restrição de chave estrangeira não detectada),
+          // fazemos um "soft delete" desmarcando como fixa.
+          logger.warn("Erro ao excluir transação fixa (hard delete), tentando soft delete:", deleteMainError);
+          
+          const { error: updateMainError } = await supabase
+            .from("transactions")
+            .update({ is_fixed: false })
+            .eq("id", transactionToDelete.id)
+            .eq("user_id", user.id);
 
-      toast({
-        title: "Transações removidas",
-        description:
-          "Todas as ocorrências pendentes dessa transação fixa foram removidas. As concluídas foram preservadas na página Transações.",
-      });
+          if (updateMainError) throw updateMainError;
+          
+          toast({
+            title: "Transação removida",
+            description: "A transação foi removida da lista de fixas (soft delete).",
+          });
+        } else {
+          toast({
+            title: "Transação removida",
+            description: "A transação e suas ocorrências pendentes foram removidas.",
+          });
+        }
+        
+        // Atualizar banco local imediatamente para refletir a remoção na UI
+        await offlineDatabase.deleteTransaction(transactionToDelete.id);
+      }
 
       // 🔄 Sincronizar listas e dashboard imediatamente
       await Promise.all([
@@ -549,7 +614,7 @@ export function FixedTransactionsPage() {
       logger.error("Error deleting transaction:", error);
       toast({
         title: "Erro ao remover",
-        description: "Não foi possível remover a transação.",
+        description: `Não foi possível remover a transação: ${errorMessage}`,
         variant: "destructive",
       });
       setTransactionToDelete(null);
@@ -577,7 +642,7 @@ export function FixedTransactionsPage() {
         .from("transactions")
         .select("*")
         .eq("id", transactionId)
-        .single();
+        .maybeSingle();
 
       if (fetchError || !mainTransaction) {
         throw new Error("Transação não encontrada");

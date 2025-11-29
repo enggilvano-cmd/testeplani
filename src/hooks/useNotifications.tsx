@@ -123,18 +123,18 @@ export function useNotifications() {
   }, [settings.billReminders]);
 
   const enablePushNotifications = useCallback(async () => {
-    if (!user) return false;
+    if (!user) return { success: false, error: 'Usuário não autenticado' };
 
     try {
       const subscription = await subscribeToPushNotifications(user.id);
       if (subscription) {
         setPushEnabled(true);
-        return true;
+        return { success: true };
       }
-      return false;
-    } catch (error) {
+      return { success: false, error: 'Falha ao obter subscrição' };
+    } catch (error: any) {
       logger.error('Error enabling push notifications:', error);
-      return false;
+      return { success: false, error: error.message || 'Erro desconhecido' };
     }
   }, [user]);
 

@@ -251,7 +251,7 @@ export function EditFixedTransactionModal({
               placeholder="Selecione o dia do mês"
             />
             <p className="text-xs text-muted-foreground">
-              A transação será gerada automaticamente todo dia {new Date(formData.date).getDate()} de cada mês.
+              A transação será gerada automaticamente todo dia {createDateFromString(formData.date).getDate()} de cada mês.
             </p>
           </div>
 

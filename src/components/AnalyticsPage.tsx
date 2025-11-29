@@ -484,10 +484,12 @@ export default function AnalyticsPage({
           acc[monthKey] = { income: 0, expenses: 0 };
         }
 
+        const amount = Math.abs(transaction.amount);
+
         if (transaction.type === "income") {
-          acc[monthKey].income += transaction.amount;
+          acc[monthKey].income += amount;
         } else if (transaction.type === "expense") {
-          acc[monthKey].expenses -= transaction.amount;
+          acc[monthKey].expenses -= amount;
         }
 
         return acc;
@@ -509,12 +511,13 @@ export default function AnalyticsPage({
                 ? createDateFromString(transaction.date)
                 : transaction.date;
             const monthKey = format(transactionDate, "yyyy-MM");
+            const amount = Math.abs(transaction.amount);
 
             if (monthKey < firstMonthKey) {
               if (transaction.type === "income") {
-                return acc + transaction.amount;
+                return acc + amount;
               } else if (transaction.type === "expense") {
-                return acc - transaction.amount;
+                return acc - amount;
               }
             }
 
@@ -985,7 +988,7 @@ export default function AnalyticsPage({
       {/* Summary Cards */}
       <div className="analytics-section grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
         <Card className="financial-card">
-          <CardContent className="p-4">
+          <CardContent className="p-2 sm:p-3">
             <div className="flex flex-col items-center gap-2 text-center">
               <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
                 <TrendingUp className="h-6 w-6 text-success" />
@@ -1002,7 +1005,7 @@ export default function AnalyticsPage({
         </Card>
 
         <Card className="financial-card">
-          <CardContent className="p-4">
+          <CardContent className="p-2 sm:p-3">
             <div className="flex flex-col items-center gap-2 text-center">
               <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
                 <TrendingDown className="h-6 w-6 text-destructive" />
@@ -1019,7 +1022,7 @@ export default function AnalyticsPage({
         </Card>
 
         <Card className="financial-card md:col-span-2 lg:col-span-1">
-          <CardContent className="p-4">
+          <CardContent className="p-2 sm:p-3">
             <div className="flex flex-col items-center gap-2 text-center">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <BarChart3 className="h-6 w-6 text-primary" />
@@ -1262,11 +1265,11 @@ export default function AnalyticsPage({
               Saldos por Conta
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-2 pb-2 pt-18 sm:px-3 sm:pb-3 sm:pt-27">
+          <CardContent className="p-2 sm:p-3">
             <div className="relative w-full">
               <ChartContainer
                 config={accountChartConfig}
-                className="min-h-[336px] sm:min-h-[128px] lg:min-h-[624px] w-full overflow-hidden"
+                className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -1335,6 +1338,14 @@ export default function AnalyticsPage({
                     </span>
                   </div>
                 ))}
+                <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                  <span className="font-medium text-foreground pl-5">Total</span>
+                  <span className={`font-medium flex-shrink-0 ${
+                    accountBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                  }`}>
+                    {formatCurrency(accountBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                  </span>
+                </div>
               </div>
             )}
             </div>
@@ -1363,6 +1374,14 @@ export default function AnalyticsPage({
                     </span>
                   </div>
                 ))}
+                <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                  <span className="font-medium text-foreground pl-5">Total</span>
+                  <span className={`font-medium flex-shrink-0 ${
+                    accountBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                  }`}>
+                    {formatCurrency(accountBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                  </span>
+                </div>
               </div>
             )}
           </CardContent>
@@ -1377,11 +1396,11 @@ export default function AnalyticsPage({
                 Crédito Disponível - Cartões
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-2 pb-2 pt-18 sm:px-3 sm:pb-3 sm:pt-27">
+            <CardContent className="p-2 sm:p-3">
               <div className="relative w-full">
                 <ChartContainer
                   config={creditCardChartConfig}
-                  className="min-h-[336px] sm:min-h-[128px] lg:min-h-[624px] w-full overflow-hidden"
+                  className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -1455,6 +1474,14 @@ export default function AnalyticsPage({
                       </span>
                     </div>
                   ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      creditCardBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(creditCardBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
                 </div>
               )}
               </div>
@@ -1483,6 +1510,14 @@ export default function AnalyticsPage({
                       </span>
                     </div>
                   ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      creditCardBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(creditCardBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1498,11 +1533,11 @@ export default function AnalyticsPage({
                 Limite Usado - Cartões
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-2 pb-2 pt-18 sm:px-3 sm:pb-3 sm:pt-27">
+            <CardContent className="p-2 sm:p-3">
               <div className="relative w-full">
                 <ChartContainer
                   config={creditCardUsedChartConfig}
-                  className="min-h-[336px] sm:min-h-[128px] lg:min-h-[624px] w-full overflow-hidden"
+                  className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -1569,6 +1604,12 @@ export default function AnalyticsPage({
                       </span>
                     </div>
                   ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className="font-medium flex-shrink-0 text-destructive">
+                      {formatCurrency(creditCardUsedData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
                 </div>
               )}
               </div>
@@ -1595,6 +1636,12 @@ export default function AnalyticsPage({
                       </span>
                     </div>
                   ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className="font-medium flex-shrink-0 text-destructive">
+                      {formatCurrency(creditCardUsedData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1610,92 +1657,144 @@ export default function AnalyticsPage({
             </CardTitle>
           </CardHeader>
           <CardContent className="p-2 sm:p-3">
-            <ChartContainer
-              config={chartConfig}
-              className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={monthlyData}
-                  margin={getComposedChartMargins(responsiveConfig)}
-                >
-                  <XAxis
-                    dataKey="month"
-                    {...getBarChartAxisProps(responsiveConfig).xAxis}
-                  />
-                  <YAxis
-                    tickFormatter={(value) =>
-                      formatCurrencyForAxis(value / 100, isMobile)
-                    }
-                    {...getBarChartAxisProps(responsiveConfig).yAxis}
-                  />
-                  <ChartTooltip
-                    content={<ChartTooltipContent />}
-                    formatter={monthlyTooltipFormatter}
-                    labelFormatter={(label) => `Mês de ${label}`}
-                  />
-
-                  {/* Legenda apenas no desktop */}
-                  {!isMobile && (
-                    <ChartLegend
-                      content={
-                        <ChartLegendContent className="flex justify-center gap-6" />
-                      }
-                      verticalAlign="top"
-                    />
-                  )}
-
-                  {/* Barras de Receitas com cor sólida */}
-                  <Bar
-                    dataKey="receitas"
-                    fill="hsl(var(--success))"
-                    radius={[4, 4, 0, 0]}
-                    name="Receitas"
-                  />
-
-                  {/* Barras de Despesas com cor sólida */}
-                  <Bar
-                    dataKey="despesas"
-                    fill="hsl(var(--destructive))"
-                    radius={[4, 4, 0, 0]}
-                    name="Despesas"
-                  />
-
-                  {/* Linha de saldo com pontos condicionais */}
-                  <Line
-                    type="monotone"
-                    dataKey="saldo"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={isMobile ? 2 : 3}
-                    dot={renderMonthlyDot}
-                    activeDot={{
-                      r: isMobile ? 5 : 6,
-                      strokeWidth: 2,
-                      fill: "hsl(var(--primary))",
-                      stroke: "hsl(var(--background))",
+            <div className="relative w-full">
+              <ChartContainer
+                config={chartConfig}
+                className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={monthlyData}
+                    margin={{
+                      top: 20,
+                      right: isMobile ? 15 : 240,
+                      bottom: isMobile ? 20 : 30,
+                      left: isMobile ? 10 : 20
                     }}
-                    connectNulls={false}
-                    name="Saldo Acumulado"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </ChartContainer>
+                  >
+                    <XAxis
+                      dataKey="month"
+                      {...getBarChartAxisProps(responsiveConfig).xAxis}
+                    />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        formatCurrencyForAxis(value / 100, isMobile)
+                      }
+                      {...getBarChartAxisProps(responsiveConfig).yAxis}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      formatter={monthlyTooltipFormatter}
+                      labelFormatter={(label) => `Mês de ${label}`}
+                    />
 
-            {/* Indicadores visuais no mobile */}
-            {isMobile && monthlyData.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mt-3 text-caption">
-                <div className="flex items-center gap-1 justify-center">
-                  <div className="w-3 h-3 rounded bg-success flex-shrink-0"></div>
-                  <span className="text-muted-foreground truncate">Receitas</span>
+                    {/* Barras de Receitas com cor sólida */}
+                    <Bar
+                      dataKey="receitas"
+                      fill="hsl(var(--success))"
+                      radius={[4, 4, 0, 0]}
+                      name="Receitas"
+                    />
+
+                    {/* Barras de Despesas com cor sólida */}
+                    <Bar
+                      dataKey="despesas"
+                      fill="hsl(var(--destructive))"
+                      radius={[4, 4, 0, 0]}
+                      name="Despesas"
+                    />
+
+                    {/* Linha de saldo com pontos condicionais */}
+                    <Line
+                      type="monotone"
+                      dataKey="saldo"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={isMobile ? 2 : 3}
+                      dot={renderMonthlyDot}
+                      activeDot={{
+                        r: isMobile ? 5 : 6,
+                        strokeWidth: 2,
+                        fill: "hsl(var(--primary))",
+                        stroke: "hsl(var(--background))",
+                      }}
+                      connectNulls={false}
+                      name="Saldo Acumulado"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Legenda - desktop/tablet (dentro do container) */}
+              {!isMobile && (
+                <div 
+                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                  style={{ maxWidth: "38%" }}
+                >
+                  {Object.entries(chartConfig).map(([key, config]) => {
+                    const value = key === 'receitas' ? totalsByType.income :
+                                  key === 'despesas' ? totalsByType.expenses :
+                                  (totalsByType.income - totalsByType.expenses);
+                    
+                    const textColor = key === 'receitas' ? 'text-success' :
+                                      key === 'despesas' ? 'text-destructive' :
+                                      value >= 0 ? 'text-success' : 'text-destructive';
+
+                    return (
+                      <div 
+                        key={`legend-monthly-desktop-${key}`} 
+                        className="flex items-center justify-between gap-2 text-caption"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div 
+                            className="w-3 h-3 rounded-full flex-shrink-0" 
+                            style={{ backgroundColor: config.color }}
+                          />
+                          <span className="truncate text-foreground">
+                            {config.label}
+                          </span>
+                        </div>
+                        <span className={`font-medium flex-shrink-0 ${textColor}`}>
+                          {formatCurrency(value)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center gap-1 justify-center">
-                  <div className="w-3 h-3 rounded bg-destructive flex-shrink-0"></div>
-                  <span className="text-muted-foreground truncate">Despesas</span>
-                </div>
-                <div className="flex items-center gap-1 justify-center">
-                  <div className="w-3 h-0.5 bg-primary flex-shrink-0"></div>
-                  <span className="text-muted-foreground truncate">Saldo</span>
-                </div>
+              )}
+            </div>
+
+            {/* Legenda - mobile (abaixo do gráfico) */}
+            {isMobile && (
+              <div className="mt-4 flex flex-col gap-2 px-2">
+                {Object.entries(chartConfig).map(([key, config]) => {
+                  const value = key === 'receitas' ? totalsByType.income :
+                                key === 'despesas' ? totalsByType.expenses :
+                                (totalsByType.income - totalsByType.expenses);
+                  
+                  const textColor = key === 'receitas' ? 'text-success' :
+                                    key === 'despesas' ? 'text-destructive' :
+                                    value >= 0 ? 'text-success' : 'text-destructive';
+
+                  return (
+                    <div 
+                      key={`legend-monthly-mobile-${key}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: config.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {config.label}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${textColor}`}>
+                        {formatCurrency(value)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -1705,13 +1804,13 @@ export default function AnalyticsPage({
 
       {/* Expense Details Table */}
       <Card className="financial-card">
-        <CardHeader>
+        <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
           <CardTitle className="text-headline">
             <span className="block sm:hidden">Detalhes - Despesas</span>
             <span className="hidden sm:block">Detalhes por Categoria - Despesas</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-2 sm:p-3">
           {expenseData.length === 0 ? (
             <div className="text-body text-center py-8 text-muted-foreground">
               <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1771,13 +1870,13 @@ export default function AnalyticsPage({
 
       {/* Income Details Table */}
       <Card className="financial-card">
-        <CardHeader>
+        <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
           <CardTitle className="text-headline">
             <span className="block sm:hidden">Detalhes - Receitas</span>
             <span className="hidden sm:block">Detalhes por Categoria - Receitas</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-2 sm:p-3">
           {incomeData.length === 0 ? (
             <div className="text-body text-center py-8 text-muted-foreground">
               <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />

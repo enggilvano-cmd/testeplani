@@ -60,12 +60,36 @@ interface TransactionsFilters {
 }
 
 const PlaniFlowApp = () => {
-  const { user, loading: authLoading, isAdmin } = useOfflineAuth();
+  const { user, loading: authLoading, isAdmin, isSubscriptionActive } = useOfflineAuth();
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState("dashboard");
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus(); // Status de conexão para decisões de UI
+
+  // Enforce subscription restrictions
+  useEffect(() => {
+    if (!authLoading && !isSubscriptionActive() && currentPage !== 'profile') {
+      setCurrentPage('profile');
+      toast({
+        title: "Assinatura Expirada",
+        description: "Sua assinatura expirou. Acesso restrito ao perfil.",
+        variant: "destructive"
+      });
+    }
+  }, [authLoading, isSubscriptionActive, currentPage]);
+
+  const handleNavigate = (page: string) => {
+    if (!isSubscriptionActive() && page !== 'profile') {
+      toast({
+        title: "Acesso Restrito",
+        description: "Sua assinatura expirou. Renove para acessar esta funcionalidade.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setCurrentPage(page);
+  };
 
   // Pagination state
   const [transactionsPage, setTransactionsPage] = useState(0);
@@ -395,7 +419,7 @@ const PlaniFlowApp = () => {
         } else {
           setAccountFilterType("all");
         }
-        setCurrentPage("accounts");
+        handleNavigate("accounts");
       }}
       onNavigateToTransactions={(
         filterType,
@@ -434,7 +458,7 @@ const PlaniFlowApp = () => {
           setTransactionsDateTo(undefined);
         }
         
-        setCurrentPage("transactions");
+        handleNavigate("transactions");
       }}
     />
   );
@@ -545,7 +569,7 @@ const PlaniFlowApp = () => {
   return (
     <Layout
       currentPage={currentPage}
-      onNavigate={setCurrentPage}
+      onNavigate={handleNavigate}
       onClearAllData={handleClearAllData}
       loading={loadingData}
     >

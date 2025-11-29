@@ -19,6 +19,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useOfflineAuth } from "@/hooks/useOfflineAuth";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InstallPWA } from "@/components/InstallPWA";
+import { useExpirationNotifications } from "@/hooks/useExpirationNotifications";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -233,9 +234,9 @@ function AppSidebar({ currentPage, onPageChange }: { currentPage: string; onPage
                           {getFirstName(profile.full_name) || 'Usuário'}
                         </p>
                         <span className="text-xs text-muted-foreground">
-                          {profile.role === 'admin' && '• Admin'}
-                          {profile.role === 'user' && '• User'}
-                          {profile.role === 'subscriber' && '• Subscriber'}
+                          {profile.role === 'admin' && '• Administrador'}
+                          {profile.role === 'user' && '• Vitalício'}
+                          {profile.role === 'subscriber' && '• Assinante'}
                           {profile.role === 'trial' && '• Trial'}
                         </span>
                       </div>
@@ -395,6 +396,7 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate }: Layo
 
 export function Layout({ children, currentPage, onPageChange, onNavigate, ...rest }: LayoutProps) {
   const isMobile = useIsMobile();
+  useExpirationNotifications();
   
   return (
     <SidebarProvider defaultOpen={!isMobile}>

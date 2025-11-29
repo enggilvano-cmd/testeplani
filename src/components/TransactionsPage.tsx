@@ -293,6 +293,8 @@ export function TransactionsPage({
           totalInstallments={pendingDeleteTransaction.installments || 1}
           isRecurring={Boolean(pendingDeleteTransaction.is_recurring)}
           mode="delete"
+          hasCompleted={hasCompletedTransactions}
+          pendingCount={pendingTransactionsCount}
         />
       )}
 

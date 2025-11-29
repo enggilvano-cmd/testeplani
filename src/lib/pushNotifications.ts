@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 
 // VAPID public key for push notifications
 // This will be generated and stored as a secret
-const VAPID_PUBLIC_KEY = 'YOUR_VAPID_PUBLIC_KEY_HERE';
+const VAPID_PUBLIC_KEY = 'BNGj1HbKCx7vZUS2oE6rsbJrttyRgC4V9OYbi3RcaWbicZMBwm_m_K5eU8188MRF-sB1imKfONhmuKf2bPffTwI';
 
 export interface PushSubscriptionData {
   endpoint: string;
@@ -70,11 +70,25 @@ export async function subscribeToPushNotifications(userId: string): Promise<Push
         return null;
       }
 
-      // Subscribe to push notifications
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-      });
+      try {
+        // Subscribe to push notifications
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+        });
+      } catch (subError) {
+        logger.error('Error during pushManager.subscribe:', subError);
+        // If subscription fails, it might be due to an existing subscription with a different key?
+        // Or invalid key format.
+        throw subError;
+      }
+    } else {
+      // If already subscribed, we should check if we need to resubscribe (e.g. key rotation)
+      // But we can't easily check the key.
+      // For now, we assume if it exists, it's valid.
+      // However, if the user is reporting issues, maybe we should force re-subscribe?
+      // Let's just log it.
+      logger.info('Using existing push subscription');
     }
 
     // Extract subscription data
@@ -93,27 +107,39 @@ export async function subscribeToPushNotifications(userId: string): Promise<Push
     };
 
     // Save subscription to database
+    // Workaround: Since we might be missing an UPDATE policy, we delete first then insert
+    // This ensures we don't hit a permission error on upsert if the row exists
+    const { error: deleteError } = await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('endpoint', pushData.endpoint);
+      
+    if (deleteError) {
+      logger.warn('Error cleaning up old subscription:', deleteError);
+      // Continue anyway, as the delete might fail if it doesn't exist (though usually it just returns count 0)
+    }
+
     const { error } = await supabase
       .from('push_subscriptions')
-      .upsert({
+      .insert({
         user_id: userId,
         endpoint: pushData.endpoint,
         p256dh: pushData.keys.p256dh,
         auth: pushData.keys.auth,
-      }, {
-        onConflict: 'endpoint'
       });
 
     if (error) {
       logger.error('Error saving push subscription:', error);
-      return null;
+      // Throw error to be caught by caller
+      throw new Error(`Database error: ${error.message}`);
     }
 
     logger.info('Push notification subscription successful');
     return pushData;
   } catch (error) {
     logger.error('Error subscribing to push notifications:', error);
-    return null;
+    throw error; // Re-throw to let caller handle/display it
   }
 }
 
@@ -131,7 +157,16 @@ export async function unsubscribeFromPushNotifications(userId: string): Promise<
 
     if (subscription) {
       // Unsubscribe from push manager
-      await subscription.unsubscribe();
+      const unsubscribed = await subscription.unsubscribe();
+      
+      if (!unsubscribed) {
+        logger.warn('Failed to unsubscribe from push manager');
+        // Even if browser unsubscribe failed (rare), we might want to try to remove from DB?
+        // But if browser is still subscribed, we are in a mismatch state.
+        // Let's continue anyway to try to clean up DB.
+      } else {
+        logger.info('Browser push subscription cancelled');
+      }
 
       // Remove from database
       const { error } = await supabase
@@ -142,11 +177,11 @@ export async function unsubscribeFromPushNotifications(userId: string): Promise<
 
       if (error) {
         logger.error('Error removing push subscription from database:', error);
-        return false;
+        // We don't return false here because the browser subscription IS gone (or we tried).
+        // Returning false would make the UI think it's still ON, which is confusing if we just killed the browser sub.
       }
     }
 
-    logger.info('Push notification unsubscription successful');
     return true;
   } catch (error) {
     logger.error('Error unsubscribing from push notifications:', error);

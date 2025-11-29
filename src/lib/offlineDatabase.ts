@@ -113,6 +113,42 @@ class OfflineDatabase {
     });
   }
 
+  async syncFixedTransactions(transactions: Transaction[], userId: string): Promise<void> {
+    if (!this.db) await this.init();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.TRANSACTIONS], 'readwrite');
+      const store = transaction.objectStore(STORES.TRANSACTIONS);
+      const index = store.index('user_id');
+
+      const request = index.getAll(userId);
+
+      request.onsuccess = () => {
+        const localTxs = request.result as Transaction[];
+        const serverIds = new Set(transactions.map(t => t.id));
+
+        // Identificar transações fixas locais que não estão mais no servidor
+        const toDelete = localTxs.filter(tx => {
+           const isFixed = tx.is_fixed === true;
+           const isParent = tx.parent_transaction_id === null || tx.parent_transaction_id === undefined;
+           const isOfficialId = !tx.id.startsWith('temp-');
+           
+           // Deletar se for fixa, pai, oficial e não estiver na lista do servidor
+           return isFixed && isParent && isOfficialId && !serverIds.has(tx.id);
+        });
+
+        toDelete.forEach(tx => store.delete(tx.id));
+        transactions.forEach(tx => store.put(tx));
+      };
+
+      transaction.oncomplete = () => {
+        logger.info(`Sync fixed transactions: Updated ${transactions.length}, cleaned obsoletes.`);
+        resolve();
+      };
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
   async syncAccounts(accounts: Account[], userId: string): Promise<void> {
     if (!this.db) await this.init();
     return new Promise((resolve, reject) => {

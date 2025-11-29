@@ -100,9 +100,8 @@ class OfflineSyncManager {
         .is('parent_transaction_id', null);
 
       if (fixedTransactions) {
-        // Salvar transações fixas no banco local
-        // Usamos saveTransactions pois syncTransactions tem lógica de limpeza baseada em data que não queremos aqui
-        await offlineDatabase.saveTransactions(fixedTransactions as Transaction[]);
+        // Salvar transações fixas no banco local e remover as que foram excluídas
+        await offlineDatabase.syncFixedTransactions(fixedTransactions as Transaction[], user.id);
       }
 
       // Accounts
