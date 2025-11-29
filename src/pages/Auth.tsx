@@ -175,10 +175,12 @@ export default function Auth() {
     <div className="h-screen overflow-y-auto bg-[#1469B6] dark:bg-background flex items-start justify-center p-4 pt-8 pb-12">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg">
-              <BarChart3 className="h-10 w-10 text-yellow-400" /> {/* Ícone pode ser mantido ou alterado conforme preferência */}
-            </div>
+          <div className="flex justify-center mb-6">
+            <img 
+              src="/logo.svg" 
+              alt="PlaniFlow Logo" 
+              className="h-24 w-24 object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-300"
+            />
           </div>
           <h1 className="text-3xl font-bold text-white">PlaniFlow</h1>
           <p className="text-blue-100">Sistema Seguro de Gestão Financeira</p>
