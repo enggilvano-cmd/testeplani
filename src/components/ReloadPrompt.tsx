@@ -25,11 +25,6 @@ export function ReloadPrompt() {
       logger.info('PWA installed - syncing data for offline use');
       try {
         await offlineSync.syncDataFromServer();
-        toast({
-          title: "App instalado com sucesso",
-          description: "Dados dos últimos 3 meses baixados para uso offline.",
-          duration: 5000,
-        });
       } catch (error) {
         logger.error('Failed to sync data on PWA installation', error);
       }
