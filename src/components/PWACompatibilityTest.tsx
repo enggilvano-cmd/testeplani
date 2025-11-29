@@ -63,8 +63,8 @@ export function PWACompatibilityTest() {
         // Test Icons
         let iconsValid = false;
         try {
-          const res192 = await fetch('/pwa-icon-192-v2.png');
-          const res512 = await fetch('/pwa-icon-512-v2.png');
+          const res192 = await fetch('/logo.svg');
+          const res512 = await fetch('/logo.svg');
           iconsValid = res192.ok && res512.ok;
         } catch (e) {
           iconsValid = false;
@@ -95,7 +95,7 @@ export function PWACompatibilityTest() {
               `✅ Manifest: ${manifestValid ? 'Valid' : 'Missing'}`,
               `✅ HTTPS/Localhost: ${isHttps ? 'Yes' : 'No'}`,
               `✅ Service Worker: ${serviceWorkerActive ? 'Active' : 'Inactive'}`,
-              `✅ Icons: ${iconsValid ? '192x192 & 512x512' : 'Missing'}`,
+              `✅ Icons: ${iconsValid ? 'SVG Scalable' : 'Missing'}`,
               `✅ Screenshots: ${manifest?.screenshots ? 'Included' : 'Missing'}`,
               `✅ Display: ${manifest?.display === 'standalone' ? 'Standalone' : 'Not standalone'}`,
             ],
@@ -103,7 +103,7 @@ export function PWACompatibilityTest() {
               'HTTPS or localhost',
               'Web App Manifest with name, icons, display: standalone',
               'Service Worker',
-              'Icons 192x192 and 512x512',
+              'Icons (SVG preferred)',
               'User engagement before install',
             ],
             notes: 'Full offline support with IndexedDB and Service Worker caching',
@@ -168,7 +168,7 @@ export function PWACompatibilityTest() {
             details: [
               `✅ Manifest: ${manifestValid ? 'Supported' : 'Missing'}`,
               `✅ Service Worker: ${serviceWorkerActive ? 'Supported' : 'Inactive'}`,
-              `⚠️ Icon requirement: 96x96 PNG (has 512x512)`,
+              `⚠️ Icon requirement: SVG (scalable)`,
             ],
             requirements: [
               'HTTPS',

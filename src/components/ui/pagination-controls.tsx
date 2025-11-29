@@ -27,7 +27,7 @@ export function PaginationControls({
 
   return (
     <div className="flex items-center justify-between px-2 py-4">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-sm text-white dark:text-muted-foreground">
         <span>
           Mostrando {startItem}-{endItem} de {totalCount} registros
         </span>
@@ -35,7 +35,7 @@ export function PaginationControls({
           value={pageSize === null ? "all" : pageSize.toString()}
           onValueChange={(value) => onPageSizeChange(value === "all" ? null : Number(value))}
         >
-          <SelectTrigger className="h-8 w-[80px]">
+          <SelectTrigger className="h-8 w-[80px] bg-white/10 border-white/20 text-white dark:bg-background dark:border-input dark:text-foreground">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -54,7 +54,7 @@ export function PaginationControls({
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white dark:bg-background dark:border-input dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
           onClick={() => onPageChange(0)}
           disabled={currentPage === 0 || isShowingAll}
         >
@@ -63,7 +63,7 @@ export function PaginationControls({
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white dark:bg-background dark:border-input dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 0 || isShowingAll}
         >
@@ -71,7 +71,7 @@ export function PaginationControls({
         </Button>
         
         <div className="flex items-center gap-1">
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-white dark:text-muted-foreground">
             {isShowingAll ? "Todas as transações" : `Página ${currentPage + 1} de ${Math.max(pageCount, 1)}`}
           </span>
         </div>
@@ -79,7 +79,7 @@ export function PaginationControls({
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white dark:bg-background dark:border-input dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= pageCount - 1 || isShowingAll}
         >
@@ -88,7 +88,7 @@ export function PaginationControls({
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white dark:bg-background dark:border-input dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
           onClick={() => onPageChange(pageCount - 1)}
           disabled={currentPage >= pageCount - 1 || isShowingAll}
         >

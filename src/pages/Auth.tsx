@@ -172,16 +172,16 @@ export default function Auth() {
   }
 
   return (
-    <div className="h-screen overflow-y-auto bg-gradient-surface flex items-start justify-center p-4 pt-8 pb-12">
+    <div className="h-screen overflow-y-auto bg-[#1469B6] dark:bg-background flex items-start justify-center p-4 pt-8 pb-12">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center shadow-lg">
+            <div className="h-16 w-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg">
               <BarChart3 className="h-10 w-10 text-yellow-400" /> {/* Ícone pode ser mantido ou alterado conforme preferência */}
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">PlaniFlow</h1>
-          <p className="text-muted-foreground">Sistema Seguro de Gestão Financeira</p>
+          <h1 className="text-3xl font-bold text-white">PlaniFlow</h1>
+          <p className="text-blue-100">Sistema Seguro de Gestão Financeira</p>
         </div>
 
         <Card className="financial-card transition-all duration-300">
@@ -426,7 +426,6 @@ export default function Auth() {
                 <li>• Criptografia de ponta a ponta</li>
                 <li>• Proteção contra ataques de força bruta</li>
                 <li>• Auditoria completa de atividades</li>
-                <li>• Controle de acesso baseado em funções</li>
               </ul>
             </div>
           </CardContent>

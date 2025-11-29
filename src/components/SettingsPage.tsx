@@ -288,17 +288,9 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
 
   return (
     <div className="space-y-6 fade-in pb-6 sm:pb-8 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-display font-bold leading-tight mb-2">Configurações</h1>
-        <p className="text-body text-muted-foreground">
-          Gerencie suas preferências e configurações do sistema
-        </p>
-      </div>
-
       {/* Seção: Preferências */}
       <div>
-        <h2 className="text-headline font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-headline text-white font-semibold mb-4 flex items-center gap-2">
           <Settings className="h-5 w-5" />
           Preferências
         </h2>
@@ -374,11 +366,9 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
         </div>
       </div>
 
-      <Separator className="my-8" />
-
       {/* Seção: Gerenciamento de Dados */}
       <div>
-        <h2 className="text-headline font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-headline text-white font-semibold mb-4 flex items-center gap-2">
           <Database className="h-5 w-5" />
           Gerenciamento de Dados
         </h2>
@@ -467,11 +457,9 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
         </div>
       </div>
 
-      <Separator className="my-8" />
-
       {/* Backups Agendados */}
       <div>
-        <h2 className="text-headline font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-headline text-white font-semibold mb-4 flex items-center gap-2">
           <Clock className="h-5 w-5" />
           Backups Agendados
         </h2>
@@ -637,11 +625,9 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
         </Card>
       </div>
 
-      <Separator className="my-8" />
-
       {/* About */}
       <div>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-lg text-white font-semibold mb-4 flex items-center gap-2">
           <FileText className="h-5 w-5" />
           Sobre o Aplicativo
         </h2>

@@ -246,14 +246,6 @@ export function UserProfile() {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-6">
-      {/* Header */}
-      <div className="space-y-1">
-        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Meu Perfil</h2>
-        <p className="text-sm sm:text-base text-muted-foreground">
-          Gerencie suas informações pessoais e configurações
-        </p>
-      </div>
-
       {/* Responsive Grid Layout */}
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Main Content Area - Full width on mobile, 2/3 on desktop */}

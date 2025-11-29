@@ -278,7 +278,11 @@ export function AccountsPage({
               </span>
             </Button>
           )}
-          <Button onClick={onAddAccount} className="gap-1.5 apple-interaction h-9 text-body px-2 sm:px-3">
+          <Button
+            onClick={onAddAccount}
+            variant="outline"
+            className="gap-1.5 apple-interaction h-9 text-body border-warning text-warning hover:bg-warning hover:text-warning-foreground px-2 sm:px-3"
+          >
             <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
             <span className="truncate whitespace-nowrap">
               <span className="hidden sm:inline">Adicionar Conta</span>
@@ -437,7 +441,7 @@ export function AccountsPage({
                       </h3>
                       <Badge
                         variant={getAccountTypeBadge(account.type)}
-                        className="gap-1 text-caption h-5 px-2 inline-flex"
+                        className="gap-1 text-caption h-5 px-2 inline-flex text-white"
                       >
                         {getAccountTypeLabel(account.type)}
                       </Badge>

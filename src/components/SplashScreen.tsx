@@ -26,7 +26,7 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
         {/* Logo */}
         <div className="relative animate-scale-in">
           <img
-            src="/icon-512.png"
+            src="/logo.svg"
             alt="PlaniFlow"
             className="w-32 h-32 rounded-3xl shadow-xl"
           />

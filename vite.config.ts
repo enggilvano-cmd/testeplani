@@ -89,8 +89,9 @@ export default defineConfig(({ mode }) => ({
       includeAssets: [
         'favicon.png', 
         'robots.txt', 
-        'pwa-icon-192-v2.png', 
-        'pwa-icon-512-v2.png'
+        'logo.svg',
+        'pwa-icon-192.png',
+        'pwa-icon-512.png'
       ],
       manifest: {
         id: '/',
@@ -108,41 +109,37 @@ export default defineConfig(({ mode }) => ({
         prefer_related_applications: false,
         icons: [
           {
-            src: '/pwa-icon-192-v2.png',
+            src: '/pwa-icon-192.png',
             sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-          {
-            src: '/pwa-icon-512-v2.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-          {
-            src: '/favicon.png',
-            sizes: '48x48',
             type: 'image/png',
             purpose: 'any',
           },
+          {
+            src: '/pwa-icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/pwa-icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/pwa-icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/logo.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml',
+            purpose: 'any maskable',
+          }
         ],
         categories: ['finance', 'productivity', 'utilities'],
-        screenshots: [
-          {
-            src: '/pwa-icon-512-v2.png',
-            sizes: '512x512',
-            type: 'image/png',
-            form_factor: 'wide',
-            purpose: 'any',
-          },
-          {
-            src: '/pwa-icon-192-v2.png',
-            sizes: '192x192',
-            type: 'image/png',
-            form_factor: 'narrow',
-            purpose: 'any',
-          },
-        ],
       },
     })
   ].filter(Boolean),

@@ -89,13 +89,6 @@ export default function SystemSettings() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-title mb-2">Configurações do Sistema</h1>
-        <p className="text-body text-muted-foreground">
-          Gerencie configurações gerais do sistema e teste a performance do banco de dados
-        </p>
-      </div>
-
       <Tabs defaultValue="settings" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="settings" className="flex items-center gap-2">

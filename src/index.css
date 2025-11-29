@@ -9,84 +9,84 @@
     /* Financial App Color System - Tema Claro */
     /* Cores baseadas na paleta especificada para finanças pessoais */
     
-    /* Backgrounds - Fundo suave acinzentado */
-    --background: 210 25% 98%; /* #F7F9FB */
-    --foreground: 210 28% 13%; /* #162028 - Texto antracite */
+    /* Backgrounds - Clean & Bright */
+    --background: 210 20% 98%; /* Fundo principal muito claro, quase branco */
+    --foreground: 210 28% 13%; /* Texto principal escuro para contraste */
 
-    /* Card system - Usando fundo principal */
-    --card: 210 25% 98%; /* #F7F9FB */
-    --card-foreground: 210 28% 13%; /* #162028 */
+    /* Card system - Branco puro com sombras sutis */
+    --card: 0 0% 100%; /* Cards brancos */
+    --card-foreground: 210 28% 13%; /* Texto escuro */
 
     /* Popover system */
-    --popover: 210 25% 98%; /* #F7F9FB */
-    --popover-foreground: 210 28% 13%; /* #162028 */
+    --popover: 0 0% 100%; /* Popovers brancos */
+    --popover-foreground: 210 28% 13%; /* Texto escuro */
 
-    /* Primary - Azul confiável para finanças */
-    --primary: 207 77% 40%; /* #1469B6 */
-    --primary-foreground: 210 25% 98%; /* #F7F9FB - texto claro */
+    /* Primary - Azul confiável */
+    --primary: 207 77% 40%; /* Azul sólido e profissional */
+    --primary-foreground: 0 0% 100%; /* Texto branco */
     --primary-glow: 207 77% 50%;
-    --primary-deep: 207 77% 35%;
+    --primary-deep: 207 77% 30%;
 
-    /* Secondary - Cinza médio para elementos secundários */
-    --secondary: 210 11% 44%; /* #64707D */
-    --secondary-foreground: 210 25% 98%; /* #F7F9FB */
+    /* Secondary - Neutro e funcional */
+    --secondary: 210 20% 96%; /* Cinza muito claro */
+    --secondary-foreground: 210 28% 13%; /* Texto escuro */
 
-    /* Muted tones - Tons suaves para backgrounds secundários */
-    --muted: 210 20% 95%;
-    --muted-foreground: 210 11% 44%; /* #64707D */
+    /* Muted tones */
+    --muted: 210 20% 96%; /* Fundo muted claro */
+    --muted-foreground: 210 10% 40%; /* Texto muted cinza */
 
     /* Accent/Alert - Laranja para destaques e alertas */
     --accent: 27 74% 56%; /* #E68F36 */
-    --accent-foreground: 210 25% 98%; /* #F7F9FB */
+    --accent-foreground: 0 0% 100%;
     --accent-glow: 27 74% 66%;
 
     /* Status colors para finanças */
-    --success: 142 76% 36%; /* Verde para valores positivos */
-    --success-foreground: 210 25% 98%;
+    --success: 142 76% 36%; /* Verde */
+    --success-foreground: 0 0% 100%;
     --success-glow: 142 76% 46%;
-    --warning: 27 74% 56%; /* Laranja para alertas - #E68F36 */
-    --warning-foreground: 210 25% 98%;
+    --warning: 27 74% 56%; /* Laranja */
+    --warning-foreground: 0 0% 100%;
     --warning-glow: 27 74% 66%;
-    --destructive: 0 84% 60%; /* Vermelho para valores negativos */
-    --destructive-foreground: 210 25% 98%;
+    --destructive: 0 84% 60%; /* Vermelho */
+    --destructive-foreground: 0 0% 100%;
     --destructive-glow: 0 84% 70%;
 
     /* Interactive elements */
-    --border: 210 15% 85%;
-    --input: 210 20% 95%;
-    --ring: 207 77% 40%; /* Primary color */
+    --border: 214 32% 91%; /* Bordas sutis */
+    --input: 214 32% 91%; /* Inputs claros */
+    --ring: 207 77% 40%; /* Anel de foco azul */
 
     /* Financial App gradients para tema claro */
     --gradient-primary: linear-gradient(135deg, hsl(207 77% 40%) 0%, hsl(207 77% 50%) 100%);
     --gradient-success: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(142 76% 46%) 100%);
     --gradient-warning: linear-gradient(135deg, hsl(27 74% 56%) 0%, hsl(27 74% 66%) 100%);
     --gradient-destructive: linear-gradient(135deg, hsl(0 84% 60%) 0%, hsl(0 84% 70%) 100%);
-    --gradient-card: linear-gradient(135deg, hsl(210 25% 98%) 0%, hsl(210 20% 96%) 100%);
-    --gradient-glass: linear-gradient(135deg, hsl(210 25% 98% / 0.95) 0%, hsl(210 20% 96% / 0.85) 100%);
-    --gradient-surface: linear-gradient(135deg, hsl(210 25% 98%) 0%, hsl(210 20% 96%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(210 25% 97%) 0%, hsl(210 25% 99%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(210 20% 98%) 100%);
+    --gradient-glass: linear-gradient(135deg, hsl(0 0% 100% / 0.8) 0%, hsl(0 0% 100% / 0.6) 100%);
+    --gradient-surface: linear-gradient(135deg, hsl(210 20% 98%) 0%, hsl(210 20% 95%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(210 30% 96%) 0%, hsl(210 25% 93%) 100%);
     
-    /* Apple-style shadows - Clean and subtle */
-    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -2px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1), 0 4px 6px -4px hsl(0 0% 0% / 0.1);
-    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.1), 0 8px 10px -6px hsl(0 0% 0% / 0.1);
-    --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow-floating: 0 4px 12px 0 hsl(0 0% 0% / 0.15);
-    --shadow-glass: 0 8px 32px 0 hsl(0 0% 0% / 0.1);
-    --shadow-inner: inset 0 1px 2px 0 hsl(0 0% 0% / 0.05);
+    /* Apple-style shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(210 20% 10% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(210 20% 10% / 0.1), 0 2px 4px -2px hsl(210 20% 10% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(210 20% 10% / 0.1), 0 4px 6px -4px hsl(210 20% 10% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(210 20% 10% / 0.1), 0 8px 10px -6px hsl(210 20% 10% / 0.05);
+    --shadow-card: 0 1px 3px 0 hsl(210 20% 10% / 0.1), 0 1px 2px -1px hsl(210 20% 10% / 0.06);
+    --shadow-floating: 0 4px 12px 0 hsl(210 20% 10% / 0.08);
+    --shadow-glass: 0 8px 32px 0 hsl(210 20% 10% / 0.1);
+    --shadow-inner: inset 0 1px 2px 0 hsl(210 20% 10% / 0.06);
 
     --radius: 0.75rem;
 
     /* Sidebar using financial palette */
-    --sidebar-background: 210 25% 98%; /* #F7F9FB */
-    --sidebar-foreground: 210 28% 13%; /* #162028 */
-    --sidebar-primary: 207 77% 40%; /* #1469B6 */
-    --sidebar-primary-foreground: 210 25% 98%; /* #F7F9FB */
-    --sidebar-accent: 210 20% 95%;
-    --sidebar-accent-foreground: 210 28% 13%; /* #162028 */
-    --sidebar-border: 210 15% 85%;
-    --sidebar-ring: 207 77% 40%; /* #1469B6 */
+    --sidebar-background: 0 0% 100%; /* Branco */
+    --sidebar-foreground: 210 28% 13%; /* Texto escuro */
+    --sidebar-primary: 207 77% 40%; /* Azul */
+    --sidebar-primary-foreground: 0 0% 100%; /* Texto branco */
+    --sidebar-accent: 210 20% 96%; /* Hover cinza claro */
+    --sidebar-accent-foreground: 210 28% 13%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 207 77% 40%;
   }
 
   .dark {

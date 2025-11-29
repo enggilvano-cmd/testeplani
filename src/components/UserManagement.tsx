@@ -364,14 +364,6 @@ export function UserManagement() {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-6 px-2 sm:px-0">
-      {/* Header Section */}
-      <div className="space-y-1 px-2 sm:px-0">
-        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Gerenciamento de Usuários</h2>
-        <p className="text-sm sm:text-base text-muted-foreground">
-          Controle total sobre usuários e permissões do sistema
-        </p>
-      </div>
-
       {/* Tab Buttons */}
       <div className="flex flex-col xs:flex-row justify-center gap-2 sm:gap-3 px-2 sm:px-0 max-w-md mx-auto w-full">
         <Button

@@ -402,7 +402,11 @@ export function CategoriesPage({}: CategoriesPageProps) {
             <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
             <span className="truncate">Importar</span>
           </Button>
-          <Button onClick={() => setAddModalOpen(true)} className="gap-1.5 apple-interaction h-9 text-body col-span-2 md:col-span-1 px-2 sm:px-3">
+          <Button 
+            onClick={() => setAddModalOpen(true)} 
+            variant="outline"
+            className="gap-1.5 apple-interaction h-9 text-body col-span-2 md:col-span-1 border-warning text-warning hover:bg-warning hover:text-warning-foreground px-2 sm:px-3"
+          >
             <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
             <span className="truncate whitespace-nowrap">
               <span className="hidden sm:inline">Adicionar Categoria</span>

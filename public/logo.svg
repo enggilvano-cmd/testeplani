@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#43A047;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2E7D32;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FDD835;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FBC02D;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dx="5" dy="5" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge> 
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/> 
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect x="32" y="32" width="448" height="448" rx="100" ry="100" fill="url(#grad1)" />
+  
+  <!-- Chart Content -->
+  <g transform="translate(64, 64)" filter="url(#shadow)">
+    <!-- Axis L-shape -->
+    <path d="M60 60 V324 H324" fill="none" stroke="url(#grad2)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Bars -->
+    <rect x="130" y="200" width="40" height="100" rx="20" fill="url(#grad2)" />
+    <rect x="210" y="120" width="40" height="180" rx="20" fill="url(#grad2)" />
+    <rect x="290" y="160" width="40" height="140" rx="20" fill="url(#grad2)" />
+  </g>
+</svg>

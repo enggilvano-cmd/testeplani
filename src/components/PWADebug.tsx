@@ -54,8 +54,8 @@ export function PWADebug() {
       let iconsPng192Found = false;
       let iconsPng512Found = false;
       try {
-        const res192 = await fetch('/pwa-icon-192-v2.png');
-        const res512 = await fetch('/pwa-icon-512-v2.png');
+        const res192 = await fetch('/logo.svg');
+        const res512 = await fetch('/logo.svg');
         iconsPng192Found = res192.ok;
         iconsPng512Found = res512.ok;
       } catch (e) {
@@ -133,12 +133,12 @@ export function PWADebug() {
           <StatusRow 
             label="Icons 192px" 
             status={status.iconsPng192Found}
-            hint={status.iconsPng192Found ? '✅ Found' : '❌ /pwa-icon-192-v2.png'}
+            hint={status.iconsPng192Found ? '✅ Found' : '❌ /logo.svg'}
           />
           <StatusRow 
             label="Icons 512px" 
             status={status.iconsPng512Found}
-            hint={status.iconsPng512Found ? '✅ Found' : '❌ /pwa-icon-512-v2.png'}
+            hint={status.iconsPng512Found ? '✅ Found' : '❌ /logo.svg'}
           />
           <StatusRow 
             label="Mobile Meta Tag" 
@@ -179,8 +179,8 @@ export function PWADebug() {
             {!status.httpsEnabled && <p>• Not HTTPS (or not localhost) - PWA won't work</p>}
             {!status.manifestFound && <p>• Manifest not accessible - check /manifest.webmanifest</p>}
             {!status.serviceWorkerActive && <p>• Service Worker not registered - check console for errors</p>}
-            {!status.iconsPng192Found && <p>• 192px icon missing - add /public/pwa-icon-192-v2.png</p>}
-            {!status.iconsPng512Found && <p>• 512px icon missing - add /public/pwa-icon-512-v2.png</p>}
+            {!status.iconsPng192Found && <p>• 192px icon missing - add /public/logo.svg</p>}
+            {!status.iconsPng512Found && <p>• 512px icon missing - add /public/logo.svg</p>}
             {!status.mobileCapableTag && <p>• Missing mobile-web-app-capable meta tag</p>}
             {!status.themeColorTag && <p>• Missing theme-color meta tag</p>}
             {!status.installPromptSupported && <p>• Browser doesn't support install prompt</p>}

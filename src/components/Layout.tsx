@@ -348,7 +348,9 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate }: Layo
           {/* Desktop Logo Header */}
           {!isMobile && (
             <div className="flex justify-end items-center px-12 pt-3 pb-3 gap-4">
-              <NotificationBell />
+              <div className="text-white dark:text-foreground">
+                <NotificationBell />
+              </div>
               <div 
                 className="flex items-center gap-3 cursor-pointer transition-all duration-200 hover:scale-105"
                 onClick={() => handlePageChange('dashboard')}
@@ -357,10 +359,10 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate }: Layo
                   <BarChart3 className="h-6 w-6 text-yellow-400" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold tracking-tight text-foreground">
+                  <h1 className="text-xl font-bold tracking-tight text-white dark:text-foreground">
                     PlaniFlow
                   </h1>
-                  <p className="text-sm text-muted-foreground mt-1 font-medium">
+                  <p className="text-sm text-blue-100 dark:text-muted-foreground mt-1 font-medium">
                     Gestão Financeira
                   </p>
                 </div>
@@ -396,7 +398,7 @@ export function Layout({ children, currentPage, onPageChange, onNavigate, ...res
   
   return (
     <SidebarProvider defaultOpen={!isMobile}>
-      <div className="h-screen flex w-full bg-gradient-surface overflow-hidden">
+      <div className="h-screen flex w-full bg-[#1469B6] dark:bg-gradient-surface overflow-hidden">
         <LayoutContent 
           currentPage={currentPage} 
           onPageChange={onPageChange} 

@@ -80,11 +80,5 @@ export function useOfflineAuth() {
     loading: effectiveLoading,
     signOut,
     isOnline,
-    // Helper para verificar admin de forma segura
-    isAdmin: () => {
-       const email = effectiveUser?.email;
-       // Substitua pelo seu e-mail de admin real se necessário
-       return email === 'eng.gilvano@gmail.com'; 
-    }
   };
 }
