@@ -29,7 +29,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryClient";
 import { FixedTransactionPageActions } from "./fixedtransactions/FixedTransactionPageActions";
 import { ImportFixedTransactionsModal } from "./ImportFixedTransactionsModal";
-import * as XLSX from "xlsx";
+import { loadXLSX } from "@/lib/lazyImports";
 import { formatBRNumber } from "@/lib/formatters";
 import { useAuth } from "@/hooks/useAuth";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
@@ -723,6 +723,7 @@ export function FixedTransactionsPage() {
 
       const exportData = await Promise.all(exportDataPromises);
 
+      const XLSX = await loadXLSX();
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Transações Fixas");
