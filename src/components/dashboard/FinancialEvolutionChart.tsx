@@ -80,12 +80,12 @@ export function FinancialEvolutionChart({
     () => (value: number, name: string) => [
       formatCurrency(value),
       name === 'receitas'
-        ? 'Receitas'
+        ? ' - Receitas'
         : name === 'despesas'
-        ? 'Despesas'
+        ? ' - Despesas'
         : name === 'saldo'
-        ? 'Saldo Acumulado'
-        : name,
+        ? ' - Saldo Acumulado'
+        : ` - ${name}`,
     ],
     [formatCurrency]
   );

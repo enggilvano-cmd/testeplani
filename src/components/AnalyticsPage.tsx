@@ -20,13 +20,10 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
 } from "@/components/ui/chart";
 import {
   formatCurrencyForAxis,
   getBarChartAxisProps,
-  getComposedChartMargins,
 } from "@/lib/chartUtils";
 import {
   Bar,
@@ -169,7 +166,7 @@ export default function AnalyticsPage({
   const selectedMonth = new Date(filters.selectedMonth);
   const customStartDate = filters.customStartDate ? new Date(filters.customStartDate) : undefined;
   const customEndDate = filters.customEndDate ? new Date(filters.customEndDate) : undefined;
-  const categoryChartType = filters.categoryChartType;
+
 
   // Setters
   const setSearchTerm = (value: string) => setFilters((prev) => ({ ...prev, searchTerm: value }));
@@ -181,14 +178,13 @@ export default function AnalyticsPage({
   const setSelectedMonth = (value: Date) => setFilters((prev) => ({ ...prev, selectedMonth: value.toISOString() }));
   const setCustomStartDate = (value: Date | undefined) => setFilters((prev) => ({ ...prev, customStartDate: value?.toISOString() }));
   const setCustomEndDate = (value: Date | undefined) => setFilters((prev) => ({ ...prev, customEndDate: value?.toISOString() }));
-  const setCategoryChartType = (value: typeof filters.categoryChartType) => setFilters((prev) => ({ ...prev, categoryChartType: value }));
+
 
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const { toast } = useToast();
   const {
     chartConfig: responsiveConfig,
     isMobile,
-    isTablet,
     isDesktop,
   } = useChartResponsive();
   
@@ -305,64 +301,7 @@ export default function AnalyticsPage({
   );
 
 
-  const categoryData = useMemo(() => {
-    const typeFilteredTransactions = nonTransferFilteredTransactions.filter(
-      (t) => t.type === categoryChartType
-    );
 
-    const categoryFilteredTransactions = typeFilteredTransactions.filter(
-      (transaction) => {
-        const category = getTransactionCategory(transaction);
-        return category !== "Pagamento de Fatura";
-      }
-    );
-
-    if (categoryFilteredTransactions.length === 0) {
-      return [];
-    }
-
-    const categoryTotals = categoryFilteredTransactions.reduce(
-      (acc, transaction) => {
-        const categoryObj = categories.find(
-          (c) => c.id === transaction.category_id
-        );
-        const categoryName = categoryObj?.name || "Sem categoria";
-        const categoryColor = categoryObj?.color || FALLBACK_COLOR;
-
-        if (!acc[categoryName]) {
-          acc[categoryName] = { amount: 0, color: categoryColor };
-        }
-
-        const value =
-          categoryChartType === "expense"
-            ? Math.abs(transaction.amount)
-            : transaction.amount;
-        acc[categoryName].amount += value;
-
-        return acc;
-      },
-      {} as Record<string, { amount: number; color: string }>
-    );
-
-    const totalAmount = Object.values(categoryTotals).reduce(
-      (sum, data) => sum + data.amount,
-      0
-    );
-
-    const report = Object.entries(categoryTotals)
-      .map(([category, data]) => ({
-        category,
-        amount: data.amount,
-        color: data.color,
-        percentage: totalAmount > 0 ? (data.amount / totalAmount) * 100 : 0,
-      }))
-      .sort((a, b) => b.amount - a.amount);
-
-    return report.map((item, index) => ({
-      ...item,
-      fill: item.color || COLORS[index % COLORS.length],
-    }));
-  }, [nonTransferFilteredTransactions, categoryChartType, categories]);
 
   // Dados separados para despesas
   const expenseData = useMemo(() => {
@@ -576,8 +515,8 @@ export default function AnalyticsPage({
       .map((account) => ({
         name: account.name.split(" - ")[0] || account.name,
         balance: account.balance,
-        positiveBalance: account.balance > 0 ? account.balance : 0,
-        negativeBalance: account.balance < 0 ? account.balance : 0,
+        positiveBalance: account.balance >= 0 ? account.balance : undefined,
+        negativeBalance: account.balance < 0 ? account.balance : undefined,
         type: account.type,
         color: account.color || "hsl(var(--primary))",
       }));
@@ -606,8 +545,8 @@ export default function AnalyticsPage({
         return {
           name: account.name.split(" - ")[0] || account.name,
           balance: availableCredit,
-          positiveBalance: availableCredit > 0 ? availableCredit : 0,
-          negativeBalance: availableCredit < 0 ? availableCredit : 0,
+          positiveBalance: availableCredit >= 0 ? availableCredit : undefined,
+          negativeBalance: availableCredit < 0 ? availableCredit : undefined,
           type: account.type,
           color: account.color || "hsl(var(--primary))",
           usedCredit,
@@ -672,8 +611,8 @@ export default function AnalyticsPage({
         return {
           name: account.name.split(" - ")[0] || account.name,
           balance: availableOverdraft,
-          positiveBalance: availableOverdraft > 0 ? availableOverdraft : 0,
-          negativeBalance: availableOverdraft < 0 ? availableOverdraft : 0, // Caso estoure o limite
+          positiveBalance: availableOverdraft >= 0 ? availableOverdraft : undefined,
+          negativeBalance: availableOverdraft < 0 ? availableOverdraft : undefined, // Caso estoure o limite
           type: account.type,
           color: account.color || "hsl(var(--primary))",
           usedOverdraft,
@@ -724,6 +663,84 @@ export default function AnalyticsPage({
     });
     return config;
   }, [overdraftUsedData]);
+
+  // Dados para o gráfico de saldos de contas de investimento
+  const investmentBalanceData = useMemo(() => {
+    return accounts
+      .filter((acc) => acc.type === "investment")
+      .map((account) => ({
+        name: account.name.split(" - ")[0] || account.name,
+        balance: account.balance,
+        positiveBalance: account.balance >= 0 ? account.balance : undefined,
+        negativeBalance: account.balance < 0 ? account.balance : undefined,
+        type: account.type,
+        color: account.color || "hsl(var(--primary))",
+      }));
+  }, [accounts]);
+
+  // Chart config específico para o gráfico de contas de investimento
+  const investmentChartConfig = useMemo(() => {
+    const config: Record<string, { label: string; color: string }> = {};
+    investmentBalanceData.forEach((account) => {
+      config[account.name] = {
+        label: account.name,
+        color: account.color,
+      };
+    });
+    return config;
+  }, [investmentBalanceData]);
+
+  // Dados para o gráfico de saldos de contas poupança
+  const savingsBalanceData = useMemo(() => {
+    return accounts
+      .filter((acc) => acc.type === "savings")
+      .map((account) => ({
+        name: account.name.split(" - ")[0] || account.name,
+        balance: account.balance,
+        positiveBalance: account.balance >= 0 ? account.balance : undefined,
+        negativeBalance: account.balance < 0 ? account.balance : undefined,
+        type: account.type,
+        color: account.color || "hsl(var(--primary))",
+      }));
+  }, [accounts]);
+
+  // Chart config específico para o gráfico de contas poupança
+  const savingsChartConfig = useMemo(() => {
+    const config: Record<string, { label: string; color: string }> = {};
+    savingsBalanceData.forEach((account) => {
+      config[account.name] = {
+        label: account.name,
+        color: account.color,
+      };
+    });
+    return config;
+  }, [savingsBalanceData]);
+
+  // Dados para o gráfico de saldos de contas corrente
+  const checkingBalanceData = useMemo(() => {
+    return accounts
+      .filter((acc) => acc.type === "checking")
+      .map((account) => ({
+        name: account.name.split(" - ")[0] || account.name,
+        balance: account.balance,
+        positiveBalance: account.balance >= 0 ? account.balance : undefined,
+        negativeBalance: account.balance < 0 ? account.balance : undefined,
+        type: account.type,
+        color: account.color || "hsl(var(--primary))",
+      }));
+  }, [accounts]);
+
+  // Chart config específico para o gráfico de contas corrente
+  const checkingChartConfig = useMemo(() => {
+    const config: Record<string, { label: string; color: string }> = {};
+    checkingBalanceData.forEach((account) => {
+      config[account.name] = {
+        label: account.name,
+        color: account.color,
+      };
+    });
+    return config;
+  }, [checkingBalanceData]);
 
   const handleExportPDF = async () => {
     if (!contentRef.current) {
@@ -978,7 +995,7 @@ export default function AnalyticsPage({
   // Chart config específico para o gráfico de categorias
   // Memoize tooltip formatters to prevent re-renders
   const categoryTooltipFormatter = useMemo(
-    () => (value: number, name: string) => [formatCurrency(value), name],
+    () => (value: number, name: string) => [formatCurrency(value), ` - ${name}`],
     [formatCurrency]
   );
 
@@ -986,9 +1003,9 @@ export default function AnalyticsPage({
     () => (value: number, _name: string, props: any) => {
       // Show only the actual balance value, not the split values
       if (props?.payload?.balance !== undefined) {
-        return [formatCurrency(props.payload.balance), "Saldo"];
+        return [formatCurrency(props.payload.balance), " - Saldo"];
       }
-      return [formatCurrency(value), "Saldo"];
+      return [formatCurrency(value), " - Saldo"];
     },
     [formatCurrency]
   );
@@ -997,12 +1014,12 @@ export default function AnalyticsPage({
     () => (value: number, name: string) => [
       formatCurrency(value),
       name === "receitas"
-        ? "Receitas"
+        ? " - Receitas"
         : name === "despesas"
-        ? "Despesas"
+        ? " - Despesas"
         : name === "saldo"
-        ? "Saldo Acumulado"
-        : name,
+        ? " - Saldo Acumulado"
+        : ` - ${name}`,
     ],
     [formatCurrency]
   );
@@ -1034,14 +1051,25 @@ export default function AnalyticsPage({
 
   const categoryChartConfig = useMemo(() => {
     const config: Record<string, { label: string; color: string }> = {};
-    categoryData.forEach((item, index) => {
+    
+    // Process income data
+    incomeData.forEach((item, index) => {
       config[item.category] = {
         label: item.category,
         color: item.fill || COLORS[index % COLORS.length],
       };
     });
+
+    // Process expense data
+    expenseData.forEach((item, index) => {
+      config[item.category] = {
+        label: item.category,
+        color: item.fill || COLORS[index % COLORS.length],
+      };
+    });
+
     return config;
-  }, [categoryData]);
+  }, [incomeData, expenseData]);
 
   // Filter chips configuration
   const filterChips = useMemo(() => {
@@ -1295,39 +1323,13 @@ export default function AnalyticsPage({
 
       {/* Charts Grid */}
       <div className="analytics-section grid grid-cols-1 gap-6 sm:gap-8 mt-6 sm:mt-8">
-        {/* Category Pie Chart */}
+        {/* Income Category Pie Chart */}
         <Card className="financial-card">
-          {/* 2. BOTÕES DE ALTERNÂNCIA ATUALIZADOS COM CORES */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 pt-3 sm:px-4 sm:pt-4">
             <CardTitle className="text-headline flex items-center gap-2">
               <PieChart className="h-4 w-4 sm:h-5 sm:w-5" />
-              {categoryChartType === "income" ? "Receitas" : "Despesas"} por Categoria
+              Receitas por Categoria
             </CardTitle>
-
-            <div className="flex gap-1 rounded-lg bg-muted p-1">
-              <Button
-                size="sm"
-                variant={
-                  categoryChartType === "expense" ? "destructive" : "ghost"
-                }
-                onClick={() => setCategoryChartType("expense")}
-                className="h-6 px-2 text-caption sm:h-7 sm:px-3"
-              >
-                Despesas
-              </Button>
-              <Button
-                size="sm"
-                variant={categoryChartType === "income" ? "default" : "ghost"}
-                onClick={() => setCategoryChartType("income")}
-                className={cn(
-                  "h-6 px-2 text-caption sm:h-7 sm:px-3",
-                  categoryChartType === "income" &&
-                    "bg-success text-success-foreground hover:bg-success/90"
-                )}
-              >
-                Receitas
-              </Button>
-            </div>
           </CardHeader>
           <CardContent className="p-2 sm:p-3">
             <div className="relative w-full">
@@ -1341,7 +1343,7 @@ export default function AnalyticsPage({
                   formatter={categoryTooltipFormatter}
                 />
                 <Pie
-                  data={categoryData.map((item) => ({
+                  data={incomeData.map((item) => ({
                     ...item,
                     name: item.category,
                     value: item.amount,
@@ -1354,21 +1356,21 @@ export default function AnalyticsPage({
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {categoryData.map((entry, index) => (
+                  {incomeData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Pie>
               </RechartsPieChart>
               
               {/* Custom Legend - desktop/tablet (ao lado do gráfico) */}
-              {!isMobile && categoryData.length > 0 && (
+              {!isMobile && incomeData.length > 0 && (
                 <div 
                   className={cn(
                     "flex flex-col gap-2 px-4 absolute right-4 top-1/2 -translate-y-1/2",
                   )}
                   style={{ maxWidth: "35%" }}
                 >
-                  {categoryData.map((item, index) => (
+                  {incomeData.map((item, index) => (
                     <div 
                       key={`legend-${index}`} 
                       className="flex items-center justify-between gap-2 text-caption"
@@ -1393,9 +1395,9 @@ export default function AnalyticsPage({
             </div>
 
             {/* Custom Legend - mobile (abaixo do gráfico) */}
-            {isMobile && categoryData.length > 0 && (
+            {isMobile && incomeData.length > 0 && (
               <div className="mt-4 flex flex-col gap-2 px-2">
-                {categoryData.map((item, index) => (
+                {incomeData.map((item, index) => (
                   <div 
                     key={`legend-mobile-${index}`} 
                     className="flex items-center justify-between gap-2 text-caption"
@@ -1416,9 +1418,112 @@ export default function AnalyticsPage({
                 ))}
               </div>
             )}
-            {categoryData.length === 0 && (
+            {incomeData.length === 0 && (
               <div className="text-body text-center text-muted-foreground py-8">
-                Nenhuma transação encontrada para o período selecionado
+                Nenhuma receita encontrada para o período selecionado
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Expense Category Pie Chart */}
+        <Card className="financial-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 pt-3 sm:px-4 sm:pt-4">
+            <CardTitle className="text-headline flex items-center gap-2">
+              <PieChart className="h-4 w-4 sm:h-5 sm:w-5" />
+              Despesas por Categoria
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-2 sm:p-3">
+            <div className="relative w-full">
+              <ChartContainer
+                config={categoryChartConfig}
+                className={`${chartHeight} w-full overflow-hidden`}
+              >
+               <RechartsPieChart width={undefined} height={undefined}>
+                <ChartTooltip
+                  content={<ChartTooltipContent />}
+                  formatter={categoryTooltipFormatter}
+                />
+                <Pie
+                  data={expenseData.map((item) => ({
+                    ...item,
+                    name: item.category,
+                    value: item.amount,
+                  }))}
+                  cx={isMobile ? "50%" : "35%"}
+                  cy="50%"
+                  labelLine={false}
+                  label={false}
+                  outerRadius={responsiveConfig.outerRadius}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {expenseData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+              </RechartsPieChart>
+              
+              {/* Custom Legend - desktop/tablet (ao lado do gráfico) */}
+              {!isMobile && expenseData.length > 0 && (
+                <div 
+                  className={cn(
+                    "flex flex-col gap-2 px-4 absolute right-4 top-1/2 -translate-y-1/2",
+                  )}
+                  style={{ maxWidth: "35%" }}
+                >
+                  {expenseData.map((item, index) => (
+                    <div 
+                      key={`legend-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: item.fill }}
+                        />
+                        <span className="truncate text-foreground">
+                          {item.category}
+                        </span>
+                      </div>
+                      <span className="text-muted-foreground font-medium flex-shrink-0">
+                        {item.percentage.toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ChartContainer>
+            </div>
+
+            {/* Custom Legend - mobile (abaixo do gráfico) */}
+            {isMobile && expenseData.length > 0 && (
+              <div className="mt-4 flex flex-col gap-2 px-2">
+                {expenseData.map((item, index) => (
+                  <div 
+                    key={`legend-mobile-${index}`} 
+                    className="flex items-center justify-between gap-2 text-caption"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div 
+                        className="w-3 h-3 rounded-full flex-shrink-0" 
+                        style={{ backgroundColor: item.fill }}
+                      />
+                      <span className="truncate text-foreground">
+                        {item.category}
+                      </span>
+                    </div>
+                    <span className="text-muted-foreground font-medium flex-shrink-0">
+                      {item.percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {expenseData.length === 0 && (
+              <div className="text-body text-center text-muted-foreground py-8">
+                Nenhuma despesa encontrada para o período selecionado
               </div>
             )}
           </CardContent>
@@ -1554,6 +1659,404 @@ export default function AnalyticsPage({
           </CardContent>
         </Card>
 
+        {/* Investment Account Balances */}
+        {investmentBalanceData.length > 0 && (
+          <Card className="financial-card">
+            <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
+              <CardTitle className="text-headline flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                Saldo de Conta Investimento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 sm:p-3">
+              <div className="relative w-full">
+                <ChartContainer
+                  config={investmentChartConfig}
+                  className={`${chartHeight} w-full overflow-hidden`}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={investmentBalanceData}
+                      margin={{
+                        top: 20,
+                        right: isMobile ? 15 : 240,
+                        bottom: isMobile ? 20 : 30,
+                        left: isMobile ? 10 : 20
+                      }}
+                    >
+                    <XAxis
+                      dataKey="name"
+                      tick={false}
+                      axisLine={false}
+                      height={0}
+                    />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        formatCurrencyForAxis(value / 100, isMobile)
+                      }
+                      tick={{ fontSize: isMobile ? 9 : 11 }}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      formatter={accountTooltipFormatter}
+                     />
+                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                       {investmentBalanceData.map((entry, index) => (
+                         <Cell key={`cell-investment-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                       ))}
+                     </Bar>
+                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                       {investmentBalanceData.map((entry, index) => (
+                         <Cell key={`cell-investment-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                       ))}
+                     </Bar>
+                   </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Legenda de Contas de Investimento - desktop/tablet */}
+              {!isMobile && investmentBalanceData.length > 0 && (
+                <div 
+                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                  style={{ maxWidth: "38%" }}
+                >
+                  {investmentBalanceData.map((account, index) => (
+                    <div 
+                      key={`legend-investment-desktop-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: account.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        account.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(account.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      investmentBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(investmentBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Legenda de Contas de Investimento - mobile */}
+              {isMobile && investmentBalanceData.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 px-2">
+                  {investmentBalanceData.map((account, index) => (
+                    <div 
+                      key={`legend-investment-mobile-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: account.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        account.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(account.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      investmentBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(investmentBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Savings Account Balances */}
+        {savingsBalanceData.length > 0 && (
+          <Card className="financial-card">
+            <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
+              <CardTitle className="text-headline flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                Saldo de Conta Poupança
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 sm:p-3">
+              <div className="relative w-full">
+                <ChartContainer
+                  config={savingsChartConfig}
+                  className={`${chartHeight} w-full overflow-hidden`}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={savingsBalanceData}
+                      margin={{
+                        top: 20,
+                        right: isMobile ? 15 : 240,
+                        bottom: isMobile ? 20 : 30,
+                        left: isMobile ? 10 : 20
+                      }}
+                    >
+                    <XAxis
+                      dataKey="name"
+                      tick={false}
+                      axisLine={false}
+                      height={0}
+                    />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        formatCurrencyForAxis(value / 100, isMobile)
+                      }
+                      tick={{ fontSize: isMobile ? 9 : 11 }}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      formatter={accountTooltipFormatter}
+                     />
+                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                       {savingsBalanceData.map((entry, index) => (
+                         <Cell key={`cell-savings-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                       ))}
+                     </Bar>
+                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                       {savingsBalanceData.map((entry, index) => (
+                         <Cell key={`cell-savings-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                       ))}
+                     </Bar>
+                   </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Legenda de Contas Poupança - desktop/tablet */}
+              {!isMobile && savingsBalanceData.length > 0 && (
+                <div 
+                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                  style={{ maxWidth: "38%" }}
+                >
+                  {savingsBalanceData.map((account, index) => (
+                    <div 
+                      key={`legend-savings-desktop-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: account.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        account.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(account.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      savingsBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(savingsBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Legenda de Contas Poupança - mobile */}
+              {isMobile && savingsBalanceData.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 px-2">
+                  {savingsBalanceData.map((account, index) => (
+                    <div 
+                      key={`legend-savings-mobile-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: account.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        account.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(account.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      savingsBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(savingsBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Credit Card Balances */}
+
+        {/* Checking Account Balances */}
+        {checkingBalanceData.length > 0 && (
+          <Card className="financial-card">
+            <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
+              <CardTitle className="text-headline flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                Saldo de Conta Corrente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 sm:p-3">
+              <div className="relative w-full">
+                <ChartContainer
+                  config={checkingChartConfig}
+                  className={`${chartHeight} w-full overflow-hidden`}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={checkingBalanceData}
+                      margin={{
+                        top: 20,
+                        right: isMobile ? 15 : 240,
+                        bottom: isMobile ? 20 : 30,
+                        left: isMobile ? 10 : 20
+                      }}
+                    >
+                    <XAxis
+                      dataKey="name"
+                      tick={false}
+                      axisLine={false}
+                      height={0}
+                    />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        formatCurrencyForAxis(value / 100, isMobile)
+                      }
+                      tick={{ fontSize: isMobile ? 9 : 11 }}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      formatter={accountTooltipFormatter}
+                     />
+                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                       {checkingBalanceData.map((entry, index) => (
+                         <Cell key={`cell-checking-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                       ))}
+                     </Bar>
+                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                       {checkingBalanceData.map((entry, index) => (
+                         <Cell key={`cell-checking-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                       ))}
+                     </Bar>
+                   </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Legenda de Contas Corrente - desktop/tablet */}
+              {!isMobile && checkingBalanceData.length > 0 && (
+                <div 
+                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                  style={{ maxWidth: "38%" }}
+                >
+                  {checkingBalanceData.map((account, index) => (
+                    <div 
+                      key={`legend-checking-desktop-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: account.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        account.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(account.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      checkingBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(checkingBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Legenda de Contas Corrente - mobile */}
+              {isMobile && checkingBalanceData.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 px-2">
+                  {checkingBalanceData.map((account, index) => (
+                    <div 
+                      key={`legend-checking-mobile-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: account.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        account.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(account.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      checkingBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(checkingBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Credit Card Balances */}
         {creditCardBalanceData.length > 0 && (
           <Card className="financial-card">
@@ -1595,9 +2098,9 @@ export default function AnalyticsPage({
                       content={<ChartTooltipContent />}
                       formatter={(value: number, _name: string, props: any) => {
                         if (props?.payload?.balance !== undefined) {
-                          return [formatCurrency(props.payload.balance), "Crédito Disponível"];
+                          return [formatCurrency(props.payload.balance), " - Crédito Disponível"];
                         }
-                        return [formatCurrency(value), "Crédito Disponível"];
+                        return [formatCurrency(value), " - Crédito Disponível"];
                       }}
                      />
                      <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
@@ -1732,9 +2235,9 @@ export default function AnalyticsPage({
                       content={<ChartTooltipContent />}
                       formatter={(value: number, _name: string, props: any) => {
                         if (props?.payload?.balance !== undefined) {
-                          return [formatCurrency(props.payload.balance), "Limite Usado"];
+                          return [formatCurrency(props.payload.balance), " - Limite Usado"];
                         }
-                        return [formatCurrency(value), "Limite Usado"];
+                        return [formatCurrency(value), " - Limite Usado"];
                       }}
                      />
                      <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--destructive))">
@@ -1993,9 +2496,9 @@ export default function AnalyticsPage({
                       content={<ChartTooltipContent />}
                       formatter={(value: number, _name: string, props: any) => {
                         if (props?.payload?.balance !== undefined) {
-                          return [formatCurrency(props.payload.balance), "Limite Usado"];
+                          return [formatCurrency(props.payload.balance), " - Limite Usado"];
                         }
-                        return [formatCurrency(value), "Limite Usado"];
+                        return [formatCurrency(value), " - Limite Usado"];
                       }}
                      />
                      <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--destructive))">
