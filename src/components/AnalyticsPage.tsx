@@ -188,7 +188,13 @@ export default function AnalyticsPage({
   const {
     chartConfig: responsiveConfig,
     isMobile,
+    isTablet,
+    isDesktop,
   } = useChartResponsive();
+  
+  const chartHeight = isDesktop 
+    ? "aspect-auto h-[576px]" 
+    : responsiveConfig.containerHeight;
   const { categories } = useCategories();
   
   const contentRef = useRef<HTMLDivElement>(null);
@@ -666,128 +672,225 @@ export default function AnalyticsPage({
     }
 
     toast({
-      title: "Gerando PDF...",
-      description: "Aguarde enquanto preparamos o relatório completo.",
+      title: "Gerando Relatório...",
+      description: "Preparando documento gerencial em alta qualidade.",
     });
 
     try {
+      // Preparação visual para captura
       window.scrollTo(0, 0);
-      window.dispatchEvent(new Event("resize"));
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Lazy load dependencies
+      // Carregar bibliotecas
       const { jsPDF } = await loadJsPDF();
       const htmlToImage = await loadHtmlToImage();
 
+      // Configuração do PDF (A4)
       const pdf = new jsPDF("p", "mm", "a4");
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 15;
+      const margin = 20;
       const contentWidth = pageWidth - 2 * margin;
-      const maxContentHeight = pageHeight - 2 * margin;
-
-      // Header
-      pdf.setFontSize(18);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Relatório de Análises Financeiras", pageWidth / 2, margin, { align: "center" });
       
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      const dateText = `Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`;
-      pdf.text(dateText, pageWidth / 2, margin + 7, { align: "center" });
+      // Cores e Estilos
+      const primaryColor = [15, 23, 42]; // Slate 900
+      const accentColor = [100, 116, 139]; // Slate 500
+      const lineColor = [226, 232, 240]; // Slate 200
 
-      let currentY = margin + 15;
+      // Função de Cabeçalho
+      const addHeader = () => {
+        // Fundo do cabeçalho
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(0, 0, pageWidth, 35, 'F');
+        
+        // Título Principal
+        pdf.setFontSize(22);
+        pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Relatório Financeiro", margin, 22);
+        
+        // Data e Metadados
+        pdf.setFontSize(9);
+        pdf.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+        pdf.setFont("helvetica", "normal");
+        
+        const today = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+        const time = format(new Date(), "HH:mm", { locale: ptBR });
+        
+        pdf.text(`${today} às ${time}`, pageWidth - margin, 18, { align: "right" });
+        pdf.text("Documento Gerencial", pageWidth - margin, 24, { align: "right" });
+        
+        // Linha separadora
+        pdf.setDrawColor(lineColor[0], lineColor[1], lineColor[2]);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, 35, pageWidth - margin, 35);
+      };
 
-      // Captura os cards de resumo
-      const summaryCards = contentRef.current.querySelectorAll(".analytics-section")[0];
-      if (summaryCards && summaryCards instanceof HTMLElement) {
-        const rect = summaryCards.getBoundingClientRect();
-        const dataUrl = await htmlToImage.toPng(summaryCards, {
-          pixelRatio: 2,
-          cacheBust: true,
+      // Função de Rodapé
+      const addFooter = (pageCurrent: number) => {
+        pdf.setDrawColor(lineColor[0], lineColor[1], lineColor[2]);
+        pdf.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+        
+        pdf.setFontSize(8);
+        pdf.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+        pdf.text("Confidencial - Uso Interno", margin, pageHeight - 10);
+        pdf.text(`Página ${pageCurrent}`, pageWidth - margin, pageHeight - 10, { align: "right" });
+      };
+
+      let currentY = 45; // Começar abaixo do cabeçalho
+      let pageNumber = 1;
+
+      // Iniciar primeira página
+      addHeader();
+
+      // 1. Seção de Resumo (Cards do Topo)
+      const summarySection = contentRef.current.querySelector(".analytics-section");
+      if (summarySection && summarySection instanceof HTMLElement) {
+        // Título da Seção
+        pdf.setFontSize(14);
+        pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Resumo Executivo", margin, currentY);
+        currentY += 8;
+
+        // Captura dos cards de resumo
+        const dataUrl = await htmlToImage.toPng(summarySection, {
+          pixelRatio: 3,
           backgroundColor: "#ffffff",
-          filter: (node: HTMLElement | HTMLCanvasElement) => {
-            if (node instanceof HTMLCanvasElement && (node.width === 0 || node.height === 0)) {
-              return false;
-            }
-            return true;
-          },
+          style: { color: '#0f172a' }
         });
 
-        const imgWidth = contentWidth;
-        const imgHeight = (rect.height * imgWidth) / rect.width;
-        if (currentY + imgHeight > pageHeight - margin) {
-          pdf.addPage();
-          currentY = margin;
-        }
+        const imgProps = pdf.getImageProperties(dataUrl);
+        const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
 
-        pdf.addImage(dataUrl, "PNG", margin, currentY, imgWidth, imgHeight);
-        currentY += imgHeight + 10;
+        pdf.addImage(dataUrl, "PNG", margin, currentY, contentWidth, imgHeight);
+        currentY += imgHeight + 15;
       }
 
-      // Captura cada gráfico individualmente
-      const chartCards = contentRef.current.querySelectorAll(".financial-card");
-      
-      for (let i = 0; i < chartCards.length; i++) {
-        const card = chartCards[i] as HTMLElement;
-        
-        // Pular os cards de resumo (primeiros 3)
-        if (i < 3) continue;
-        
-        if (card.offsetWidth === 0 || card.offsetHeight === 0) continue;
+      // 2. Gráficos e Tabelas Detalhadas
+      const cards = Array.from(contentRef.current.querySelectorAll(".financial-card"));
+      const contentCards = cards.slice(3); // Pular os 3 primeiros cards de resumo
 
-        const rect = card.getBoundingClientRect();
-        const dataUrl = await htmlToImage.toPng(card, {
-          pixelRatio: 2,
-          cacheBust: true,
-          backgroundColor: "#ffffff",
-          filter: (node: Node) => {
-            if (node instanceof HTMLCanvasElement && (node.width === 0 || node.height === 0)) {
-              return false;
-            }
-            return true;
-          },
+      if (contentCards.length > 0) {
+          // Título da Seção de Gráficos
+          if (currentY + 20 > pageHeight - 20) {
+             addFooter(pageNumber);
+             pdf.addPage();
+             pageNumber++;
+             addHeader();
+             currentY = 45;
+          }
+          
+          pdf.setFontSize(14);
+          pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+          pdf.setFont("helvetica", "bold");
+          pdf.text("Análise Detalhada", margin, currentY);
+          currentY += 10;
+      }
+
+      let i = 0;
+      while (i < contentCards.length) {
+        const card = contentCards[i] as HTMLElement;
+        if (!card) { i++; continue; }
+
+        // Captura do card atual
+        const dataUrl1 = await htmlToImage.toPng(card, {
+             pixelRatio: 3,
+             backgroundColor: "#ffffff",
+             style: { color: '#0f172a' }
         });
-
-        let imgWidth = contentWidth;
-        let imgHeight = (rect.height * imgWidth) / rect.width;
-
-        if (imgHeight > maxContentHeight) {
-          imgHeight = maxContentHeight;
-          imgWidth = (rect.width * imgHeight) / rect.height;
-        }
-
-        // Adiciona nova página se necessário
-        if (currentY + imgHeight > pageHeight - margin) {
-          pdf.addPage();
-          currentY = margin;
-        }
-
-        // Centraliza imagens menores
-        const xPos = imgWidth < contentWidth ? margin + (contentWidth - imgWidth) / 2 : margin;
+        const imgProps1 = pdf.getImageProperties(dataUrl1);
         
-        pdf.addImage(dataUrl, "PNG", xPos, currentY, imgWidth, imgHeight);
-        currentY += imgHeight + 8;
+        // Verificar se podemos colocar lado a lado com o próximo
+        let placedSideBySide = false;
+        
+        if (i + 1 < contentCards.length) {
+            const nextCard = contentCards[i+1] as HTMLElement;
+            
+            // Heurística: Agrupar se ambos não forem tabelas e não forem o gráfico de evolução mensal (que é largo)
+            const isTable1 = card.querySelector('table') !== null;
+            const isTable2 = nextCard.querySelector('table') !== null;
+            const title1 = card.querySelector("h3")?.textContent || "";
+            const title2 = nextCard.querySelector("h3")?.textContent || "";
+            const isWide1 = title1.includes("Evolução Mensal");
+            const isWide2 = title2.includes("Evolução Mensal");
+
+            if (!isTable1 && !isTable2 && !isWide1 && !isWide2) {
+                 const dataUrl2 = await htmlToImage.toPng(nextCard, {
+                    pixelRatio: 3,
+                    backgroundColor: "#ffffff",
+                    style: { color: '#0f172a' }
+                 });
+                 const imgProps2 = pdf.getImageProperties(dataUrl2);
+
+                 // Layout de 2 colunas
+                 const gap = 10;
+                 const colWidth = (contentWidth - gap) / 2;
+                 
+                 // Calcular alturas proporcionais
+                 const h1 = (colWidth / imgProps1.width) * imgProps1.height;
+                 const h2 = (colWidth / imgProps2.width) * imgProps2.height;
+                 const maxHeight = Math.max(h1, h2);
+
+                 // Verificar quebra de página
+                 if (currentY + maxHeight + 10 > pageHeight - 20) {
+                    addFooter(pageNumber);
+                    pdf.addPage();
+                    pageNumber++;
+                    addHeader();
+                    currentY = 45;
+                 }
+
+                 pdf.addImage(dataUrl1, "PNG", margin, currentY, colWidth, h1);
+                 pdf.addImage(dataUrl2, "PNG", margin + colWidth + gap, currentY, colWidth, h2);
+
+                 currentY += maxHeight + 15;
+                 i += 2;
+                 placedSideBySide = true;
+            }
+        }
+
+        if (!placedSideBySide) {
+            // Renderizar largura total
+            const imgHeight = (imgProps1.height * contentWidth) / imgProps1.width;
+            
+            if (currentY + imgHeight + 10 > pageHeight - 20) {
+                addFooter(pageNumber);
+                pdf.addPage();
+                pageNumber++;
+                addHeader();
+                currentY = 45;
+            }
+
+            pdf.addImage(dataUrl1, "PNG", margin, currentY, contentWidth, imgHeight);
+            currentY += imgHeight + 15;
+            i++;
+        }
       }
 
+      // Finalizar última página
+      addFooter(pageNumber);
+
+      // Nome do arquivo
       const periodLabel =
         dateFilter === "current_month"
           ? format(new Date(), "MMMM-yyyy", { locale: ptBR })
           : dateFilter === "month_picker"
           ? format(selectedMonth, "MMMM-yyyy", { locale: ptBR })
-          : "completo";
+          : "personalizado";
       
-      pdf.save(`relatorio-analises-${periodLabel}.pdf`);
+      pdf.save(`Relatorio_Gerencial_${periodLabel}.pdf`);
 
       toast({
         title: "Relatório Exportado",
-        description: "PDF baixado com sucesso",
+        description: "O download do seu relatório gerencial foi iniciado.",
       });
+
     } catch (error) {
       logger.error("Erro ao gerar PDF:", error);
       toast({
-        title: "Erro ao Gerar PDF",
-        description: "Não foi possível criar o arquivo PDF. Tente novamente.",
+        title: "Erro na Exportação",
+        description: "Não foi possível gerar o documento PDF. Tente novamente.",
         variant: "destructive",
       });
     }
@@ -986,7 +1089,7 @@ export default function AnalyticsPage({
       </div>
 
       {/* Summary Cards */}
-      <div className="analytics-section grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+      <div className="analytics-section grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 sm:mt-8">
         <Card className="financial-card">
           <CardContent className="p-2 sm:p-3">
             <div className="flex flex-col items-center gap-2 text-center">
@@ -1042,7 +1145,7 @@ export default function AnalyticsPage({
       </div>
 
       {/* Filters */}
-      <Card className="mt-6">
+      <Card className="mt-6 sm:mt-8">
         <CardContent className="p-4 space-y-4">
           <div className="flex flex-col gap-4">
             {/* Filter button and active chips */}
@@ -1127,7 +1230,7 @@ export default function AnalyticsPage({
       </Card>
 
       {/* Charts Grid */}
-      <div className="analytics-section grid grid-cols-1 gap-3 sm:gap-4 mt-6">
+      <div className="analytics-section grid grid-cols-1 gap-6 sm:gap-8 mt-6 sm:mt-8">
         {/* Category Pie Chart */}
         <Card className="financial-card">
           {/* 2. BOTÕES DE ALTERNÂNCIA ATUALIZADOS COM CORES */}
@@ -1166,7 +1269,7 @@ export default function AnalyticsPage({
             <div className="relative w-full">
               <ChartContainer
                 config={categoryChartConfig}
-                className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
+                className={`${chartHeight} w-full overflow-hidden`}
               >
                <RechartsPieChart width={undefined} height={undefined}>
                 <ChartTooltip
@@ -1269,7 +1372,7 @@ export default function AnalyticsPage({
             <div className="relative w-full">
               <ChartContainer
                 config={accountChartConfig}
-                className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
+                className={`${chartHeight} w-full overflow-hidden`}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -1400,7 +1503,7 @@ export default function AnalyticsPage({
               <div className="relative w-full">
                 <ChartContainer
                   config={creditCardChartConfig}
-                  className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
+                  className={`${chartHeight} w-full overflow-hidden`}
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -1537,7 +1640,7 @@ export default function AnalyticsPage({
               <div className="relative w-full">
                 <ChartContainer
                   config={creditCardUsedChartConfig}
-                  className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
+                  className={`${chartHeight} w-full overflow-hidden`}
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -1660,7 +1763,7 @@ export default function AnalyticsPage({
             <div className="relative w-full">
               <ChartContainer
                 config={chartConfig}
-                className={`${responsiveConfig.containerHeight} w-full overflow-hidden`}
+                className={`${chartHeight} w-full overflow-hidden`}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
@@ -1803,7 +1906,7 @@ export default function AnalyticsPage({
 
 
       {/* Expense Details Table */}
-      <Card className="financial-card">
+      <Card className="financial-card mt-6 sm:mt-8">
         <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
           <CardTitle className="text-headline">
             <span className="block sm:hidden">Detalhes - Despesas</span>
@@ -1869,7 +1972,7 @@ export default function AnalyticsPage({
       </Card>
 
       {/* Income Details Table */}
-      <Card className="financial-card">
+      <Card className="financial-card mt-6 sm:mt-8">
         <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
           <CardTitle className="text-headline">
             <span className="block sm:hidden">Detalhes - Receitas</span>

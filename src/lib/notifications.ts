@@ -53,13 +53,17 @@ export function showSystemNotification(title: string, options?: NotificationOpti
 }
 
 // Get due date reminders for credit cards
-export function getDueDateReminders(accounts: NotificationAccount[], settings: NotificationSettings): Notification[] {
+export function getDueDateReminders(
+  accounts: NotificationAccount[], 
+  settings: NotificationSettings,
+  billAmounts?: Record<string, number>
+): Notification[] {
   const reminders: Notification[] = [];
   const today = new Date();
   const reminderDays = settings.dueDateReminders;
   
   accounts
-    .filter(acc => acc.type === "credit" && acc.due_date && acc.balance < 0)
+    .filter(acc => acc.type === "credit" && acc.due_date)
     .forEach(account => {
       const currentMonth = today.getMonth();
       const currentYear = today.getFullYear();
@@ -74,11 +78,31 @@ export function getDueDateReminders(accounts: NotificationAccount[], settings: N
       
       const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       
-      if (daysUntilDue <= reminderDays && daysUntilDue >= 0) {
+      // Determine the amount to show
+      // If billAmounts is provided, use it. Otherwise fallback to balance (legacy behavior)
+      // Note: billAmounts should contain the calculated invoice amount for the current month
+      let amount = 0;
+      if (billAmounts && billAmounts[account.id] !== undefined) {
+        amount = billAmounts[account.id];
+      } else {
+        // Fallback: use total balance if no specific bill amount is calculated
+        // Only show if balance is negative (debt)
+        if (account.balance < 0) {
+          amount = Math.abs(account.balance);
+        } else {
+          // If balance is positive (credit) and no bill amount, skip or show 0
+          amount = 0;
+        }
+      }
+
+      // Only show notification if:
+      // 1. It's within the reminder period
+      // 2. There is an amount to pay (amount > 0)
+      if (daysUntilDue <= reminderDays && daysUntilDue >= 0 && amount > 0) {
         reminders.push({
           id: `due_${account.id}_${dueDate.getTime()}`,
           title: "Vencimento de Fatura",
-          message: `A fatura do ${account.name} vence em ${daysUntilDue} dia(s). Valor: R$ ${Math.abs(account.balance).toFixed(2)}`,
+          message: `A fatura do ${account.name} vence em ${daysUntilDue} dia(s). Valor: R$ ${amount.toFixed(2)}`,
           type: "reminder",
           date: today,
           read: false,

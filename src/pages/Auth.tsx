@@ -20,6 +20,7 @@ export default function Auth() {
   const [activeTab, setActiveTab] = useState('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [needsMfaVerification, setNeedsMfaVerification] = useState(false);
+  const [isCheckingMfa, setIsCheckingMfa] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -29,12 +30,43 @@ export default function Auth() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [trialDays, setTrialDays] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user && !loading) {
+    const fetchTrialDays = async () => {
+      try {
+        // Tenta buscar via RPC primeiro (bypassing RLS)
+        const { data, error } = await supabase.rpc('get_system_setting', { 
+          p_setting_key: 'trial_days' 
+        });
+        
+        if (!error && data) {
+          setTrialDays(data);
+          return;
+        }
+
+        // Fallback para busca direta (caso o usuário tenha permissão ou RPC falhe)
+        const { data: tableData } = await supabase
+          .from("system_settings")
+          .select("setting_value")
+          .eq("setting_key", "trial_days")
+          .single();
+        
+        if (tableData) {
+          setTrialDays(tableData.setting_value);
+        }
+      } catch (error) {
+        console.error("Error fetching trial days:", error);
+      }
+    };
+    fetchTrialDays();
+  }, []);
+
+  useEffect(() => {
+    if (user && !loading && !isCheckingMfa && !needsMfaVerification) {
       navigate('/');
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, isCheckingMfa, needsMfaVerification]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -85,14 +117,23 @@ export default function Auth() {
 
     try {
       if (activeTab === 'signin') {
-        await signIn(formData.email, formData.password);
+        setIsCheckingMfa(true);
+        const { error } = await signIn(formData.email, formData.password);
+        
+        if (error) {
+          setIsCheckingMfa(false);
+          return;
+        }
         
         // Verificar se o usuário tem MFA habilitado
         const { data: factors } = await supabase.auth.mfa.listFactors();
         if (factors?.totp && factors.totp.length > 0) {
           setNeedsMfaVerification(true);
+          setIsCheckingMfa(false);
           return;
         }
+        
+        setIsCheckingMfa(false);
       } else {
         await signUp(formData.email, formData.password, formData.fullName, formData.whatsapp);
       }
@@ -204,6 +245,13 @@ export default function Auth() {
             )}
           </CardHeader>
           <CardContent>
+            {trialDays && activeTab === 'signup' && (
+              <div className="mb-6 p-3 bg-primary/10 border border-primary/20 rounded-lg text-center animate-in fade-in slide-in-from-top-2">
+                <p className="text-sm text-primary font-medium">
+                  Você tem <span className="font-bold">{trialDays}</span> dias para conhecer o sistema gratuitamente!
+                </p>
+              </div>
+            )}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Entrar</TabsTrigger>

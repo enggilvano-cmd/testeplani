@@ -55,6 +55,19 @@ export async function subscribeToPushNotifications(userId: string): Promise<Push
     return null;
   }
 
+  // Request permission immediately to preserve user gesture
+  // This is critical for mobile browsers where async operations might lose the gesture token
+  if (Notification.permission === 'default') {
+    const permission = await requestPushNotificationPermission();
+    if (!permission) {
+      logger.warn('Push notification permission denied');
+      return null;
+    }
+  } else if (Notification.permission === 'denied') {
+    logger.warn('Push notification permission previously denied');
+    return null;
+  }
+
   try {
     // Get service worker registration
     const registration = await navigator.serviceWorker.ready;
@@ -64,12 +77,8 @@ export async function subscribeToPushNotifications(userId: string): Promise<Push
 
     // If not subscribed, create new subscription
     if (!subscription) {
-      const permission = await requestPushNotificationPermission();
-      if (!permission) {
-        logger.warn('Push notification permission denied');
-        return null;
-      }
-
+      // Permission already checked/requested above
+      
       try {
         // Subscribe to push notifications
         subscription = await registration.pushManager.subscribe({

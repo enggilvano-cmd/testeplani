@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { offlineDatabase } from './offlineDatabase';
 
 export interface QueuedOperation {
   id: string;
@@ -28,44 +29,12 @@ export interface QueuedOperation {
   lastError?: string;
 }
 
-const DB_NAME = 'planiflow-offline';
 const STORE_NAME = 'operations-queue';
-const DB_VERSION = 3; // Must match offlineDatabase.ts version
 
 class OfflineQueueManager {
-  private db: IDBDatabase | null = null;
-
-  async init(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onerror = () => {
-        logger.error('Failed to open IndexedDB:', request.error);
-        reject(request.error);
-      };
-
-      request.onsuccess = () => {
-        this.db = request.result;
-        logger.info('IndexedDB initialized successfully');
-        resolve();
-      };
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        
-        // Only create if doesn't exist (could exist from offlineDatabase.ts)
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-          store.createIndex('timestamp', 'timestamp', { unique: false });
-          store.createIndex('type', 'type', { unique: false });
-          logger.info('Operations queue store created');
-        }
-      };
-    });
-  }
-
+  
   async enqueue(operation: Omit<QueuedOperation, 'id' | 'timestamp' | 'retries'>): Promise<void> {
-    if (!this.db) await this.init();
+    const db = await offlineDatabase.getDB();
 
     const queuedOp: QueuedOperation = {
       ...operation,
@@ -75,7 +44,7 @@ class OfflineQueueManager {
     };
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
       const request = store.add(queuedOp);
 
@@ -92,10 +61,10 @@ class OfflineQueueManager {
   }
 
   async dequeue(id: string): Promise<void> {
-    if (!this.db) await this.init();
+    const db = await offlineDatabase.getDB();
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
       const request = store.delete(id);
 
@@ -112,10 +81,10 @@ class OfflineQueueManager {
   }
 
   async getAll(): Promise<QueuedOperation[]> {
-    if (!this.db) await this.init();
+    const db = await offlineDatabase.getDB();
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readonly');
+      const transaction = db.transaction([STORE_NAME], 'readonly');
       const store = transaction.objectStore(STORE_NAME);
       const request = store.getAll();
 
@@ -131,10 +100,10 @@ class OfflineQueueManager {
   }
 
   async updateRetries(id: string, retries: number): Promise<void> {
-    if (!this.db) await this.init();
+    const db = await offlineDatabase.getDB();
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
       const getRequest = store.get(id);
 
@@ -155,11 +124,36 @@ class OfflineQueueManager {
     });
   }
 
-  async markAsFailed(id: string, error: string): Promise<void> {
-    if (!this.db) await this.init();
+  async updateData(id: string, data: any): Promise<void> {
+    const db = await offlineDatabase.getDB();
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        const operation = getRequest.result;
+        if (operation) {
+          operation.data = data;
+          const putRequest = store.put(operation);
+          
+          putRequest.onsuccess = () => resolve();
+          putRequest.onerror = () => reject(putRequest.error);
+        } else {
+          resolve();
+        }
+      };
+
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async markAsFailed(id: string, error: string): Promise<void> {
+    const db = await offlineDatabase.getDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
       const getRequest = store.get(id);
 
@@ -182,10 +176,10 @@ class OfflineQueueManager {
   }
 
   async clear(): Promise<void> {
-    if (!this.db) await this.init();
+    const db = await offlineDatabase.getDB();
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
       const request = store.clear();
 

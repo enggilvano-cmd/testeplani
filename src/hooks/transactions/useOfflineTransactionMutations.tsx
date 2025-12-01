@@ -48,6 +48,7 @@ export function useOfflineTransactionMutations() {
         await offlineQueue.enqueue({
           type: 'transaction',
           data: {
+            id: optimisticTx.id, // Include temp ID for mapping during sync
             description: transactionData.description,
             amount: transactionData.amount,
             date: transactionData.date.toISOString().split('T')[0],

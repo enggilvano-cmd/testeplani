@@ -36,19 +36,30 @@ self.addEventListener('push', function(event) {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   
-  if (event.action === 'explore') {
+  const urlToOpen = event.notification.data?.url || '/';
+
+  if (event.action === 'explore' || !event.action) {
     // Open the app
     event.waitUntil(
       clients.matchAll({
-        type: 'window'
+        type: 'window',
+        includeUncontrolled: true
       }).then(function(clientList) {
+        // Try to find an existing window to focus
         for (var i = 0; i < clientList.length; i++) {
           var client = clientList[i];
-          if (client.url === '/' && 'focus' in client)
+          // Check if the client is part of our app (same origin)
+          if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
+            // If we have a specific URL to navigate to, navigate the client
+            if (urlToOpen !== '/') {
+              client.navigate(urlToOpen);
+            }
             return client.focus();
+          }
         }
+        // If no window is open, open a new one
         if (clients.openWindow)
-          return clients.openWindow('/');
+          return clients.openWindow(urlToOpen);
       })
     );
   }

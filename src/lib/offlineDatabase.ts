@@ -74,6 +74,11 @@ class OfflineDatabase {
     });
   }
 
+  async getDB(): Promise<IDBDatabase> {
+    if (!this.db) await this.init();
+    return this.db!;
+  }
+
   // === MÉTODOS DE SINCRONIZAÇÃO INTELIGENTE ===
 
   async syncTransactions(transactions: Transaction[], userId: string, dateFrom: string): Promise<void> {

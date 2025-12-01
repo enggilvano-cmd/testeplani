@@ -99,7 +99,7 @@ export function BalanceCards({
             </div>
           </div>
           <p className="text-caption text-muted-foreground mb-1">
-            Receitas do Mês
+            Receitas
           </p>
           <div className="balance-text balance-positive">
             {formatCurrency(periodIncome)}
@@ -135,7 +135,7 @@ export function BalanceCards({
             </div>
           </div>
           <p className="text-caption text-muted-foreground mb-1">
-            Despesas do Mês
+            Despesas
           </p>
           <div className="balance-text balance-negative">
             {formatCurrency(periodExpenses)}

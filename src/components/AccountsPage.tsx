@@ -249,6 +249,14 @@ export function AccountsPage({
       <div className="flex flex-col gap-3 mb-4">
         <div className="grid grid-cols-2 gap-2 w-full md:grid-cols-4 lg:flex lg:flex-nowrap lg:gap-2 lg:w-auto lg:ml-auto">
           <Button
+            onClick={() => setImportModalOpen(true)}
+            variant="outline"
+            className="gap-1.5 apple-interaction h-9 text-body px-3"
+          >
+            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+            <span className="truncate">Importar</span>
+          </Button>
+          <Button
             onClick={exportToExcel}
             variant="outline"
             className="gap-1.5 apple-interaction h-9 text-body px-3"
@@ -256,14 +264,6 @@ export function AccountsPage({
           >
             <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
             <span className="truncate">Exportar</span>
-          </Button>
-          <Button
-            onClick={() => setImportModalOpen(true)}
-            variant="outline"
-            className="gap-1.5 apple-interaction h-9 text-body px-3"
-          >
-            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate">Importar</span>
           </Button>
           {onTransfer && (
             <Button

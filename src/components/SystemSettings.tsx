@@ -67,7 +67,7 @@ export default function SystemSettings() {
           setting_key: "trial_days",
           setting_value: daysValue.toString(),
           description: "Número de dias do período de trial",
-        });
+        }, { onConflict: 'setting_key' });
 
       if (error) throw error;
 

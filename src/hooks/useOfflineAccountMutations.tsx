@@ -37,7 +37,7 @@ export function useOfflineAccountMutations() {
       // 1. Queue operation
       await offlineQueue.enqueue({
         type: 'add_account',
-        data: accountData,
+        data: { ...accountData, id: tempId }, // Include temp ID for mapping
       });
 
       // 2. Update local DB (Optimistic UI)

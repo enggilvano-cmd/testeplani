@@ -10,8 +10,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Shield, Activity, Trash2 } from 'lucide-react';
+import { Users, Shield, Activity, Trash2, Clock, Calendar, Check } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import { cn } from '@/lib/utils';
 
 interface Profile {
   id: string;
@@ -433,95 +434,125 @@ export function UserManagement() {
                           </div>
                         </div>
                         
-                        <div className="space-y-2 pt-3 border-t">
-                          <Select
-                            value={user.role}
-                            onValueChange={(value: 'admin' | 'user' | 'subscriber' | 'trial') => 
-                              updateUserRole(user.user_id, value)
-                            }
-                            disabled={user.user_id === profile?.user_id}
-                          >
-                            <SelectTrigger className="w-full text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Administrador</SelectItem>
-                              <SelectItem value="trial">Trial</SelectItem>
-                              <SelectItem value="user">Vitalício</SelectItem>
-                              <SelectItem value="subscriber">Assinante</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-4 pt-4 border-t mt-2">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground ml-1">Função do Usuário</label>
+                            <Select
+                              value={user.role}
+                              onValueChange={(value: 'admin' | 'user' | 'subscriber' | 'trial') => 
+                                updateUserRole(user.user_id, value)
+                              }
+                              disabled={user.user_id === profile?.user_id}
+                            >
+                              <SelectTrigger className="w-full h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin">Administrador</SelectItem>
+                                <SelectItem value="trial">Trial</SelectItem>
+                                <SelectItem value="user">Vitalício</SelectItem>
+                                <SelectItem value="subscriber">Assinante</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           
                           {user.role === 'trial' && user.trial_expires_at && (
-                            <div className="flex gap-2">
-                              <span className="text-xs text-muted-foreground self-center">
-                                Exp: {new Date(user.trial_expires_at).toLocaleDateString()}
+                            <div className="flex items-center gap-2 bg-muted/50 p-2.5 rounded-lg border">
+                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                Expira em: <span className="font-medium text-foreground">{new Date(user.trial_expires_at).toLocaleDateString()}</span>
                               </span>
                             </div>
                           )}
                           
                           {user.role === 'subscriber' && (
-                            <div className="flex gap-2">
-                              <input
-                                type="number"
-                                placeholder="Dias"
-                                className="flex-1 px-2 py-1.5 text-xs border rounded"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    const days = parseInt((e.target as HTMLInputElement).value);
+                            <div className="bg-muted/30 p-3 rounded-lg space-y-3 border">
+                              <label className="text-xs font-medium text-muted-foreground block">Gerenciar Assinatura</label>
+                              <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                  <input
+                                    type="number"
+                                    placeholder="Adicionar dias..."
+                                    className="w-full h-9 px-3 py-1 text-sm border rounded-md bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                    id={`mobile-days-${user.user_id}`}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const days = parseInt((e.target as HTMLInputElement).value);
+                                        if (days > 0) {
+                                          setSubscriptionDays(user.user_id, days);
+                                          (e.target as HTMLInputElement).value = '';
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <Button 
+                                  size="sm" 
+                                  className="h-9 px-3 shrink-0"
+                                  onClick={() => {
+                                    const input = document.getElementById(`mobile-days-${user.user_id}`) as HTMLInputElement;
+                                    const days = parseInt(input.value);
                                     if (days > 0) {
                                       setSubscriptionDays(user.user_id, days);
-                                      (e.target as HTMLInputElement).value = '';
+                                      input.value = '';
                                     }
-                                  }
-                                }}
-                              />
+                                  }}
+                                >
+                                  <Check className="h-4 w-4 mr-1" /> Add
+                                </Button>
+                              </div>
                               {user.subscription_expires_at && (
-                                <span className="text-xs text-muted-foreground self-center">
-                                  Exp: {new Date(user.subscription_expires_at).toLocaleDateString()}
-                                </span>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1 border-t border-border/50 mt-2">
+                                  <Calendar className="h-3.5 w-3.5" />
+                                  <span>Vence em: <span className="font-medium text-foreground">{new Date(user.subscription_expires_at).toLocaleDateString()}</span></span>
+                                </div>
                               )}
                             </div>
                           )}
                           
-                          <div className="flex gap-2 pt-2">
+                          <div className="flex gap-3 pt-2">
                             <Button
-                              variant="outline"
+                              variant={user.is_active ? "outline" : "default"}
                               size="sm"
                               onClick={() => toggleUserStatus(user.user_id, !user.is_active)}
                               disabled={user.user_id === profile?.user_id}
-                              className="flex-1 text-xs"
+                              className={cn(
+                                "flex-1 h-10 font-medium",
+                                user.is_active 
+                                  ? "border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50" 
+                                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+                              )}
                             >
-                              {user.is_active ? 'Desativar' : 'Ativar'}
+                              {user.is_active ? 'Desativar Acesso' : 'Ativar Acesso'}
                             </Button>
                             
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button
                                   variant="destructive"
-                                  size="sm"
+                                  size="icon"
                                   disabled={user.user_id === profile?.user_id}
-                                  className="text-xs"
+                                  className="h-10 w-10 shrink-0 rounded-lg"
                                 >
-                                  <Trash2 className="h-3 w-3" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
-                              <AlertDialogContent>
+                              <AlertDialogContent className="max-w-[90vw] rounded-xl">
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle className="text-sm">
+                                  <AlertDialogTitle>
                                     Confirmar Exclusão
                                   </AlertDialogTitle>
-                                  <AlertDialogDescription className="text-xs">
-                                    Tem certeza que deseja remover o usuário {user.email}? Esta ação não pode ser desfeita.
+                                  <AlertDialogDescription>
+                                    Tem certeza que deseja remover o usuário <span className="font-medium text-foreground">{user.email}</span>? Esta ação não pode ser desfeita.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel className="text-xs">Cancelar</AlertDialogCancel>
+                                <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+                                  <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => deleteUser(user.user_id)}
-                                    className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   >
-                                    Excluir
+                                    Excluir Usuário
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>

@@ -15,6 +15,7 @@ interface TwoFactorSetupProps {
 export function TwoFactorSetup({ onComplete }: TwoFactorSetupProps) {
   const [qrCode, setQrCode] = useState<string>('');
   const [secret, setSecret] = useState<string>('');
+  const [factorId, setFactorId] = useState<string>('');
   const [verifyCode, setVerifyCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'enroll' | 'verify'>('enroll');
@@ -30,6 +31,7 @@ export function TwoFactorSetup({ onComplete }: TwoFactorSetupProps) {
       if (error) throw error;
 
       if (data) {
+        setFactorId(data.id);
         setQrCode(data.totp.qr_code);
         setSecret(data.totp.secret);
         setStep('verify');
@@ -59,14 +61,12 @@ export function TwoFactorSetup({ onComplete }: TwoFactorSetupProps) {
 
     setLoading(true);
     try {
-      const factors = await supabase.auth.mfa.listFactors();
-      if (factors.error) throw factors.error;
-
-      const totpFactor = factors.data?.totp[0];
-      if (!totpFactor) throw new Error('Fator TOTP não encontrado');
+      if (!factorId) {
+        throw new Error('ID do fator não encontrado. Tente reiniciar o processo.');
+      }
 
       const { error } = await supabase.auth.mfa.challengeAndVerify({
-        factorId: totpFactor.id,
+        factorId: factorId,
         code: verifyCode
       });
 
@@ -142,11 +142,11 @@ export function TwoFactorSetup({ onComplete }: TwoFactorSetupProps) {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          <div className="flex justify-center p-4 bg-muted rounded-lg">
+          <div className="flex justify-center p-6 bg-white rounded-xl border shadow-sm">
             {qrCode ? (
               <img src={qrCode} alt="QR Code 2FA" className="w-48 h-48" />
             ) : (
-              <div className="w-48 h-48 flex items-center justify-center bg-background rounded">
+              <div className="w-48 h-48 flex items-center justify-center bg-white rounded">
                 <p className="text-sm text-muted-foreground">Gerando QR Code...</p>
               </div>
             )}

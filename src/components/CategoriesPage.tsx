@@ -387,20 +387,20 @@ export function CategoriesPage({}: CategoriesPageProps) {
         <div className="grid grid-cols-2 gap-2 w-full md:grid-cols-3 lg:flex lg:flex-nowrap lg:gap-2 lg:w-auto lg:ml-auto">
           <Button 
             variant="outline" 
+            onClick={() => setImportModalOpen(true)}
+            className="gap-1.5 apple-interaction h-9 text-body px-3"
+          >
+            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+            <span className="truncate">Importar</span>
+          </Button>
+          <Button 
+            variant="outline" 
             onClick={exportToExcel}
             className="gap-1.5 apple-interaction h-9 text-body px-3"
             disabled={categories.length === 0}
           >
             <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
             <span className="truncate">Exportar</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => setImportModalOpen(true)}
-            className="gap-1.5 apple-interaction h-9 text-body px-3"
-          >
-            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate">Importar</span>
           </Button>
           <Button 
             onClick={() => setAddModalOpen(true)} 

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Bell, X, AlertCircle, Info, BellRing, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import {
   Popover,
   PopoverContent,
@@ -27,30 +29,38 @@ export function NotificationBell() {
     disablePushNotifications,
   } = useNotifications();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handlePushToggle = async (enabled: boolean) => {
-    if (enabled) {
-      const result = await enablePushNotifications();
-      if (result.success) {
-        toast({
-          title: 'Notificações Push Ativadas',
-          description: 'Você receberá notificações mesmo quando o app estiver fechado.',
-        });
+    if (isLoading) return;
+    setIsLoading(true);
+    
+    try {
+      if (enabled) {
+        const result = await enablePushNotifications();
+        if (result.success) {
+          toast({
+            title: 'Notificações Push Ativadas',
+            description: 'Você receberá notificações mesmo quando o app estiver fechado.',
+          });
+        } else {
+          toast({
+            title: 'Erro ao Ativar Notificações',
+            description: `Não foi possível ativar as notificações push: ${result.error || 'Verifique as permissões.'}`,
+            variant: 'destructive',
+          });
+        }
       } else {
-        toast({
-          title: 'Erro ao Ativar Notificações',
-          description: `Não foi possível ativar as notificações push: ${result.error || 'Verifique as permissões.'}`,
-          variant: 'destructive',
-        });
+        const success = await disablePushNotifications();
+        if (success) {
+          toast({
+            title: 'Notificações Push Desativadas',
+            description: 'Você não receberá mais notificações push.',
+          });
+        }
       }
-    } else {
-      const success = await disablePushNotifications();
-      if (success) {
-        toast({
-          title: 'Notificações Push Desativadas',
-          description: 'Você não receberá mais notificações push.',
-        });
-      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -124,19 +134,24 @@ export function NotificationBell() {
 
         {/* Push Notifications Toggle */}
         {isPushSupported && (
-          <div className="flex items-center justify-between p-4 border-b bg-muted/30">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between p-4 border-b bg-muted/30 hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-2 flex-1">
               <BellRing className="h-4 w-4 text-primary" />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Push Notifications</span>
-                <span className="text-xs text-muted-foreground">
-                  Receba alertas mesmo offline
-                </span>
+              <div className="flex flex-col flex-1">
+                <Label htmlFor="push-notifications" className="cursor-pointer space-y-0.5">
+                  <span className="text-sm font-medium block">Push Notifications</span>
+                  <span className="text-xs text-muted-foreground font-normal block">
+                    Receba alertas mesmo offline
+                  </span>
+                </Label>
               </div>
             </div>
             <Switch
+              id="push-notifications"
               checked={pushEnabled}
               onCheckedChange={handlePushToggle}
+              disabled={isLoading}
+              className="data-[state=unchecked]:bg-muted data-[state=unchecked]:border data-[state=unchecked]:border-primary/50 ml-2"
             />
           </div>
         )}

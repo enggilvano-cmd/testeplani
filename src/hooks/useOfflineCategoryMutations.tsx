@@ -34,7 +34,7 @@ export function useOfflineCategoryMutations() {
       // 1. Queue operation
       await offlineQueue.enqueue({
         type: 'add_category',
-        data: categoryData,
+        data: { ...categoryData, id: tempId }, // Include temp ID for mapping
       });
 
       // 2. Update local DB (Optimistic UI)

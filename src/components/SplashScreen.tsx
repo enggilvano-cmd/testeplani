@@ -7,7 +7,7 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
     const timer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(onComplete, 300);
-    }, 2000);
+    }, 800); // Reduzido para 800ms para agilizar a inicialização
 
     return () => clearTimeout(timer);
   }, [onComplete]);

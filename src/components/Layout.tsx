@@ -286,7 +286,7 @@ function AppSidebar({ currentPage, onPageChange }: { currentPage: string; onPage
 
 function LayoutContent({ children, currentPage, onPageChange, onNavigate }: LayoutProps) {
   const isMobile = useIsMobile();
-  const { profile } = useOfflineAuth();
+  const { profile, isAdmin, signOut } = useOfflineAuth();
   const { open } = useSidebar();
   
   // Use onNavigate if provided, otherwise use onPageChange
@@ -296,7 +296,7 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate }: Layo
     <>
       {/* Mobile Header - Fixed with safe area */}
       {isMobile && (
-        <header className="safe-top fixed top-0 left-0 right-0 z-50 h-14 bg-background/95 backdrop-blur-xl border-b border-border/50 shadow-sm">
+        <header className="safe-top fixed top-0 left-0 right-0 z-[60] h-14 bg-background/95 backdrop-blur-xl border-b border-border/50 shadow-sm">
           <div className="flex items-center justify-between h-full px-4">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="h-10 w-10 hover:bg-accent hover:text-accent-foreground rounded-xl transition-all duration-200 hover:scale-105 hover:shadow-md flex items-center justify-center touch-target">
@@ -323,12 +323,43 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate }: Layo
             <div className="flex items-center gap-2">
               <NotificationBell />
               {profile && (
-                <Avatar className="h-8 w-8 touch-target">
-                  <AvatarImage src={profile.avatar_url} />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                    {profile.full_name?.charAt(0) || profile.email.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Avatar className="h-8 w-8 touch-target cursor-pointer">
+                      <AvatarImage src={profile.avatar_url} />
+                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                        {profile.full_name?.charAt(0) || profile.email.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => handlePageChange('profile')}>
+                      <User className="mr-2 h-4 w-4" />
+                      Perfil
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handlePageChange('settings')}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Configurações
+                    </DropdownMenuItem>
+                    {isAdmin() && (
+                      <>
+                        <DropdownMenuItem onClick={() => handlePageChange('users')}>
+                          <Users className="mr-2 h-4 w-4" />
+                          Usuários
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePageChange('system-settings')}>
+                          <Settings className="mr-2 h-4 w-4" />
+                          Configurações do Sistema
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={signOut} className="text-destructive">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sair
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </div>

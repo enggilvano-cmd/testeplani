@@ -45,6 +45,25 @@ export function useOfflineAuth() {
       logger.error("Erro ao limpar banco local no logout", e);
     }
 
+    // 3. Limpeza de caches do Service Worker (API e Storage)
+    if ('caches' in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(
+          keys.map(key => {
+            // Limpa caches específicos de dados do usuário
+            if (key.includes('supabase-api-cache') || key.includes('supabase-storage-cache')) {
+              return caches.delete(key);
+            }
+            return Promise.resolve();
+          })
+        );
+        logger.info("Caches do Service Worker limpos com sucesso");
+      } catch (e) {
+        logger.error("Erro ao limpar caches do SW", e);
+      }
+    }
+
     if (isOnline) {
       return auth.signOut();
     }

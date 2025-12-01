@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { queryClient, queryKeys } from './queryClient';
 
 const MAX_RETRIES = 5;
-const SYNC_MONTHS = 6;
+const SYNC_MONTHS = 12; // Aligned with useTransactions.tsx (1 year history)
 
 class OfflineSyncManager {
   private isSyncing = false;
@@ -28,13 +28,14 @@ class OfflineSyncManager {
 
         let successCount = 0;
         let failCount = 0;
+        const tempIdMap = new Map<string, string>(); // Map<TempID, RealID>
 
         for (const operation of operations) {
           // Skip operations that have already failed permanently
           if (operation.status === 'failed') continue;
 
           try {
-            await this.syncOperation(operation);
+            await this.syncOperation(operation, tempIdMap);
             await offlineQueue.dequeue(operation.id);
             successCount++;
           } catch (error: any) {
@@ -79,16 +80,41 @@ class OfflineSyncManager {
       cutoffDate.setMonth(cutoffDate.getMonth() - SYNC_MONTHS);
       const dateFrom = cutoffDate.toISOString().split('T')[0];
 
-      // Transactions
-      const { data: transactions } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('date', dateFrom)
-        .order('date', { ascending: false });
+      // Transactions - Fetch all with pagination to avoid data loss
+      let allTransactions: Transaction[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (transactions) {
-        await offlineDatabase.syncTransactions(transactions as Transaction[], user.id, dateFrom);
+      while (hasMore) {
+        const { data: pageData, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('date', dateFrom)
+          .order('date', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) throw error;
+
+        if (pageData && pageData.length > 0) {
+          allTransactions = [...allTransactions, ...(pageData as Transaction[])];
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (allTransactions.length > 0) {
+        await offlineDatabase.syncTransactions(allTransactions, user.id, dateFrom);
+      } else if (page === 0) {
+        // Only sync empty if we really got no data on the first page (and no error)
+        // This handles the case where the user deleted everything on another device
+        await offlineDatabase.syncTransactions([], user.id, dateFrom);
       }
 
       // Fixed Transactions (Sync separado para garantir que todas sejam baixadas, independente da data)
@@ -143,7 +169,7 @@ class OfflineSyncManager {
     }
   }
 
-  private async syncOperation(operation: QueuedOperation): Promise<void> {
+  private async syncOperation(operation: QueuedOperation, tempIdMap: Map<string, string>): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     
     // Safety check: só logout pode ser feito sem user
@@ -156,6 +182,25 @@ class OfflineSyncManager {
     // Helper para identificar ID temporário
     const isTempId = (id: any) => typeof id === 'string' && id.startsWith('temp-');
 
+    // === DEPENDENCY RESOLUTION ===
+    // Resolve IDs using the map (replace temp IDs with real IDs from previous operations in this batch)
+    if (payload.id && tempIdMap.has(payload.id)) payload.id = tempIdMap.get(payload.id);
+    if (payload.account_id && tempIdMap.has(payload.account_id)) payload.account_id = tempIdMap.get(payload.account_id);
+    if (payload.category_id && tempIdMap.has(payload.category_id)) payload.category_id = tempIdMap.get(payload.category_id);
+    if (payload.to_account_id && tempIdMap.has(payload.to_account_id)) payload.to_account_id = tempIdMap.get(payload.to_account_id);
+    if (payload.transaction_id && tempIdMap.has(payload.transaction_id)) payload.transaction_id = tempIdMap.get(payload.transaction_id);
+    if (payload.parent_transaction_id && tempIdMap.has(payload.parent_transaction_id)) payload.parent_transaction_id = tempIdMap.get(payload.parent_transaction_id);
+    if (payload.p_transaction_id && tempIdMap.has(payload.p_transaction_id)) payload.p_transaction_id = tempIdMap.get(payload.p_transaction_id);
+    
+    // Also check inside 'updates' object for edits
+    if (payload.updates) {
+      if (payload.updates.account_id && tempIdMap.has(payload.updates.account_id)) payload.updates.account_id = tempIdMap.get(payload.updates.account_id);
+      if (payload.updates.category_id && tempIdMap.has(payload.updates.category_id)) payload.updates.category_id = tempIdMap.get(payload.updates.category_id);
+    }
+
+    // Capture the temp ID before deleting it (for mapping later)
+    const originalTempId = isTempId(payload.id) ? payload.id : null;
+
     // Remove ID temporário antes de enviar ao Supabase (para que ele gere um oficial)
     if (['transaction', 'add_account', 'add_category'].includes(operation.type)) {
        if (isTempId(payload.id)) {
@@ -164,28 +209,35 @@ class OfflineSyncManager {
     }
 
     switch (operation.type) {
-      case 'transaction':
-        await supabase.functions.invoke('atomic-transaction', { body: { transaction: payload } });
+      case 'transaction': {
+        const { data: rpcData, error } = await supabase.functions.invoke('atomic-transaction', { body: { transaction: payload } });
+        if (error) throw error;
+        
+        // Capture new ID and update map
+        const responseData = rpcData as { transaction?: { id: string } };
+        if (originalTempId && responseData?.transaction?.id) {
+            tempIdMap.set(originalTempId, responseData.transaction.id);
+        }
         break;
+      }
 
       case 'edit':
-        if (isTempId(payload.id)) {
-             // Se estamos tentando editar algo que tem ID temp, significa que a criação falhou ou ainda não rodou.
-             // Não podemos enviar 'temp-123' pro servidor.
-             logger.warn('Skipping edit for temporary ID', payload);
+        if (isTempId(payload.id) || isTempId(payload.transaction_id)) {
+             // Se ainda é temp ID aqui, significa que não foi resolvido (criação falhou ou não estava no batch)
+             logger.warn('Skipping edit for unresolved temporary ID', payload);
              return; 
         }
         await supabase.functions.invoke('atomic-edit-transaction', { body: payload });
         break;
 
       case 'delete':
-        if (isTempId(payload.id)) {
+        if (isTempId(payload.id) || isTempId(payload.p_transaction_id)) {
             // Deletar algo que nem existe no servidor = sucesso imediato.
             return;
         }
         await supabase.rpc('atomic_delete_transaction', {
           p_user_id: user!.id,
-          p_transaction_id: payload.id
+          p_transaction_id: payload.p_transaction_id || payload.id // Handle both naming conventions
         });
         break;
 
@@ -195,9 +247,15 @@ class OfflineSyncManager {
         await supabase.functions.invoke('atomic-transfer', { body: { transfer: payload } });
         break;
 
-      case 'add_account':
-        await supabase.from('accounts').insert({ ...payload, user_id: user!.id });
+      case 'add_account': {
+        const { data, error } = await supabase.from('accounts').insert({ ...payload, user_id: user!.id }).select().single();
+        if (error) throw error;
+        
+        if (originalTempId && data?.id) {
+            tempIdMap.set(originalTempId, data.id);
+        }
         break;
+      }
       
       case 'edit_account':
         if (isTempId(payload.account_id)) return;
@@ -209,9 +267,15 @@ class OfflineSyncManager {
         await supabase.from('accounts').delete().eq('id', payload.account_id);
         break;
 
-      case 'add_category':
-        await supabase.from('categories').insert({ ...payload, user_id: user!.id });
+      case 'add_category': {
+        const { data, error } = await supabase.from('categories').insert({ ...payload, user_id: user!.id }).select().single();
+        if (error) throw error;
+        
+        if (originalTempId && data?.id) {
+            tempIdMap.set(originalTempId, data.id);
+        }
         break;
+      }
 
       case 'edit_category':
         if (isTempId(payload.category_id)) return;
@@ -243,9 +307,16 @@ class OfflineSyncManager {
           throw new Error('Invalid payload for add_installments');
         }
 
-        const createdIds = [];
+        // Resume from previous attempt if available
+        const createdIds: string[] = payload.created_ids || [];
+        let hasUpdates = false;
 
-        for (const transaction of transactions) {
+        for (let i = 0; i < transactions.length; i++) {
+          // Skip if already created
+          if (i < createdIds.length) continue;
+
+          const transaction = transactions[i];
+          
           // @ts-ignore
           const { data: rpcData, error } = await supabase.rpc('atomic_create_transaction', {
             p_user_id: user!.id,
@@ -267,8 +338,17 @@ class OfflineSyncManager {
           if (!record || record.success === false) {
             throw new Error(record?.error_message || 'Erro ao criar transação parcelada no sync');
           }
+          
           if(record.transaction_id) {
             createdIds.push(record.transaction_id);
+            hasUpdates = true;
+            
+            // Save progress after each successful creation to ensure idempotency
+            // If we crash, next time we skip this index
+            await offlineQueue.updateData(operation.id, {
+              ...payload,
+              created_ids: createdIds
+            });
           }
         }
 
@@ -310,9 +390,13 @@ class OfflineSyncManager {
 
         if (replace_ids.length > 0) {
           for (const txId of replace_ids) {
-            await supabase.functions.invoke('atomic-delete-transaction', {
-              body: { transaction_id: txId, scope: 'current' }
-            });
+            try {
+              await supabase.functions.invoke('atomic-delete-transaction', {
+                body: { transaction_id: txId, scope: 'current' }
+              });
+            } catch (e) {
+              logger.warn(`Failed to delete replaced transaction ${txId} during import sync`, e);
+            }
           }
         }
 
@@ -321,43 +405,65 @@ class OfflineSyncManager {
           localCategories.map(cat => [cat.name, cat.id])
         );
 
+        let successCount = 0;
+        let failCount = 0;
+        const errors: string[] = [];
+
         for (const transaction of transactions) {
-          const category_id = transaction.category ? categoryMap.get(transaction.category) || null : null;
-          
-          if (transaction.category && !category_id) {
-             logger.warn(`Category "${transaction.category}" not found locally. Skipping transaction import for "${transaction.description}".`);
-             continue; // Pula esta transação
-          }
-
-          const { data: rpcData, error } = await supabase.functions.invoke('atomic-transaction', {
-            body: {
-              transaction: {
-                description: transaction.description,
-                amount: transaction.amount,
-                date: transaction.date,
-                type: transaction.type,
-                category_id: category_id,
-                account_id: transaction.account_id,
-                status: transaction.status || 'completed',
-              }
+          try {
+            const category_id = transaction.category ? categoryMap.get(transaction.category) || null : null;
+            
+            if (transaction.category && !category_id) {
+               logger.warn(`Category "${transaction.category}" not found locally. Skipping transaction import for "${transaction.description}".`);
+               failCount++;
+               continue; 
             }
-          });
 
-          if (error) throw error;
-          
-          const responseData = rpcData as { transaction?: { id: string } };
-          const transactionId = responseData?.transaction?.id;
+            const { data: rpcData, error } = await supabase.functions.invoke('atomic-transaction', {
+              body: {
+                transaction: {
+                  description: transaction.description,
+                  amount: transaction.amount,
+                  date: transaction.date,
+                  type: transaction.type,
+                  category_id: category_id,
+                  account_id: transaction.account_id,
+                  status: transaction.status || 'completed',
+                }
+              }
+            });
 
-          if (transactionId && (transaction.installments || transaction.current_installment || transaction.invoice_month)) {
-             const updates: Record<string, unknown> = {};
-             if (transaction.installments) updates.installments = transaction.installments;
-             if (transaction.current_installment) updates.current_installment = transaction.current_installment;
-             if (transaction.invoice_month) {
-               updates.invoice_month = transaction.invoice_month;
-               updates.invoice_month_overridden = true;
-             }
-             await supabase.from('transactions').update(updates).eq('id', transactionId);
+            if (error) throw error;
+            
+            const responseData = rpcData as { transaction?: { id: string } };
+            const transactionId = responseData?.transaction?.id;
+
+            if (transactionId && (transaction.installments || transaction.current_installment || transaction.invoice_month)) {
+               const updates: Record<string, unknown> = {};
+               if (transaction.installments) updates.installments = transaction.installments;
+               if (transaction.current_installment) updates.current_installment = transaction.current_installment;
+               if (transaction.invoice_month) {
+                 updates.invoice_month = transaction.invoice_month;
+                 updates.invoice_month_overridden = true;
+               }
+               await supabase.from('transactions').update(updates).eq('id', transactionId);
+            }
+            successCount++;
+          } catch (err: any) {
+            logger.error(`Failed to import transaction "${transaction.description}":`, err);
+            failCount++;
+            errors.push(err.message || 'Unknown error');
           }
+        }
+
+        if (successCount === 0 && failCount > 0) {
+          throw new Error(`Todas as ${failCount} transações falharam na importação. Erros: ${errors.slice(0, 3).join(', ')}`);
+        }
+
+        if (failCount > 0) {
+          logger.warn(`Importação parcial: ${successCount} sucessos, ${failCount} falhas.`);
+          // Não lançamos erro aqui para não travar a fila, já que algumas passaram.
+          // Idealmente, notificaríamos o usuário, mas no sync background isso é complexo.
         }
         break;
       }

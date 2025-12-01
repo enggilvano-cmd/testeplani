@@ -16,6 +16,8 @@ import {
   unsubscribeFromPushNotifications,
   isPushSubscribed,
 } from '@/lib/pushNotifications';
+import { calculateBillDetails } from '@/lib/dateUtils';
+import type { AppTransaction } from '@/types';
 
 export function useNotifications() {
   const { user, profile } = useAuth();
@@ -65,11 +67,43 @@ export function useNotifications() {
 
       if (!accounts) return;
 
+      // Calculate bill amounts for credit cards
+      const billAmounts: Record<string, number> = {};
+      const creditAccounts = accounts.filter(a => a.type === 'credit');
+      
+      if (creditAccounts.length > 0 && settings.billReminders) {
+         // Fetch transactions for credit accounts (last 60 days to be safe)
+         const today = new Date();
+         const twoMonthsAgo = new Date(today);
+         twoMonthsAgo.setDate(today.getDate() - 60);
+         
+         const { data: transactions } = await supabase
+            .from('transactions')
+            .select('*')
+            .in('account_id', creditAccounts.map(a => a.id))
+            .gte('date', twoMonthsAgo.toISOString().split('T')[0]);
+            
+         if (transactions) {
+             const appTransactions = transactions.map(t => ({
+                 ...t,
+                 date: new Date(t.date) // Ensure date is Date object
+             })) as any as AppTransaction[];
+             
+             creditAccounts.forEach(account => {
+                 const accountTransactions = appTransactions.filter(t => t.account_id === account.id);
+                 // calculateBillDetails expects Account type, but we only have partial account.
+                 // It needs closing_date, due_date, limit_amount. We have those.
+                 const details = calculateBillDetails(accountTransactions, account as any, 0);
+                 billAmounts[account.id] = details.currentBillAmount;
+             });
+         }
+      }
+
       const newNotifications: Notification[] = [];
 
       // Get due date reminders for credit cards
       if (settings.billReminders) {
-        const reminders = getDueDateReminders(accounts, settings);
+        const reminders = getDueDateReminders(accounts, settings, billAmounts);
         newNotifications.push(...reminders);
       }
 
