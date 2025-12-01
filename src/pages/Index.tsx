@@ -36,6 +36,7 @@ import { TransactionScopeDialog, EditScope } from "@/components/TransactionScope
 import { MarkAsPaidModal } from "@/components/MarkAsPaidModal";
 import { FormErrorBoundary } from "@/components/ui/form-error-boundary";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
 // Hooks de infraestrutura offline
 import { offlineDatabase } from "@/lib/offlineDatabase";
@@ -61,6 +62,7 @@ interface TransactionsFilters {
 
 const PlaniFlowApp = () => {
   const { user, loading: authLoading, isAdmin, isSubscriptionActive } = useOfflineAuth();
+  useRealtimeSubscription();
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState("dashboard");
