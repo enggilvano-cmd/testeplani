@@ -498,7 +498,7 @@ export function AccountsPage({
                               {formatCurrency(Math.abs(account.balance))}
                             </span>
                           </div>
-                          {account.limit_amount && account.limit_amount > 0 && (
+                          {(account.limit_amount || 0) > 0 && (
                             <>
                               <div className="flex items-center justify-between">
                                 <span className="text-caption text-muted-foreground">
@@ -550,7 +550,7 @@ export function AccountsPage({
                             {formatCurrency(account.balance)}
                           </span>
                         </div>
-                        {account.limit_amount && account.limit_amount > 0 && (
+                        {(account.limit_amount || 0) > 0 && (
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
                               <span className="text-xs text-muted-foreground">Limite</span>

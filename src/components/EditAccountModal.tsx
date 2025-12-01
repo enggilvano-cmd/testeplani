@@ -65,8 +65,9 @@ export function EditAccountModal({
     // Mantém o saldo atual da conta sem permitir edição
     const balanceInCents = account.balance;
 
-    const dbLimitAmount =
-      formData.limitInCents > 0 ? formData.limitInCents : null;
+    // Permite salvar 0 como limite (para remover cheque especial/limite)
+    // Antes convertia 0 para null/undefined, o que impedia a atualização
+    const dbLimitAmount = formData.limitInCents;
 
     let dueDate: number | undefined;
     if (formData.type === "credit" && formData.dueDate) {
