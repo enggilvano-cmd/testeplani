@@ -25,7 +25,7 @@ export function EditAccountModal({
 }: EditAccountModalProps) {
   const [formData, setFormData] = useState({
     name: "",
-    type: "" as "checking" | "savings" | "credit" | "investment" | "",
+    type: "" as "checking" | "savings" | "credit" | "investment" | "meal_voucher" | "",
     limitInCents: 0,
     dueDate: "",
     closingDate: "",
@@ -163,7 +163,7 @@ export function EditAccountModal({
             </Label>
             <Select
               value={formData.type}
-              onValueChange={(value: "checking" | "savings" | "credit" | "investment") => {
+              onValueChange={(value: "checking" | "savings" | "credit" | "investment" | "meal_voucher") => {
                 setFormData((prev) => ({ ...prev, type: value }));
               }}
             >
@@ -182,6 +182,9 @@ export function EditAccountModal({
                 </SelectItem>
                 <SelectItem value="investment">
                   {ACCOUNT_TYPE_LABELS.investment}
+                </SelectItem>
+                <SelectItem value="meal_voucher">
+                  {ACCOUNT_TYPE_LABELS.meal_voucher}
                 </SelectItem>
               </SelectContent>
             </Select>

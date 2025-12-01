@@ -149,6 +149,7 @@ export function useTransactionsPageLogic({
         credit: "Cartão de Crédito",
         investment: "Investimento",
         savings: "Poupança",
+        meal_voucher: "Vale Refeição/Alimentação",
       };
       chips.push({
         id: "accountType",

@@ -5,7 +5,7 @@
 export interface ExportAccount {
   id: string;
   name: string;
-  type: 'checking' | 'savings' | 'credit' | 'investment';
+  type: 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher';
   balance: number;
   limit_amount?: number | null;
   closing_date?: number | null;
@@ -44,7 +44,7 @@ export interface ExportTransaction {
 export interface NotificationAccount {
   id: string;
   name: string;
-  type: 'checking' | 'savings' | 'credit' | 'investment';
+  type: 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher';
   balance: number;
   limit_amount?: number | null;
   due_date?: number | null;

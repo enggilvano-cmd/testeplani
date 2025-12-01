@@ -20,7 +20,7 @@ import { useOfflineAccountMutations } from "@/hooks/useTransactionHandlers";
 export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
   const [formData, setFormData] = useState({
     name: "",
-    type: "" as "checking" | "savings" | "credit" | "investment" | "",
+    type: "" as "checking" | "savings" | "credit" | "investment" | "meal_voucher" | "",
     limitInCents: 0,
     dueDate: "",
     closingDate: "",
@@ -124,7 +124,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
       // Reset form
       setFormData({
         name: "",
-        type: "" as "checking" | "savings" | "credit" | "investment" | "",
+        type: "" as "checking" | "savings" | "credit" | "investment" | "meal_voucher" | "",
         limitInCents: 0,
         dueDate: "",
         closingDate: "",
@@ -173,7 +173,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
             <Select
               value={formData.type}
               onValueChange={(
-                value: "checking" | "savings" | "credit" | "investment"
+                value: "checking" | "savings" | "credit" | "investment" | "meal_voucher"
               ) => setFormData((prev) => ({ ...prev, type: value }))}
             >
               <SelectTrigger className="h-10 sm:h-11">
@@ -191,6 +191,9 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
                 </SelectItem>
                 <SelectItem value="investment">
                   {ACCOUNT_TYPE_LABELS.investment}
+                </SelectItem>
+                <SelectItem value="meal_voucher">
+                  {ACCOUNT_TYPE_LABELS.meal_voucher}
                 </SelectItem>
               </SelectContent>
             </Select>

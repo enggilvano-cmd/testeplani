@@ -6,7 +6,7 @@ import { Account } from '@/types';
 
 interface AccountsSummaryProps {
   accounts: Account[];
-  accountTypes?: ('checking' | 'savings' | 'credit' | 'investment')[];
+  accountTypes?: ('checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher')[];
   title?: string;
   emptyMessage?: string;
   onNavigateToAccounts?: () => void;
@@ -78,6 +78,7 @@ export function AccountsSummary({
                       {account.type === 'savings' && 'P'}
                       {account.type === 'credit' && 'R'}
                       {account.type === 'investment' && 'I'}
+                      {account.type === 'meal_voucher' && 'V'}
                     </div>
                   </div>
                   <p className="font-medium text-xs truncate">{account.name}</p>

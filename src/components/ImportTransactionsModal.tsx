@@ -20,7 +20,7 @@ import { ImportSummaryCards } from "@/components/import/ImportSummaryCards";
 interface Account {
   id: string;
   name: string;
-  type: "checking" | "savings" | "credit" | "investment";
+  type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   balance: number;
   color: string;
 }

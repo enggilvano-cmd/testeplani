@@ -18,7 +18,7 @@ import { ImportSummaryCards } from "@/components/import/ImportSummaryCards";
 interface Account {
   id: string;
   name: string;
-  type: "checking" | "savings" | "credit" | "investment";
+  type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   balance: number;
   limit_amount?: number;
   due_date?: number;
@@ -43,7 +43,7 @@ interface ImportedAccount {
   cor: string;
   isValid: boolean;
   errors: string[];
-  parsedType?: 'checking' | 'savings' | 'credit' | 'investment';
+  parsedType?: 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher';
   isDuplicate: boolean;
   existingAccountId?: string;
   resolution: 'skip' | 'add' | 'replace';
@@ -71,7 +71,7 @@ export function ImportAccountsModal({
     }
   }, [importedData.length]);
 
-  const validateAccountType = (tipo: string): 'checking' | 'savings' | 'credit' | 'investment' | null => {
+  const validateAccountType = (tipo: string): 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher' | null => {
     const normalizedType = tipo.toLowerCase().trim()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
@@ -102,6 +102,15 @@ export function ImportAccountsModal({
     // Investimento / Investment
     if (normalizedType.includes('invest') ||
         normalizedType === 'inv') return 'investment';
+
+    // Vale Refeição/Alimentação / Meal Voucher
+    if (normalizedType.includes('vale') ||
+        normalizedType.includes('refeicao') ||
+        normalizedType.includes('alimentacao') ||
+        normalizedType.includes('meal') ||
+        normalizedType.includes('voucher') ||
+        normalizedType === 'vr' ||
+        normalizedType === 'va') return 'meal_voucher';
     
     return null;
   };
@@ -175,7 +184,7 @@ export function ImportAccountsModal({
 
     const parsedType = validateAccountType(tipo);
     if (!parsedType) {
-      errors.push('Tipo de conta inválido. Use: Corrente, Poupança, Crédito ou Investimento');
+      errors.push('Tipo de conta inválido. Use: Corrente, Poupança, Crédito, Investimento ou Vale Refeição/Alimentação');
       isValid = false;
     }
 
@@ -304,7 +313,7 @@ export function ImportAccountsModal({
 
         return {
           name: a.nome.trim(),
-          type: a.parsedType as 'checking' | 'savings' | 'credit' | 'investment',
+          type: a.parsedType as 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher',
           balance: balance,
           limit_amount: limit,
           closing_date: a.parsedType === 'credit' && a.fechamento > 0 ? a.fechamento : undefined,

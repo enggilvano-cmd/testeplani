@@ -143,6 +143,7 @@ export function TransactionFilterDialog({
                   <SelectItem value="credit">Cartão de Crédito</SelectItem>
                   <SelectItem value="investment">Investimento</SelectItem>
                   <SelectItem value="savings">Poupança</SelectItem>
+                  <SelectItem value="meal_voucher">Vale Refeição/Alimentação</SelectItem>
                 </SelectContent>
               </Select>
             </div>

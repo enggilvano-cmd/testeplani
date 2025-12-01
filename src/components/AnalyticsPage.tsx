@@ -60,7 +60,7 @@ import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 interface Account {
   id: string;
   name: string;
-  type: "checking" | "savings" | "credit" | "investment";
+  type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   balance: number;
   color: string;
   limit_amount?: number;
@@ -181,6 +181,21 @@ export default function AnalyticsPage({
 
 
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  
+  // States for chart highlighting
+  const [activeIncomeIndex, setActiveIncomeIndex] = useState<number | null>(null);
+  const [activeExpenseIndex, setActiveExpenseIndex] = useState<number | null>(null);
+  const [activeAccountIndex, setActiveAccountIndex] = useState<number | null>(null);
+  const [activeCreditCardIndex, setActiveCreditCardIndex] = useState<number | null>(null);
+  const [activeCreditCardUsedIndex, setActiveCreditCardUsedIndex] = useState<number | null>(null);
+  const [activeOverdraftIndex, setActiveOverdraftIndex] = useState<number | null>(null);
+  const [activeOverdraftUsedIndex, setActiveOverdraftUsedIndex] = useState<number | null>(null);
+  const [activeInvestmentIndex, setActiveInvestmentIndex] = useState<number | null>(null);
+  const [activeSavingsIndex, setActiveSavingsIndex] = useState<number | null>(null);
+  const [activeCheckingIndex, setActiveCheckingIndex] = useState<number | null>(null);
+  const [activeMealVoucherIndex, setActiveMealVoucherIndex] = useState<number | null>(null);
+  const [activeMonthlyKey, setActiveMonthlyKey] = useState<string | null>(null);
+
   const { toast } = useToast();
   const {
     chartConfig: responsiveConfig,
@@ -741,6 +756,32 @@ export default function AnalyticsPage({
     });
     return config;
   }, [checkingBalanceData]);
+
+  // Dados para o gráfico de saldos de vale refeição/alimentação
+  const mealVoucherBalanceData = useMemo(() => {
+    return accounts
+      .filter((acc) => acc.type === "meal_voucher")
+      .map((account) => ({
+        name: account.name.split(" - ")[0] || account.name,
+        balance: account.balance,
+        positiveBalance: account.balance >= 0 ? account.balance : undefined,
+        negativeBalance: account.balance < 0 ? account.balance : undefined,
+        type: account.type,
+        color: account.color || "hsl(var(--primary))",
+      }));
+  }, [accounts]);
+
+  // Chart config específico para o gráfico de vale refeição/alimentação
+  const mealVoucherChartConfig = useMemo(() => {
+    const config: Record<string, { label: string; color: string }> = {};
+    mealVoucherBalanceData.forEach((account) => {
+      config[account.name] = {
+        label: account.name,
+        color: account.color,
+      };
+    });
+    return config;
+  }, [mealVoucherBalanceData]);
 
   const handleExportPDF = async () => {
     if (!contentRef.current) {
@@ -1323,6 +1364,193 @@ export default function AnalyticsPage({
 
       {/* Charts Grid */}
       <div className="analytics-section grid grid-cols-1 gap-6 sm:gap-8 mt-6 sm:mt-8">
+        {/* Monthly Trend */}
+        <Card className="financial-card">
+          <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
+            <CardTitle className="text-headline flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
+              Evolução Mensal - Receitas vs Despesas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-2 sm:p-3">
+            <div className="relative w-full">
+              <ChartContainer
+                config={chartConfig}
+                className={`${chartHeight} w-full overflow-hidden`}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={monthlyData}
+                    margin={{
+                      top: 20,
+                      right: isMobile ? 15 : 240,
+                      bottom: isMobile ? 20 : 30,
+                      left: isMobile ? 10 : 20
+                    }}
+                  >
+                    <XAxis
+                      dataKey="month"
+                      {...getBarChartAxisProps(responsiveConfig).xAxis}
+                    />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        formatCurrencyForAxis(value / 100, isMobile)
+                      }
+                      {...getBarChartAxisProps(responsiveConfig).yAxis}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      formatter={monthlyTooltipFormatter}
+                      labelFormatter={(label) => `Mês de ${label}`}
+                    />
+
+                    {/* Barras de Receitas com cor sólida */}
+                    <Bar
+                      dataKey="receitas"
+                      fill="hsl(var(--success))"
+                      radius={[4, 4, 0, 0]}
+                      name="Receitas"
+                      onMouseEnter={() => setActiveMonthlyKey('receitas')}
+                      onMouseLeave={() => setActiveMonthlyKey(null)}
+                      onClick={() => setActiveMonthlyKey(activeMonthlyKey === 'receitas' ? null : 'receitas')}
+                      fillOpacity={activeMonthlyKey !== null && activeMonthlyKey !== 'receitas' ? 0.3 : 1}
+                      style={{
+                        transition: 'fill-opacity 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                    />
+
+                    {/* Barras de Despesas com cor sólida */}
+                    <Bar
+                      dataKey="despesas"
+                      fill="hsl(var(--destructive))"
+                      radius={[4, 4, 0, 0]}
+                      name="Despesas"
+                      onMouseEnter={() => setActiveMonthlyKey('despesas')}
+                      onMouseLeave={() => setActiveMonthlyKey(null)}
+                      onClick={() => setActiveMonthlyKey(activeMonthlyKey === 'despesas' ? null : 'despesas')}
+                      fillOpacity={activeMonthlyKey !== null && activeMonthlyKey !== 'despesas' ? 0.3 : 1}
+                      style={{
+                        transition: 'fill-opacity 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                    />
+
+                    {/* Linha de saldo com pontos condicionais */}
+                    <Line
+                      type="monotone"
+                      dataKey="saldo"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={isMobile ? 2 : 3}
+                      dot={renderMonthlyDot}
+                      activeDot={{
+                        r: isMobile ? 5 : 6,
+                        strokeWidth: 2,
+                        fill: "hsl(var(--primary))",
+                        stroke: "hsl(var(--background))",
+                      }}
+                      connectNulls={false}
+                      name="Saldo Acumulado"
+                      onMouseEnter={() => setActiveMonthlyKey('saldo')}
+                      onMouseLeave={() => setActiveMonthlyKey(null)}
+                      onClick={() => setActiveMonthlyKey(activeMonthlyKey === 'saldo' ? null : 'saldo')}
+                      strokeOpacity={activeMonthlyKey !== null && activeMonthlyKey !== 'saldo' ? 0.3 : 1}
+                      style={{
+                        transition: 'stroke-opacity 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Legenda - desktop/tablet (dentro do container) */}
+              {!isMobile && (
+                <div 
+                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                  style={{ maxWidth: "38%" }}
+                >
+                  {Object.entries(chartConfig).map(([key, config]) => {
+                    const value = key === 'receitas' ? totalsByType.income :
+                                  key === 'despesas' ? totalsByType.expenses :
+                                  (totalsByType.income - totalsByType.expenses);
+                    
+                    const textColor = key === 'receitas' ? 'text-success' :
+                                      key === 'despesas' ? 'text-destructive' :
+                                      value >= 0 ? 'text-success' : 'text-destructive';
+
+                    return (
+                      <div 
+                        key={`legend-monthly-desktop-${key}`} 
+                        className={cn(
+                          "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                          activeMonthlyKey === key ? "bg-muted/50 scale-105 font-medium" : "",
+                          activeMonthlyKey !== null && activeMonthlyKey !== key ? "opacity-30" : "opacity-100"
+                        )}
+                        onMouseEnter={() => setActiveMonthlyKey(key)}
+                        onMouseLeave={() => setActiveMonthlyKey(null)}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div 
+                            className="w-3 h-3 rounded-full flex-shrink-0" 
+                            style={{ backgroundColor: config.color }}
+                          />
+                          <span className="truncate text-foreground">
+                            {config.label}
+                          </span>
+                        </div>
+                        <span className={`font-medium flex-shrink-0 ${textColor}`}>
+                          {formatCurrency(value)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Legenda - mobile (abaixo do gráfico) */}
+            {isMobile && (
+              <div className="mt-4 flex flex-col gap-2 px-2">
+                {Object.entries(chartConfig).map(([key, config]) => {
+                  const value = key === 'receitas' ? totalsByType.income :
+                                key === 'despesas' ? totalsByType.expenses :
+                                (totalsByType.income - totalsByType.expenses);
+                  
+                  const textColor = key === 'receitas' ? 'text-success' :
+                                    key === 'despesas' ? 'text-destructive' :
+                                    value >= 0 ? 'text-success' : 'text-destructive';
+
+                  return (
+                    <div 
+                      key={`legend-monthly-mobile-${key}`} 
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeMonthlyKey === key ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeMonthlyKey !== null && activeMonthlyKey !== key ? "opacity-30" : "opacity-100"
+                      )}
+                      onClick={() => setActiveMonthlyKey(activeMonthlyKey === key ? null : key)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: config.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {config.label}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${textColor}`}>
+                        {formatCurrency(value)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Income Category Pie Chart */}
         <Card className="financial-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 pt-3 sm:px-4 sm:pt-4">
@@ -1357,7 +1585,20 @@ export default function AnalyticsPage({
                   dataKey="value"
                 >
                   {incomeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.fill} 
+                      stroke={activeIncomeIndex === index ? "hsl(var(--background))" : "none"}
+                      strokeWidth={activeIncomeIndex === index ? 2 : 0}
+                      style={{
+                        opacity: activeIncomeIndex !== null && activeIncomeIndex !== index ? 0.3 : 1,
+                        transition: 'opacity 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={() => setActiveIncomeIndex(index)}
+                      onMouseLeave={() => setActiveIncomeIndex(null)}
+                      onClick={() => setActiveIncomeIndex(activeIncomeIndex === index ? null : index)}
+                    />
                   ))}
                 </Pie>
               </RechartsPieChart>
@@ -1373,7 +1614,13 @@ export default function AnalyticsPage({
                   {incomeData.map((item, index) => (
                     <div 
                       key={`legend-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeIncomeIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeIncomeIndex !== null && activeIncomeIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveIncomeIndex(index)}
+                      onMouseLeave={() => setActiveIncomeIndex(null)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -1400,7 +1647,12 @@ export default function AnalyticsPage({
                 {incomeData.map((item, index) => (
                   <div 
                     key={`legend-mobile-${index}`} 
-                    className="flex items-center justify-between gap-2 text-caption"
+                    className={cn(
+                      "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                      activeIncomeIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                      activeIncomeIndex !== null && activeIncomeIndex !== index ? "opacity-30" : "opacity-100"
+                    )}
+                    onClick={() => setActiveIncomeIndex(activeIncomeIndex === index ? null : index)}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div 
@@ -1460,7 +1712,20 @@ export default function AnalyticsPage({
                   dataKey="value"
                 >
                   {expenseData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.fill} 
+                      stroke={activeExpenseIndex === index ? "hsl(var(--background))" : "none"}
+                      strokeWidth={activeExpenseIndex === index ? 2 : 0}
+                      style={{
+                        opacity: activeExpenseIndex !== null && activeExpenseIndex !== index ? 0.3 : 1,
+                        transition: 'opacity 0.3s ease',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={() => setActiveExpenseIndex(index)}
+                      onMouseLeave={() => setActiveExpenseIndex(null)}
+                      onClick={() => setActiveExpenseIndex(activeExpenseIndex === index ? null : index)}
+                    />
                   ))}
                 </Pie>
               </RechartsPieChart>
@@ -1476,7 +1741,13 @@ export default function AnalyticsPage({
                   {expenseData.map((item, index) => (
                     <div 
                       key={`legend-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeExpenseIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeExpenseIndex !== null && activeExpenseIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveExpenseIndex(index)}
+                      onMouseLeave={() => setActiveExpenseIndex(null)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -1503,7 +1774,12 @@ export default function AnalyticsPage({
                 {expenseData.map((item, index) => (
                   <div 
                     key={`legend-mobile-${index}`} 
-                    className="flex items-center justify-between gap-2 text-caption"
+                    className={cn(
+                      "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                      activeExpenseIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                      activeExpenseIndex !== null && activeExpenseIndex !== index ? "opacity-30" : "opacity-100"
+                    )}
+                    onClick={() => setActiveExpenseIndex(activeExpenseIndex === index ? null : index)}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div 
@@ -1569,14 +1845,44 @@ export default function AnalyticsPage({
                     content={<ChartTooltipContent />}
                     formatter={accountTooltipFormatter}
                    />
-                   <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                   <Bar 
+                     dataKey="positiveBalance" 
+                     stackId="balance" 
+                     fill="hsl(var(--success))"
+                   >
                      {accountBalanceData.map((entry, index) => (
-                       <Cell key={`cell-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                       <Cell 
+                         key={`cell-positive-${index}`} 
+                         fill={entry.balance > 0 ? entry.color : "transparent"} 
+                         style={{
+                           opacity: activeAccountIndex !== null && activeAccountIndex !== index ? 0.3 : 1,
+                           transition: 'opacity 0.3s ease',
+                           cursor: 'pointer'
+                         }}
+                         onMouseEnter={() => setActiveAccountIndex(index)}
+                         onMouseLeave={() => setActiveAccountIndex(null)}
+                         onClick={() => setActiveAccountIndex(activeAccountIndex === index ? null : index)}
+                       />
                      ))}
                    </Bar>
-                   <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                   <Bar 
+                     dataKey="negativeBalance" 
+                     stackId="balance" 
+                     fill="hsl(var(--destructive))"
+                   >
                      {accountBalanceData.map((entry, index) => (
-                       <Cell key={`cell-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                       <Cell 
+                         key={`cell-negative-${index}`} 
+                         fill={entry.balance < 0 ? entry.color : "transparent"} 
+                         style={{
+                           opacity: activeAccountIndex !== null && activeAccountIndex !== index ? 0.3 : 1,
+                           transition: 'opacity 0.3s ease',
+                           cursor: 'pointer'
+                         }}
+                         onMouseEnter={() => setActiveAccountIndex(index)}
+                         onMouseLeave={() => setActiveAccountIndex(null)}
+                         onClick={() => setActiveAccountIndex(activeAccountIndex === index ? null : index)}
+                       />
                      ))}
                    </Bar>
                  </BarChart>
@@ -1592,7 +1898,13 @@ export default function AnalyticsPage({
                 {accountBalanceData.map((account, index) => (
                   <div 
                     key={`legend-account-desktop-${index}`} 
-                    className="flex items-center justify-between gap-2 text-caption"
+                    className={cn(
+                      "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                      activeAccountIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                      activeAccountIndex !== null && activeAccountIndex !== index ? "opacity-30" : "opacity-100"
+                    )}
+                    onMouseEnter={() => setActiveAccountIndex(index)}
+                    onMouseLeave={() => setActiveAccountIndex(null)}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div 
@@ -1628,7 +1940,12 @@ export default function AnalyticsPage({
                 {accountBalanceData.map((account, index) => (
                   <div 
                     key={`legend-account-mobile-${index}`} 
-                    className="flex items-center justify-between gap-2 text-caption"
+                    className={cn(
+                      "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                      activeAccountIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                      activeAccountIndex !== null && activeAccountIndex !== index ? "opacity-30" : "opacity-100"
+                    )}
+                    onClick={() => setActiveAccountIndex(activeAccountIndex === index ? null : index)}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div 
@@ -1700,14 +2017,44 @@ export default function AnalyticsPage({
                       content={<ChartTooltipContent />}
                       formatter={accountTooltipFormatter}
                      />
-                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                     <Bar 
+                       dataKey="positiveBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--success))"
+                     >
                        {investmentBalanceData.map((entry, index) => (
-                         <Cell key={`cell-investment-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                         <Cell 
+                           key={`cell-investment-positive-${index}`} 
+                           fill={entry.balance > 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeInvestmentIndex !== null && activeInvestmentIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveInvestmentIndex(index)}
+                           onMouseLeave={() => setActiveInvestmentIndex(null)}
+                           onClick={() => setActiveInvestmentIndex(activeInvestmentIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
-                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                     <Bar 
+                       dataKey="negativeBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--destructive))"
+                     >
                        {investmentBalanceData.map((entry, index) => (
-                         <Cell key={`cell-investment-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                         <Cell 
+                           key={`cell-investment-negative-${index}`} 
+                           fill={entry.balance < 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeInvestmentIndex !== null && activeInvestmentIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveInvestmentIndex(index)}
+                           onMouseLeave={() => setActiveInvestmentIndex(null)}
+                           onClick={() => setActiveInvestmentIndex(activeInvestmentIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
                    </BarChart>
@@ -1723,7 +2070,13 @@ export default function AnalyticsPage({
                   {investmentBalanceData.map((account, index) => (
                     <div 
                       key={`legend-investment-desktop-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeInvestmentIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeInvestmentIndex !== null && activeInvestmentIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveInvestmentIndex(index)}
+                      onMouseLeave={() => setActiveInvestmentIndex(null)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -1759,7 +2112,12 @@ export default function AnalyticsPage({
                   {investmentBalanceData.map((account, index) => (
                     <div 
                       key={`legend-investment-mobile-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeInvestmentIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeInvestmentIndex !== null && activeInvestmentIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onClick={() => setActiveInvestmentIndex(activeInvestmentIndex === index ? null : index)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -1832,14 +2190,44 @@ export default function AnalyticsPage({
                       content={<ChartTooltipContent />}
                       formatter={accountTooltipFormatter}
                      />
-                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                     <Bar 
+                       dataKey="positiveBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--success))"
+                     >
                        {savingsBalanceData.map((entry, index) => (
-                         <Cell key={`cell-savings-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                         <Cell 
+                           key={`cell-savings-positive-${index}`} 
+                           fill={entry.balance > 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeSavingsIndex !== null && activeSavingsIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveSavingsIndex(index)}
+                           onMouseLeave={() => setActiveSavingsIndex(null)}
+                           onClick={() => setActiveSavingsIndex(activeSavingsIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
-                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                     <Bar 
+                       dataKey="negativeBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--destructive))"
+                     >
                        {savingsBalanceData.map((entry, index) => (
-                         <Cell key={`cell-savings-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                         <Cell 
+                           key={`cell-savings-negative-${index}`} 
+                           fill={entry.balance < 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeSavingsIndex !== null && activeSavingsIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveSavingsIndex(index)}
+                           onMouseLeave={() => setActiveSavingsIndex(null)}
+                           onClick={() => setActiveSavingsIndex(activeSavingsIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
                    </BarChart>
@@ -1855,7 +2243,13 @@ export default function AnalyticsPage({
                   {savingsBalanceData.map((account, index) => (
                     <div 
                       key={`legend-savings-desktop-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeSavingsIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeSavingsIndex !== null && activeSavingsIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveSavingsIndex(index)}
+                      onMouseLeave={() => setActiveSavingsIndex(null)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -1891,7 +2285,12 @@ export default function AnalyticsPage({
                   {savingsBalanceData.map((account, index) => (
                     <div 
                       key={`legend-savings-mobile-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeSavingsIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeSavingsIndex !== null && activeSavingsIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onClick={() => setActiveSavingsIndex(activeSavingsIndex === index ? null : index)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -1966,14 +2365,44 @@ export default function AnalyticsPage({
                       content={<ChartTooltipContent />}
                       formatter={accountTooltipFormatter}
                      />
-                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                     <Bar 
+                       dataKey="positiveBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--success))"
+                     >
                        {checkingBalanceData.map((entry, index) => (
-                         <Cell key={`cell-checking-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                         <Cell 
+                           key={`cell-checking-positive-${index}`} 
+                           fill={entry.balance > 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeCheckingIndex !== null && activeCheckingIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveCheckingIndex(index)}
+                           onMouseLeave={() => setActiveCheckingIndex(null)}
+                           onClick={() => setActiveCheckingIndex(activeCheckingIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
-                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                     <Bar 
+                       dataKey="negativeBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--destructive))"
+                     >
                        {checkingBalanceData.map((entry, index) => (
-                         <Cell key={`cell-checking-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                         <Cell 
+                           key={`cell-checking-negative-${index}`} 
+                           fill={entry.balance < 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeCheckingIndex !== null && activeCheckingIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveCheckingIndex(index)}
+                           onMouseLeave={() => setActiveCheckingIndex(null)}
+                           onClick={() => setActiveCheckingIndex(activeCheckingIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
                    </BarChart>
@@ -1989,7 +2418,13 @@ export default function AnalyticsPage({
                   {checkingBalanceData.map((account, index) => (
                     <div 
                       key={`legend-checking-desktop-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeCheckingIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeCheckingIndex !== null && activeCheckingIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveCheckingIndex(index)}
+                      onMouseLeave={() => setActiveCheckingIndex(null)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -2025,7 +2460,12 @@ export default function AnalyticsPage({
                   {checkingBalanceData.map((account, index) => (
                     <div 
                       key={`legend-checking-mobile-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeCheckingIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeCheckingIndex !== null && activeCheckingIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onClick={() => setActiveCheckingIndex(activeCheckingIndex === index ? null : index)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -2049,6 +2489,179 @@ export default function AnalyticsPage({
                       checkingBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
                     }`}>
                       {formatCurrency(checkingBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Meal Voucher Account Balances */}
+        {mealVoucherBalanceData.length > 0 && (
+          <Card className="financial-card">
+            <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
+              <CardTitle className="text-headline flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                Saldo de Vale Refeição/Alimentação
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 sm:p-3">
+              <div className="relative w-full">
+                <ChartContainer
+                  config={mealVoucherChartConfig}
+                  className={`${chartHeight} w-full overflow-hidden`}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={mealVoucherBalanceData}
+                      margin={{
+                        top: 20,
+                        right: isMobile ? 15 : 240,
+                        bottom: isMobile ? 20 : 30,
+                        left: isMobile ? 10 : 20
+                      }}
+                    >
+                    <XAxis
+                      dataKey="name"
+                      tick={false}
+                      axisLine={false}
+                      height={0}
+                    />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        formatCurrencyForAxis(value / 100, isMobile)
+                      }
+                      tick={{ fontSize: isMobile ? 9 : 11 }}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      formatter={accountTooltipFormatter}
+                     />
+                     <Bar 
+                       dataKey="positiveBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--success))"
+                     >
+                       {mealVoucherBalanceData.map((entry, index) => (
+                         <Cell 
+                           key={`cell-meal-voucher-positive-${index}`} 
+                           fill={entry.balance > 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeMealVoucherIndex !== null && activeMealVoucherIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveMealVoucherIndex(index)}
+                           onMouseLeave={() => setActiveMealVoucherIndex(null)}
+                           onClick={() => setActiveMealVoucherIndex(activeMealVoucherIndex === index ? null : index)}
+                         />
+                       ))}
+                     </Bar>
+                     <Bar 
+                       dataKey="negativeBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--destructive))"
+                     >
+                       {mealVoucherBalanceData.map((entry, index) => (
+                         <Cell 
+                           key={`cell-meal-voucher-negative-${index}`} 
+                           fill={entry.balance < 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeMealVoucherIndex !== null && activeMealVoucherIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveMealVoucherIndex(index)}
+                           onMouseLeave={() => setActiveMealVoucherIndex(null)}
+                           onClick={() => setActiveMealVoucherIndex(activeMealVoucherIndex === index ? null : index)}
+                         />
+                       ))}
+                     </Bar>
+                   </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Legenda de Vale Refeição/Alimentação - desktop/tablet */}
+              {!isMobile && mealVoucherBalanceData.length > 0 && (
+                <div 
+                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                  style={{ maxWidth: "38%" }}
+                >
+                  {mealVoucherBalanceData.map((account, index) => (
+                    <div 
+                      key={`legend-meal-voucher-desktop-${index}`} 
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeMealVoucherIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeMealVoucherIndex !== null && activeMealVoucherIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveMealVoucherIndex(index)}
+                      onMouseLeave={() => setActiveMealVoucherIndex(null)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: account.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        account.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(account.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      mealVoucherBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(mealVoucherBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Legenda de Vale Refeição/Alimentação - mobile */}
+              {isMobile && mealVoucherBalanceData.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 px-2">
+                  {mealVoucherBalanceData.map((account, index) => (
+                    <div 
+                      key={`legend-meal-voucher-mobile-${index}`} 
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeMealVoucherIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeMealVoucherIndex !== null && activeMealVoucherIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onClick={() => setActiveMealVoucherIndex(activeMealVoucherIndex === index ? null : index)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: account.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        account.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(account.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      mealVoucherBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(mealVoucherBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
                     </span>
                   </div>
                 </div>
@@ -2103,67 +2716,108 @@ export default function AnalyticsPage({
                         return [formatCurrency(value), " - Crédito Disponível"];
                       }}
                      />
-                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
-                       {creditCardBalanceData.map((entry, index) => (
-                         <Cell key={`cell-credit-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
-                       ))}
-                     </Bar>
-                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
-                       {creditCardBalanceData.map((entry, index) => (
-                         <Cell key={`cell-credit-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
-                       ))}
-                     </Bar>
-                   </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+                     <Bar 
+                     dataKey="positiveBalance" 
+                     stackId="balance" 
+                     fill="hsl(var(--success))"
+                   >
+                     {creditCardBalanceData.map((entry, index) => (
+                       <Cell 
+                         key={`cell-credit-positive-${index}`} 
+                         fill={entry.balance > 0 ? entry.color : "transparent"} 
+                         style={{
+                           opacity: activeCreditCardIndex !== null && activeCreditCardIndex !== index ? 0.3 : 1,
+                           transition: 'opacity 0.3s ease',
+                           cursor: 'pointer'
+                         }}
+                         onMouseEnter={() => setActiveCreditCardIndex(index)}
+                         onMouseLeave={() => setActiveCreditCardIndex(null)}
+                         onClick={() => setActiveCreditCardIndex(activeCreditCardIndex === index ? null : index)}
+                       />
+                     ))}
+                   </Bar>
+                   <Bar 
+                     dataKey="negativeBalance" 
+                     stackId="balance" 
+                     fill="hsl(var(--destructive))"
+                   >
+                     {creditCardBalanceData.map((entry, index) => (
+                       <Cell 
+                         key={`cell-credit-negative-${index}`} 
+                         fill={entry.balance < 0 ? entry.color : "transparent"} 
+                         style={{
+                           opacity: activeCreditCardIndex !== null && activeCreditCardIndex !== index ? 0.3 : 1,
+                           transition: 'opacity 0.3s ease',
+                           cursor: 'pointer'
+                         }}
+                         onMouseEnter={() => setActiveCreditCardIndex(index)}
+                         onMouseLeave={() => setActiveCreditCardIndex(null)}
+                         onClick={() => setActiveCreditCardIndex(activeCreditCardIndex === index ? null : index)}
+                       />
+                     ))}
+                   </Bar>
+                 </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
 
-              {/* Legenda de Cartões - desktop/tablet (dentro do container) */}
-              {!isMobile && creditCardBalanceData.length > 0 && (
-                <div 
-                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
-                  style={{ maxWidth: "38%" }}
-                >
-                  {creditCardBalanceData.map((card, index) => (
-                    <div 
-                      key={`legend-credit-desktop-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div 
-                          className="w-3 h-3 rounded-full flex-shrink-0" 
-                          style={{ backgroundColor: card.color }}
-                        />
-                        <span className="truncate text-foreground">
-                          {card.name}
-                        </span>
-                      </div>
-                      <span className={`font-medium flex-shrink-0 ${
-                        card.balance >= 0 ? 'text-success' : 'text-destructive'
-                      }`}>
-                        {formatCurrency(card.balance)}
+            {/* Legenda de Cartões - desktop/tablet (dentro do container) */}
+            {!isMobile && creditCardBalanceData.length > 0 && (
+              <div 
+                className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                style={{ maxWidth: "38%" }}
+              >
+                {creditCardBalanceData.map((card, index) => (
+                  <div 
+                    key={`legend-credit-desktop-${index}`} 
+                    className={cn(
+                      "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                      activeCreditCardIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                      activeCreditCardIndex !== null && activeCreditCardIndex !== index ? "opacity-30" : "opacity-100"
+                    )}
+                    onMouseEnter={() => setActiveCreditCardIndex(index)}
+                    onMouseLeave={() => setActiveCreditCardIndex(null)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div 
+                        className="w-3 h-3 rounded-full flex-shrink-0" 
+                        style={{ backgroundColor: card.color }}
+                      />
+                      <span className="truncate text-foreground">
+                        {card.name}
                       </span>
                     </div>
-                  ))}
-                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
-                    <span className="font-medium text-foreground pl-5">Total</span>
                     <span className={`font-medium flex-shrink-0 ${
-                      creditCardBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                      card.balance >= 0 ? 'text-success' : 'text-destructive'
                     }`}>
-                      {formatCurrency(creditCardBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                      {formatCurrency(card.balance)}
                     </span>
                   </div>
+                ))}
+                <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                  <span className="font-medium text-foreground pl-5">Total</span>
+                  <span className={`font-medium flex-shrink-0 ${
+                    creditCardBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                  }`}>
+                    {formatCurrency(creditCardBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                  </span>
                 </div>
-              )}
               </div>
+            )}
+            </div>
 
-              {/* Legenda de Cartões - mobile (abaixo do gráfico) */}
-              {isMobile && creditCardBalanceData.length > 0 && (
-                <div className="mt-4 flex flex-col gap-2 px-2">
-                  {creditCardBalanceData.map((card, index) => (
-                    <div 
-                      key={`legend-credit-mobile-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
-                    >
+            {/* Legenda de Cartões - mobile (abaixo do gráfico) */}
+            {isMobile && creditCardBalanceData.length > 0 && (
+              <div className="mt-4 flex flex-col gap-2 px-2">
+                {creditCardBalanceData.map((card, index) => (
+                  <div 
+                    key={`legend-credit-mobile-${index}`} 
+                    className={cn(
+                      "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                      activeCreditCardIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                      activeCreditCardIndex !== null && activeCreditCardIndex !== index ? "opacity-30" : "opacity-100"
+                    )}
+                    onClick={() => setActiveCreditCardIndex(activeCreditCardIndex === index ? null : index)}
+                  >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
                           className="w-3 h-3 rounded-full flex-shrink-0" 
@@ -2240,9 +2894,24 @@ export default function AnalyticsPage({
                         return [formatCurrency(value), " - Limite Usado"];
                       }}
                      />
-                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--destructive))">
+                     <Bar 
+                       dataKey="positiveBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--destructive))"
+                     >
                        {creditCardUsedData.map((entry, index) => (
-                         <Cell key={`cell-used-positive-${index}`} fill={entry.color} />
+                         <Cell 
+                           key={`cell-used-positive-${index}`} 
+                           fill={entry.color} 
+                           style={{
+                             opacity: activeCreditCardUsedIndex !== null && activeCreditCardUsedIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveCreditCardUsedIndex(index)}
+                           onMouseLeave={() => setActiveCreditCardUsedIndex(null)}
+                           onClick={() => setActiveCreditCardUsedIndex(activeCreditCardUsedIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
                    </BarChart>
@@ -2258,7 +2927,13 @@ export default function AnalyticsPage({
                   {creditCardUsedData.map((card, index) => (
                     <div 
                       key={`legend-used-desktop-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeCreditCardUsedIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeCreditCardUsedIndex !== null && activeCreditCardUsedIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveCreditCardUsedIndex(index)}
+                      onMouseLeave={() => setActiveCreditCardUsedIndex(null)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -2290,7 +2965,12 @@ export default function AnalyticsPage({
                   {creditCardUsedData.map((card, index) => (
                     <div 
                       key={`legend-used-mobile-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeCreditCardUsedIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeCreditCardUsedIndex !== null && activeCreditCardUsedIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onClick={() => setActiveCreditCardUsedIndex(activeCreditCardUsedIndex === index ? null : index)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -2364,14 +3044,44 @@ export default function AnalyticsPage({
                         return [formatCurrency(value), "Disponível"];
                       }}
                      />
-                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                     <Bar 
+                       dataKey="positiveBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--success))"
+                     >
                        {overdraftBalanceData.map((entry, index) => (
-                         <Cell key={`cell-overdraft-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                         <Cell 
+                           key={`cell-overdraft-positive-${index}`} 
+                           fill={entry.balance > 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeOverdraftIndex !== null && activeOverdraftIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveOverdraftIndex(index)}
+                           onMouseLeave={() => setActiveOverdraftIndex(null)}
+                           onClick={() => setActiveOverdraftIndex(activeOverdraftIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
-                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                     <Bar 
+                       dataKey="negativeBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--destructive))"
+                     >
                        {overdraftBalanceData.map((entry, index) => (
-                         <Cell key={`cell-overdraft-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                         <Cell 
+                           key={`cell-overdraft-negative-${index}`} 
+                           fill={entry.balance < 0 ? entry.color : "transparent"} 
+                           style={{
+                             opacity: activeOverdraftIndex !== null && activeOverdraftIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveOverdraftIndex(index)}
+                           onMouseLeave={() => setActiveOverdraftIndex(null)}
+                           onClick={() => setActiveOverdraftIndex(activeOverdraftIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
                    </BarChart>
@@ -2387,7 +3097,13 @@ export default function AnalyticsPage({
                   {overdraftBalanceData.map((acc, index) => (
                     <div 
                       key={`legend-overdraft-desktop-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeOverdraftIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeOverdraftIndex !== null && activeOverdraftIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveOverdraftIndex(index)}
+                      onMouseLeave={() => setActiveOverdraftIndex(null)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -2423,7 +3139,12 @@ export default function AnalyticsPage({
                   {overdraftBalanceData.map((acc, index) => (
                     <div 
                       key={`legend-overdraft-mobile-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeOverdraftIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeOverdraftIndex !== null && activeOverdraftIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onClick={() => setActiveOverdraftIndex(activeOverdraftIndex === index ? null : index)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -2501,9 +3222,24 @@ export default function AnalyticsPage({
                         return [formatCurrency(value), " - Limite Usado"];
                       }}
                      />
-                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--destructive))">
+                     <Bar 
+                       dataKey="positiveBalance" 
+                       stackId="balance" 
+                       fill="hsl(var(--destructive))"
+                     >
                        {overdraftUsedData.map((entry, index) => (
-                         <Cell key={`cell-overdraft-used-positive-${index}`} fill={entry.color} />
+                         <Cell 
+                           key={`cell-overdraft-used-positive-${index}`} 
+                           fill={entry.color} 
+                           style={{
+                             opacity: activeOverdraftUsedIndex !== null && activeOverdraftUsedIndex !== index ? 0.3 : 1,
+                             transition: 'opacity 0.3s ease',
+                             cursor: 'pointer'
+                           }}
+                           onMouseEnter={() => setActiveOverdraftUsedIndex(index)}
+                           onMouseLeave={() => setActiveOverdraftUsedIndex(null)}
+                           onClick={() => setActiveOverdraftUsedIndex(activeOverdraftUsedIndex === index ? null : index)}
+                         />
                        ))}
                      </Bar>
                    </BarChart>
@@ -2519,7 +3255,13 @@ export default function AnalyticsPage({
                   {overdraftUsedData.map((acc, index) => (
                     <div 
                       key={`legend-overdraft-used-desktop-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeOverdraftUsedIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeOverdraftUsedIndex !== null && activeOverdraftUsedIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onMouseEnter={() => setActiveOverdraftUsedIndex(index)}
+                      onMouseLeave={() => setActiveOverdraftUsedIndex(null)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -2551,7 +3293,12 @@ export default function AnalyticsPage({
                   {overdraftUsedData.map((acc, index) => (
                     <div 
                       key={`legend-overdraft-used-mobile-${index}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-caption transition-all duration-200 cursor-pointer rounded px-1",
+                        activeOverdraftUsedIndex === index ? "bg-muted/50 scale-105 font-medium" : "",
+                        activeOverdraftUsedIndex !== null && activeOverdraftUsedIndex !== index ? "opacity-30" : "opacity-100"
+                      )}
+                      onClick={() => setActiveOverdraftUsedIndex(activeOverdraftUsedIndex === index ? null : index)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div 
@@ -2579,157 +3326,7 @@ export default function AnalyticsPage({
           </Card>
         )}
 
-        {/* Monthly Trend */}
-        <Card className="financial-card">
-          <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
-            <CardTitle className="text-headline flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
-              Evolução Mensal - Receitas vs Despesas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2 sm:p-3">
-            <div className="relative w-full">
-              <ChartContainer
-                config={chartConfig}
-                className={`${chartHeight} w-full overflow-hidden`}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart
-                    data={monthlyData}
-                    margin={{
-                      top: 20,
-                      right: isMobile ? 15 : 240,
-                      bottom: isMobile ? 20 : 30,
-                      left: isMobile ? 10 : 20
-                    }}
-                  >
-                    <XAxis
-                      dataKey="month"
-                      {...getBarChartAxisProps(responsiveConfig).xAxis}
-                    />
-                    <YAxis
-                      tickFormatter={(value) =>
-                        formatCurrencyForAxis(value / 100, isMobile)
-                      }
-                      {...getBarChartAxisProps(responsiveConfig).yAxis}
-                    />
-                    <ChartTooltip
-                      content={<ChartTooltipContent />}
-                      formatter={monthlyTooltipFormatter}
-                      labelFormatter={(label) => `Mês de ${label}`}
-                    />
 
-                    {/* Barras de Receitas com cor sólida */}
-                    <Bar
-                      dataKey="receitas"
-                      fill="hsl(var(--success))"
-                      radius={[4, 4, 0, 0]}
-                      name="Receitas"
-                    />
-
-                    {/* Barras de Despesas com cor sólida */}
-                    <Bar
-                      dataKey="despesas"
-                      fill="hsl(var(--destructive))"
-                      radius={[4, 4, 0, 0]}
-                      name="Despesas"
-                    />
-
-                    {/* Linha de saldo com pontos condicionais */}
-                    <Line
-                      type="monotone"
-                      dataKey="saldo"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={isMobile ? 2 : 3}
-                      dot={renderMonthlyDot}
-                      activeDot={{
-                        r: isMobile ? 5 : 6,
-                        strokeWidth: 2,
-                        fill: "hsl(var(--primary))",
-                        stroke: "hsl(var(--background))",
-                      }}
-                      connectNulls={false}
-                      name="Saldo Acumulado"
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-
-              {/* Legenda - desktop/tablet (dentro do container) */}
-              {!isMobile && (
-                <div 
-                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
-                  style={{ maxWidth: "38%" }}
-                >
-                  {Object.entries(chartConfig).map(([key, config]) => {
-                    const value = key === 'receitas' ? totalsByType.income :
-                                  key === 'despesas' ? totalsByType.expenses :
-                                  (totalsByType.income - totalsByType.expenses);
-                    
-                    const textColor = key === 'receitas' ? 'text-success' :
-                                      key === 'despesas' ? 'text-destructive' :
-                                      value >= 0 ? 'text-success' : 'text-destructive';
-
-                    return (
-                      <div 
-                        key={`legend-monthly-desktop-${key}`} 
-                        className="flex items-center justify-between gap-2 text-caption"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div 
-                            className="w-3 h-3 rounded-full flex-shrink-0" 
-                            style={{ backgroundColor: config.color }}
-                          />
-                          <span className="truncate text-foreground">
-                            {config.label}
-                          </span>
-                        </div>
-                        <span className={`font-medium flex-shrink-0 ${textColor}`}>
-                          {formatCurrency(value)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Legenda - mobile (abaixo do gráfico) */}
-            {isMobile && (
-              <div className="mt-4 flex flex-col gap-2 px-2">
-                {Object.entries(chartConfig).map(([key, config]) => {
-                  const value = key === 'receitas' ? totalsByType.income :
-                                key === 'despesas' ? totalsByType.expenses :
-                                (totalsByType.income - totalsByType.expenses);
-                  
-                  const textColor = key === 'receitas' ? 'text-success' :
-                                    key === 'despesas' ? 'text-destructive' :
-                                    value >= 0 ? 'text-success' : 'text-destructive';
-
-                  return (
-                    <div 
-                      key={`legend-monthly-mobile-${key}`} 
-                      className="flex items-center justify-between gap-2 text-caption"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div 
-                          className="w-3 h-3 rounded-full flex-shrink-0" 
-                          style={{ backgroundColor: config.color }}
-                        />
-                        <span className="truncate text-foreground">
-                          {config.label}
-                        </span>
-                      </div>
-                      <span className={`font-medium flex-shrink-0 ${textColor}`}>
-                        {formatCurrency(value)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
 

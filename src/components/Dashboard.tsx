@@ -22,7 +22,7 @@ interface DashboardProps {
   onAddExpense?: () => void;
   onAddIncome?: () => void;
   onAddCreditExpense?: () => void;
-  onNavigateToAccounts?: (filterType?: 'credit') => void;
+  onNavigateToAccounts?: (filterType?: 'credit' | 'checking' | 'savings' | 'investment' | 'meal_voucher') => void;
   onNavigateToTransactions?: (
     filterType?: TransactionFilterType,
     filterStatus?: StatusFilterType,
@@ -139,7 +139,7 @@ export function Dashboard({
           <CardErrorBoundary fallbackMessage="Erro ao carregar contas">
             <AccountsSummary
               accounts={accounts}
-              accountTypes={['checking', 'savings', 'investment']}
+              accountTypes={['checking', 'savings', 'investment', 'meal_voucher']}
               title="Suas Contas"
               emptyMessage="Nenhuma conta cadastrada"
               onNavigateToAccounts={onNavigateToAccounts}

@@ -86,7 +86,7 @@ export function useDashboardCalculations(
           const filterTransactions = (
             type: 'income' | 'expense' | 'all',
             status: 'pending' | 'completed' | 'all',
-            accountType: 'checking' | 'savings' | 'credit' | 'investment' | 'all'
+            accountType: 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher' | 'all'
           ) => {
             return allTransactions.filter(t => {
               // Excluir apenas o PAI das transações fixas (mantém as filhas)

@@ -11,7 +11,7 @@ export interface Category {
 export interface Account {
   id: string;
   name: string;
-  type: "checking" | "savings" | "credit" | "investment";
+  type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   balance: number;
   limit_amount?: number;
   due_date?: number;
@@ -72,13 +72,13 @@ export interface Transaction {
   account?: {
     id: string;
     name: string;
-    type: "checking" | "savings" | "credit" | "investment";
+    type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
     color: string;
   };
   to_account?: {
     id: string;
     name: string;
-    type: "checking" | "savings" | "credit" | "investment";
+    type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
     color: string;
   };
 }
@@ -113,7 +113,8 @@ export const ACCOUNT_TYPE_LABELS = {
   checking: "Conta Corrente",
   savings: "Poupança", 
   credit: "Cartão de Crédito",
-  investment: "Investimento"
+  investment: "Investimento",
+  meal_voucher: "Vale Refeição/Alimentação"
 } as const;
 
 // Input types for transaction operations
@@ -160,7 +161,7 @@ export interface ImportTransactionData {
 
 export interface ImportAccountData {
   name: string;
-  type: "checking" | "savings" | "credit" | "investment";
+  type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   balance?: number;
   color?: string;
   limit_amount?: number;
@@ -184,6 +185,6 @@ export interface NavigationParams {
   customEndDate?: Date;
 }
 
-export type AccountFilterType = 'all' | 'checking' | 'savings' | 'credit' | 'investment';
+export type AccountFilterType = 'all' | 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher';
 export type TransactionFilterType = 'all' | 'income' | 'expense' | 'transfer';
 export type StatusFilterType = 'all' | 'pending' | 'completed';

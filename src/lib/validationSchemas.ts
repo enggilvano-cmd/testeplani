@@ -10,7 +10,7 @@ export const addAccountSchema = z.object({
     .min(1, { message: "O nome é obrigatório" })
     .max(100, { message: "O nome deve ter no máximo 100 caracteres" }),
   
-  type: z.enum(["checking", "savings", "credit", "investment"], {
+  type: z.enum(["checking", "savings", "credit", "investment", "meal_voucher"], {
     required_error: "Selecione o tipo da conta",
     invalid_type_error: "Tipo de conta inválido",
   }),
@@ -63,7 +63,7 @@ export const editAccountSchema = z.object({
     .min(1, { message: "O nome é obrigatório" })
     .max(100, { message: "O nome deve ter no máximo 100 caracteres" }),
   
-  type: z.enum(["checking", "savings", "credit", "investment"], {
+  type: z.enum(["checking", "savings", "credit", "investment", "meal_voucher"], {
     required_error: "Selecione o tipo da conta",
     invalid_type_error: "Tipo de conta inválido",
   }),
@@ -332,7 +332,7 @@ export const importAccountSchema = z.object({
     .min(1, { message: "O nome é obrigatório" })
     .max(100, { message: "O nome deve ter no máximo 100 caracteres" }),
   
-  type: z.enum(["checking", "savings", "credit", "investment"], {
+  type: z.enum(["checking", "savings", "credit", "investment", "meal_voucher"], {
     required_error: "Selecione o tipo da conta",
     invalid_type_error: "Tipo de conta inválido",
   }),

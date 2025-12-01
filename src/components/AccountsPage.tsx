@@ -19,6 +19,7 @@ import {
   TrendingDown,
   FileDown,
   Upload,
+  Utensils,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -38,7 +39,7 @@ import { Account, ImportAccountData } from '@/types';
 
 interface AccountsFilters {
   searchTerm: string;
-  filterType: "all" | "checking" | "savings" | "credit" | "investment";
+  filterType: "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   hideZeroBalance: boolean;
 }
 
@@ -49,7 +50,7 @@ interface AccountsPageProps {
   onPayCreditCard?: (account: Account) => void;
   onTransfer?: () => void;
   onImportAccounts?: (accounts: ImportAccountData[], accountsToReplace: string[]) => void;
-  initialFilterType?: "all" | "checking" | "savings" | "credit" | "investment";
+  initialFilterType?: "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher";
 }
 
 export function AccountsPage({
@@ -99,6 +100,8 @@ export function AccountsPage({
         return <CreditCard className="h-5 w-5" />;
       case "investment":
         return <TrendingUp className="h-5 w-5" />;
+      case "meal_voucher":
+        return <Utensils className="h-5 w-5" />;
       default:
         return <Wallet className="h-5 w-5" />;
     }
@@ -114,6 +117,8 @@ export function AccountsPage({
         return "Cartão de Crédito";
       case "investment":
         return "Investimento";
+      case "meal_voucher":
+        return "Vale Refeição/Alimentação";
       default:
         return type;
     }
@@ -125,6 +130,7 @@ export function AccountsPage({
       savings: "secondary",
       credit: "destructive",
       investment: "secondary",
+      meal_voucher: "default",
     } as const;
     return variants[type as keyof typeof variants] || "default";
   };

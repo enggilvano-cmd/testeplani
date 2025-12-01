@@ -49,7 +49,7 @@ interface TransactionsFilters {
   filterAccount: string;
   filterCategory: string;
   filterStatus: "all" | "pending" | "completed";
-  filterAccountType: "all" | "checking" | "savings" | "credit" | "investment";
+  filterAccountType: "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   dateFrom?: string;
   dateTo?: string;
   sortBy: "date" | "amount";
@@ -156,7 +156,7 @@ const PlaniFlowApp = () => {
   const transactionsCustomEndDate = transactionsFilters.customEndDate ? new Date(transactionsFilters.customEndDate) : undefined;
 
   const [accountFilterType, setAccountFilterType] = useState<
-    "all" | "checking" | "savings" | "credit" | "investment"
+    "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher"
   >("all");
 
   // React Query hooks - fonte única de verdade
@@ -195,6 +195,7 @@ const PlaniFlowApp = () => {
   } = useTransactions({
     pageSize: null, // Buscar todas para cálculos corretos
     // Sem filtros aplicados
+    enabled: currentPage === 'dashboard' || currentPage === 'analytics' || currentPage === 'transactions' || currentPage === 'users' || currentPage === 'system-settings',
   });
 
   const { categories, loading: loadingCategories } = useCategories();
@@ -417,7 +418,7 @@ const PlaniFlowApp = () => {
       }}
       onNavigateToAccounts={(filterType) => {
         if (filterType) {
-          setAccountFilterType(filterType as "all" | "checking" | "savings" | "credit" | "investment");
+          setAccountFilterType(filterType as "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher");
         } else {
           setAccountFilterType("all");
         }
@@ -512,7 +513,7 @@ const PlaniFlowApp = () => {
             filterStatus={transactionsFilterStatus}
             onFilterStatusChange={setTransactionsFilterStatus}
             filterAccountType={transactionsFilterAccountType}
-            onFilterAccountTypeChange={(value: string) => setTransactionsFilterAccountType(value as "all" | "checking" | "savings" | "credit" | "investment")}
+            onFilterAccountTypeChange={(value: string) => setTransactionsFilterAccountType(value as "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher")}
             dateFrom={transactionsDateFrom}
             dateTo={transactionsDateTo}
             onDateFromChange={setTransactionsDateFrom}

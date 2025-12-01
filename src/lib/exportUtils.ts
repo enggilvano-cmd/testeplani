@@ -212,6 +212,7 @@ function getAccountTypeLabel(type: string): string {
     case 'savings': return 'Poupança';
     case 'credit': return 'Cartão de Crédito';
     case 'investment': return 'Investimento';
+    case 'meal_voucher': return 'Vale Refeição/Alimentação';
     default: return type;
   }
 }

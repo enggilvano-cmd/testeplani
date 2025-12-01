@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 interface AccountFilterDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  filterType: "all" | "checking" | "savings" | "credit" | "investment";
+  filterType: "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   onFilterTypeChange: (value: string) => void;
   hideZeroBalance: boolean;
   onHideZeroBalanceChange: (value: boolean) => void;
@@ -75,6 +75,7 @@ export function AccountFilterDialog({
                 <SelectItem value="savings">Poupança</SelectItem>
                 <SelectItem value="credit">Cartão de Crédito</SelectItem>
                 <SelectItem value="investment">Investimento</SelectItem>
+                <SelectItem value="meal_voucher">Vale Refeição/Alimentação</SelectItem>
               </SelectContent>
             </Select>
           </div>

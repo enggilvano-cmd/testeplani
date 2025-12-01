@@ -18,7 +18,7 @@ interface UseTransactionsParams {
   accountId?: string;
   categoryId?: string;
   status?: 'pending' | 'completed' | 'all';
-  accountType?: 'checking' | 'savings' | 'credit' | 'investment' | 'all';
+  accountType?: 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher' | 'all';
   dateFrom?: string;
   dateTo?: string;
   sortBy?: 'date' | 'amount';
@@ -58,13 +58,13 @@ interface TransactionWithRelations extends Transaction {
   account?: {
     id: string;
     name: string;
-    type: 'checking' | 'savings' | 'credit' | 'investment';
+    type: 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher';
     color: string;
   };
   to_account?: {
     id: string;
     name: string;
-    type: 'checking' | 'savings' | 'credit' | 'investment';
+    type: 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher';
     color: string;
   };
 }
@@ -157,7 +157,7 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
       let query = supabase
         .from('transactions')
-        .select('*', { count: 'exact', head: true })
+        .select(accountType !== 'all' ? '*, accounts!inner(type)' : '*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         // Excluir apenas o PAI das transações fixas (mantém as filhas)
         .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null');
@@ -193,6 +193,10 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
       if (dateTo) {
         query = query.lte('date', dateTo);
+      }
+
+      if (accountType !== 'all') {
+        query = query.eq('accounts.type', accountType);
       }
 
       const { count, error } = await query;
@@ -273,7 +277,7 @@ export function useTransactions(params: UseTransactionsParams = {}) {
             type,
             color
           ),
-          accounts:account_id!inner (
+          accounts:account_id${accountType !== 'all' ? '!inner' : ''} (
             id,
             name,
             type,
