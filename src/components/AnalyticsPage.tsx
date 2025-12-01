@@ -659,6 +659,72 @@ export default function AnalyticsPage({
     return config;
   }, [creditCardUsedData]);
 
+  // Dados para o gráfico de cheque especial (Overdraft)
+  const overdraftBalanceData = useMemo(() => {
+    return accounts
+      .filter((acc) => acc.type === "checking")
+      .map((account) => {
+        // Se o saldo é negativo, estamos usando o cheque especial
+        const usedOverdraft = account.balance < 0 ? Math.abs(account.balance) : 0;
+        // O disponível é o limite total menos o que já foi usado
+        const availableOverdraft = (account.limit_amount || 0) - usedOverdraft;
+        
+        return {
+          name: account.name.split(" - ")[0] || account.name,
+          balance: availableOverdraft,
+          positiveBalance: availableOverdraft > 0 ? availableOverdraft : 0,
+          negativeBalance: availableOverdraft < 0 ? availableOverdraft : 0, // Caso estoure o limite
+          type: account.type,
+          color: account.color || "hsl(var(--primary))",
+          usedOverdraft,
+          limitAmount: account.limit_amount || 0,
+        };
+      });
+  }, [accounts]);
+
+  // Chart config para o gráfico de cheque especial
+  const overdraftChartConfig = useMemo(() => {
+    const config: Record<string, { label: string; color: string }> = {};
+    overdraftBalanceData.forEach((acc) => {
+      config[acc.name] = {
+        label: acc.name,
+        color: acc.color,
+      };
+    });
+    return config;
+  }, [overdraftBalanceData]);
+
+  // Dados para o gráfico de limite usado do cheque especial
+  const overdraftUsedData = useMemo(() => {
+    return accounts
+      .filter((acc) => acc.type === "checking")
+      .map((account) => {
+        const usedOverdraft = account.balance < 0 ? Math.abs(account.balance) : 0;
+        
+        return {
+          name: account.name.split(" - ")[0] || account.name,
+          balance: usedOverdraft,
+          positiveBalance: usedOverdraft > 0 ? usedOverdraft : 0,
+          negativeBalance: 0,
+          type: account.type,
+          color: account.color || "hsl(var(--primary))",
+          limitAmount: account.limit_amount || 0,
+        };
+      });
+  }, [accounts]);
+
+  // Chart config para o gráfico de limite usado do cheque especial
+  const overdraftUsedChartConfig = useMemo(() => {
+    const config: Record<string, { label: string; color: string }> = {};
+    overdraftUsedData.forEach((acc) => {
+      config[acc.name] = {
+        label: acc.name,
+        color: acc.color,
+      };
+    });
+    return config;
+  }, [overdraftUsedData]);
+
   const handleExportPDF = async () => {
     if (!contentRef.current) {
       toast({
@@ -1741,6 +1807,267 @@ export default function AnalyticsPage({
                     <span className="font-medium text-foreground pl-5">Total</span>
                     <span className="font-medium flex-shrink-0 text-destructive">
                       {formatCurrency(creditCardUsedData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Overdraft Available - Cheque Especial */}
+        {overdraftBalanceData.length > 0 && (
+          <Card className="financial-card">
+            <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
+              <CardTitle className="text-headline flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                Crédito Disponível - Cheque Especial
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 sm:p-3">
+              <div className="relative w-full">
+                <ChartContainer
+                  config={overdraftChartConfig}
+                  className={`${chartHeight} w-full overflow-hidden`}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={overdraftBalanceData}
+                      margin={{
+                        top: 20,
+                        right: isMobile ? 15 : 240,
+                        bottom: isMobile ? 20 : 30,
+                        left: isMobile ? 10 : 20
+                      }}
+                    >
+                    <XAxis
+                      dataKey="name"
+                      tick={false}
+                      axisLine={false}
+                      height={0}
+                    />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        formatCurrencyForAxis(value / 100, isMobile)
+                      }
+                      tick={{ fontSize: isMobile ? 9 : 11 }}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      formatter={(value: number, _name: string, props: any) => {
+                        if (props?.payload?.balance !== undefined) {
+                          return [formatCurrency(props.payload.balance), "Disponível"];
+                        }
+                        return [formatCurrency(value), "Disponível"];
+                      }}
+                     />
+                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--success))">
+                       {overdraftBalanceData.map((entry, index) => (
+                         <Cell key={`cell-overdraft-positive-${index}`} fill={entry.balance > 0 ? entry.color : "transparent"} />
+                       ))}
+                     </Bar>
+                     <Bar dataKey="negativeBalance" stackId="balance" fill="hsl(var(--destructive))">
+                       {overdraftBalanceData.map((entry, index) => (
+                         <Cell key={`cell-overdraft-negative-${index}`} fill={entry.balance < 0 ? entry.color : "transparent"} />
+                       ))}
+                     </Bar>
+                   </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Legenda - desktop/tablet */}
+              {!isMobile && overdraftBalanceData.length > 0 && (
+                <div 
+                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                  style={{ maxWidth: "38%" }}
+                >
+                  {overdraftBalanceData.map((acc, index) => (
+                    <div 
+                      key={`legend-overdraft-desktop-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: acc.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {acc.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        acc.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(acc.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      overdraftBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(overdraftBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Legenda - mobile */}
+              {isMobile && overdraftBalanceData.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 px-2">
+                  {overdraftBalanceData.map((acc, index) => (
+                    <div 
+                      key={`legend-overdraft-mobile-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: acc.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {acc.name}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        acc.balance >= 0 ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {formatCurrency(acc.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className={`font-medium flex-shrink-0 ${
+                      overdraftBalanceData.reduce((acc, curr) => acc + curr.balance, 0) >= 0 ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {formatCurrency(overdraftBalanceData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Overdraft Used Limit - Cheque Especial */}
+        {overdraftUsedData.length > 0 && (
+          <Card className="financial-card">
+            <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
+              <CardTitle className="text-headline flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                Limite Usado - Cheque Especial
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 sm:p-3">
+              <div className="relative w-full">
+                <ChartContainer
+                  config={overdraftUsedChartConfig}
+                  className={`${chartHeight} w-full overflow-hidden`}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={overdraftUsedData}
+                      margin={{
+                        top: 20,
+                        right: isMobile ? 15 : 240,
+                        bottom: isMobile ? 20 : 30,
+                        left: isMobile ? 10 : 20
+                      }}
+                    >
+                    <XAxis
+                      dataKey="name"
+                      tick={false}
+                      axisLine={false}
+                      height={0}
+                    />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        formatCurrencyForAxis(value / 100, isMobile)
+                      }
+                      tick={{ fontSize: isMobile ? 9 : 11 }}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      formatter={(value: number, _name: string, props: any) => {
+                        if (props?.payload?.balance !== undefined) {
+                          return [formatCurrency(props.payload.balance), "Limite Usado"];
+                        }
+                        return [formatCurrency(value), "Limite Usado"];
+                      }}
+                     />
+                     <Bar dataKey="positiveBalance" stackId="balance" fill="hsl(var(--destructive))">
+                       {overdraftUsedData.map((entry, index) => (
+                         <Cell key={`cell-overdraft-used-positive-${index}`} fill={entry.color} />
+                       ))}
+                     </Bar>
+                   </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Legenda de Limite Usado - desktop/tablet */}
+              {!isMobile && overdraftUsedData.length > 0 && (
+                <div 
+                  className="flex flex-col gap-2 px-4 absolute right-2 top-1/2 -translate-y-1/2 z-10"
+                  style={{ maxWidth: "38%" }}
+                >
+                  {overdraftUsedData.map((acc, index) => (
+                    <div 
+                      key={`legend-overdraft-used-desktop-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: acc.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {acc.name}
+                        </span>
+                      </div>
+                      <span className="font-medium flex-shrink-0 text-destructive">
+                        {formatCurrency(acc.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className="font-medium flex-shrink-0 text-destructive">
+                      {formatCurrency(overdraftUsedData.reduce((acc, curr) => acc + curr.balance, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Legenda de Limite Usado - mobile */}
+              {isMobile && overdraftUsedData.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 px-2">
+                  {overdraftUsedData.map((acc, index) => (
+                    <div 
+                      key={`legend-overdraft-used-mobile-${index}`} 
+                      className="flex items-center justify-between gap-2 text-caption"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: acc.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {acc.name}
+                        </span>
+                      </div>
+                      <span className="font-medium flex-shrink-0 text-destructive">
+                        {formatCurrency(acc.balance)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-2 text-caption border-t pt-2 mt-1">
+                    <span className="font-medium text-foreground pl-5">Total</span>
+                    <span className="font-medium flex-shrink-0 text-destructive">
+                      {formatCurrency(overdraftUsedData.reduce((acc, curr) => acc + curr.balance, 0))}
                     </span>
                   </div>
                 </div>
