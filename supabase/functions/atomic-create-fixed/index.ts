@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
           p_category_id: validatedData.category_id,
           p_account_id: validatedData.account_id,
           p_status: validatedData.status,
+          p_is_provision: validatedData.is_provision || false,
         }
       )
     );

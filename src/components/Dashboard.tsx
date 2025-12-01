@@ -126,7 +126,7 @@ export function Dashboard({
 
         <CardErrorBoundary fallbackMessage="Erro ao carregar gráfico">
           <FinancialEvolutionChart
-            transactions={transactions}
+            transactions={transactions.filter(t => !(t.is_provision && t.amount > 0))}
             accounts={accounts}
             dateFilter={dateFilter}
             selectedMonth={selectedMonth}

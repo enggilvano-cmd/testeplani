@@ -81,6 +81,7 @@ interface Transaction {
   status: "pending" | "completed";
   to_account_id?: string;
   linked_transaction_id?: string;
+  is_provision?: boolean;
 }
 
 
@@ -266,18 +267,25 @@ export default function AnalyticsPage({
       const matchesStatus =
         filterStatus === "all" || transaction.status === filterStatus;
 
-      let matchesPeriod = true;
-      if (dateFilter === "current_month") {
-        matchesPeriod =
+      const matchesPeriod =
+        dateFilter === "all" ||
+        (dateFilter === "current_month" &&
           isSameMonth(transactionDate, new Date()) &&
-          isSameYear(transactionDate, new Date());
-      } else if (dateFilter === "month_picker") {
-        const start = startOfMonth(selectedMonth);
-        const end = endOfMonth(selectedMonth);
-        matchesPeriod = isWithinInterval(transactionDate, { start, end });
-      } else if (dateFilter === "custom" && customStartDate && customEndDate) {
-        matchesPeriod =
-          transactionDate >= customStartDate && transactionDate <= customEndDate;
+          isSameYear(transactionDate, new Date())) ||
+        (dateFilter === "month_picker" &&
+          isWithinInterval(transactionDate, {
+            start: startOfMonth(selectedMonth),
+            end: endOfMonth(selectedMonth),
+          })) ||
+        (dateFilter === "custom" &&
+          customStartDate &&
+          customEndDate &&
+          transactionDate >= customStartDate &&
+          transactionDate <= customEndDate);
+
+      // Exclude overspent provisions (positive amount)
+      if (transaction.is_provision && transaction.amount > 0) {
+        return false;
       }
 
       return (

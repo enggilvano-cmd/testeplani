@@ -91,6 +91,9 @@ export function useDashboardCalculations(
             return allTransactions.filter(t => {
               // Excluir apenas o PAI das transações fixas (mantém as filhas)
               if (t.is_fixed && !t.parent_transaction_id) return false;
+
+              // Excluir provisões estouradas (saldo positivo) pois o valor real já está nos lançamentos
+              if (t.is_provision && t.amount > 0) return false;
               
               // Date Range
               if (dateRange.dateFrom && t.date < dateRange.dateFrom) return false;

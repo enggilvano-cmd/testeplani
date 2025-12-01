@@ -45,6 +45,7 @@ interface FixedTransaction {
   category_id: string | null;
   account_id: string;
   is_fixed: boolean;
+  is_provision?: boolean;
   category?: { name: string; color: string } | null;
   account?: { name: string } | null;
 }
@@ -209,17 +210,17 @@ export function FixedTransactionsPage() {
     }
 
     try {
-      // Usar edge function atômica para garantir integridade dos dados
-      const { data, error } = await supabase.functions.invoke('atomic-create-fixed', {
-        body: {
-          description: transaction.description,
-          amount: transaction.amount,
-          date: transaction.date,
-          type: transaction.type,
-          category_id: transaction.category_id,
-          account_id: transaction.account_id,
-          status: transaction.status || "pending",
-        },
+      // Chamada direta via RPC para evitar problemas de deploy da Edge Function
+      const { data, error } = await supabase.rpc('atomic_create_fixed_transaction', {
+        p_user_id: user.id,
+        p_description: transaction.description,
+        p_amount: transaction.amount,
+        p_date: transaction.date,
+        p_type: transaction.type,
+        p_category_id: transaction.category_id,
+        p_account_id: transaction.account_id,
+        p_status: transaction.status || "pending",
+        p_is_provision: transaction.is_provision || false,
       });
 
       if (error) {
@@ -229,13 +230,14 @@ export function FixedTransactionsPage() {
             errorMessage.includes("NetworkError") || 
             errorMessage.includes("fetch failed") ||
             errorMessage.includes("Load failed")) {
-          logger.warn("Network error detected during Edge Function call, falling back to offline mode.");
+          logger.warn("Network error detected during RPC call, falling back to offline mode.");
           await saveOffline();
           return;
         }
         throw error;
       }
 
+      // RPC retorna array de objetos ou objeto direto dependendo da definição RETURNS TABLE
       const result = Array.isArray(data) ? data[0] : data;
       
       if (!result?.success) {
@@ -700,6 +702,7 @@ export function FixedTransactionsPage() {
           status: "pending" as const,
           user_id: user.id,
           is_fixed: false,
+          is_provision: mainTransaction.is_provision,
           parent_transaction_id: transactionId,
         });
       }
@@ -983,6 +986,11 @@ export function FixedTransactionsPage() {
                       <Badge variant={transaction.type === "income" ? "default" : "destructive"}>
                         {transaction.type === "income" ? "Receita" : "Despesa"}
                       </Badge>
+                      {transaction.is_provision && (
+                        <Badge variant="secondary">
+                          Provisão
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-4 text-body text-muted-foreground">
                       <span>💰 {formatCurrency(Number(transaction.amount))}</span>

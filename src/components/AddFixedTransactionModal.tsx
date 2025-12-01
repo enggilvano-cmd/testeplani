@@ -6,6 +6,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getTodayString, createDateFromString } from "@/lib/dateUtils";
 import { useCategories } from "@/hooks/useCategories";
@@ -30,6 +32,7 @@ interface FixedTransactionInput {
   date: string;
   is_fixed: boolean;
   status?: 'pending' | 'completed';
+  is_provision?: boolean;
 }
 
 interface AddFixedTransactionModalProps {
@@ -53,6 +56,7 @@ export function AddFixedTransactionModal({
     category_id: "",
     account_id: "",
     status: "pending" as "pending" | "completed",
+    is_provision: false,
   });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
@@ -68,6 +72,7 @@ export function AddFixedTransactionModal({
         category_id: "",
         account_id: "",
         status: "pending",
+        is_provision: false,
       });
       setValidationErrors({});
     }
@@ -124,6 +129,7 @@ export function AddFixedTransactionModal({
       account_id: formData.account_id,
       status: formData.status,
       is_fixed: true,
+      is_provision: formData.is_provision,
     });
   };
 
@@ -183,6 +189,17 @@ export function AddFixedTransactionModal({
               });
             }}
           />
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="is_provision"
+              checked={formData.is_provision}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, is_provision: checked }))
+              }
+            />
+            <Label htmlFor="is_provision">Transação com Provisão</Label>
+          </div>
 
           <div className="text-caption text-muted-foreground bg-muted/50 p-3 rounded-md">
             A transação será gerada automaticamente todo dia <strong>{createDateFromString(formData.date).getDate()}</strong> de cada mês.

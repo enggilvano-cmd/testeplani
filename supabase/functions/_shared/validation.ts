@@ -49,6 +49,7 @@ export const FixedTransactionInputSchema = z.object({
   category_id: uuidSchema.nullable().optional(),
   account_id: uuidSchema,
   status: z.enum(['pending', 'completed'], { errorMap: () => ({ message: 'Status must be either pending or completed' }) }),
+  is_provision: z.boolean().optional(),
 });
 
 export const EditTransactionInputSchema = z.object({

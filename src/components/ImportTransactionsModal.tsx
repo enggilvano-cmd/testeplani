@@ -49,14 +49,21 @@ interface ImportedTransaction {
   categoria: string;
   tipo: string;
   conta: string;
+  contaDestino?: string;
   valor: number;
   status?: string;
   parcelas?: string; // Mantido como string para leitura inicial
   invoiceMonth?: string;
   isFixed?: boolean;
+  isRecurring?: boolean;
+  recurrenceType?: string;
+  recurrenceEndDate?: string;
+  isProvision?: boolean;
+  reconciled?: boolean;
   isValid: boolean;
   errors: string[];
   accountId?: string;
+  toAccountId?: string;
   parsedDate?: Date;
   parsedType?: 'income' | 'expense' | 'transfer';
   parsedStatus?: 'completed' | 'pending';
@@ -95,11 +102,17 @@ export function ImportTransactionsModal({
     category: ['Categoria', 'Category', 'Categoría'],
     type: ['Tipo', 'Type', 'Tipo'],
     account: ['Conta', 'Account', 'Cuenta'],
+    toAccount: ['Conta Destino', 'To Account', 'Cuenta Destino'],
     amount: ['Valor', 'Amount', 'Valor'],
     status: ['Status', 'Status', 'Estado'],
     installments: ['Parcelas', 'Installments', 'Cuotas'],
     invoiceMonth: ['Mês Fatura', 'Invoice Month', 'Mes Factura'],
-    isFixed: ['Fixa', 'Fixed', 'Fija']
+    isFixed: ['Fixa', 'Fixed', 'Fija'],
+    isRecurring: ['Recorrência', 'Recurrence', 'Recurrencia'],
+    recurrenceType: ['Tipo Recorrência', 'Recurrence Type', 'Tipo Recurrencia'],
+    recurrenceEndDate: ['Fim Recorrência', 'Recurrence End Date', 'Fin Recurrencia'],
+    isProvision: ['Provisão', 'Provision', 'Provisión'],
+    reconciled: ['Conciliado', 'Reconciled', 'Conciliado']
   } as const;
 
   const pick = (row: Record<string, unknown>, keys: readonly string[]) => {
@@ -191,6 +204,7 @@ export function ImportTransactionsModal({
     const categoria = String(pick(row, HEADERS.category) || '');
     const tipo = String(pick(row, HEADERS.type) || '');
     const conta = String(pick(row, HEADERS.account) || '');
+    const contaDestino = String(pick(row, HEADERS.toAccount) || '');
     // Parse valor com suporte ao formato brasileiro (ponto = milhar, vírgula = decimal)
     // SEMPRE positivo - o edge function aplica o sinal baseado no tipo
     const rawValor = String(pick(row, HEADERS.amount) || '0');
@@ -249,6 +263,26 @@ export function ImportTransactionsModal({
       isValid = false;
     }
 
+    let toAccountId: string | undefined;
+    if (parsedType === 'transfer') {
+      if (contaDestino) {
+        const toAccount = findAccountByName(contaDestino);
+        if (toAccount) {
+          toAccountId = toAccount.id;
+        } else {
+          // Se não encontrar a conta destino, não invalida, mas avisa ou deixa null?
+          // Melhor invalidar se for transferência e tiver conta destino especificada mas não encontrada
+          errors.push(`Conta destino '${contaDestino}' não encontrada.`);
+          isValid = false;
+        }
+      } else {
+        // Se for transferência e não tiver conta destino, é um problema?
+        // Sim, transferência precisa de destino.
+        errors.push('Transferência requer Conta Destino.');
+        isValid = false;
+      }
+    }
+
     const statusStr = String(pick(row, HEADERS.status) || 'completed');
     const parsedStatus = validateStatus(statusStr);
     if (!parsedStatus) {
@@ -260,6 +294,18 @@ export function ImportTransactionsModal({
     const invoiceMonth = String(pick(row, HEADERS.invoiceMonth) || '');
     const isFixedStr = String(pick(row, HEADERS.isFixed) || '').toLowerCase();
     const isFixed = isFixedStr === 'sim' || isFixedStr === 'yes' || isFixedStr === 'sí';
+    
+    const isRecurringStr = String(pick(row, HEADERS.isRecurring) || '').toLowerCase();
+    const isRecurring = isRecurringStr === 'sim' || isRecurringStr === 'yes' || isRecurringStr === 'sí';
+    
+    const recurrenceType = String(pick(row, HEADERS.recurrenceType) || '');
+    const recurrenceEndDate = String(pick(row, HEADERS.recurrenceEndDate) || '');
+    
+    const isProvisionStr = String(pick(row, HEADERS.isProvision) || '').toLowerCase();
+    const isProvision = isProvisionStr === 'sim' || isProvisionStr === 'yes' || isProvisionStr === 'sí';
+    
+    const reconciledStr = String(pick(row, HEADERS.reconciled) || '').toLowerCase();
+    const reconciled = reconciledStr === 'sim' || reconciledStr === 'yes' || reconciledStr === 'sí';
 
     // Normalização de data para evitar diferenças de fuso horário
     const normalizeToUTCDate = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0));
@@ -313,14 +359,21 @@ export function ImportTransactionsModal({
       categoria,
       tipo,
       conta,
+      contaDestino,
       valor: valor,
       status: statusStr,
       parcelas: String(pick(row, HEADERS.installments) || ''),
       invoiceMonth,
       isFixed,
+      isRecurring,
+      recurrenceType,
+      recurrenceEndDate,
+      isProvision,
+      reconciled,
       isValid,
       errors,
       accountId: accountId,
+      toAccountId,
       parsedDate: parsedDate || undefined,
       parsedType: parsedType || undefined,
       parsedStatus: parsedStatus || undefined,
@@ -415,6 +468,7 @@ export function ImportTransactionsModal({
           category: t.categoria.trim(),
           type: t.parsedType as 'income' | 'expense' | 'transfer',
           account_id: t.accountId as string,
+          to_account_id: t.toAccountId,
           date: t.parsedDate?.toISOString().split('T')[0] as string,
           status: t.parsedStatus as 'completed' | 'pending',
           installments: t.parcelas && t.parcelas.trim() && t.parcelas.includes('/') ? 
@@ -422,7 +476,12 @@ export function ImportTransactionsModal({
           current_installment: t.parcelas && t.parcelas.trim() && t.parcelas.includes('/') ? 
             parseInt(t.parcelas.split('/')[0], 10) || undefined : undefined,
           invoice_month: t.invoiceMonth && t.invoiceMonth.trim() ? t.invoiceMonth.trim() : undefined,
-          is_fixed: t.isFixed || undefined
+          is_fixed: t.isFixed || undefined,
+          is_recurring: t.isRecurring || undefined,
+          recurrence_type: t.recurrenceType as 'daily' | 'weekly' | 'monthly' | 'yearly' | undefined,
+          recurrence_end_date: t.recurrenceEndDate ? parseDate(t.recurrenceEndDate)?.toISOString().split('T')[0] : undefined,
+          is_provision: t.isProvision || undefined,
+          reconciled: t.reconciled || undefined
         };
       });
 

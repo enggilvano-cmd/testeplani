@@ -71,21 +71,30 @@ export function useAccounts() {
       if (error) throw error;
       return updatedAccount;
     },
-    onSuccess: (updatedAccount) => {
-      // Optimistic update: update cache immediately
-      queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
-        if (!old) return old;
-        return old.map(acc => acc.id === updatedAccount.id ? { ...acc, ...updatedAccount } : acc);
-      });
-      // ✅ Invalidação imediata dispara refetch automático sem delay
+    onMutate: async (updatedAccount) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.accounts });
+      const previousAccounts = queryClient.getQueryData<Account[]>(queryKeys.accounts);
+
+      if (previousAccounts) {
+        queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
+          if (!old) return [];
+          return old.map(acc => acc.id === updatedAccount.id ? { ...acc, ...updatedAccount } : acc);
+        });
+      }
+
+      return { previousAccounts };
+    },
+    onError: (err, newAccount, context) => {
+      if (context?.previousAccounts) {
+        queryClient.setQueryData(queryKeys.accounts, context.previousAccounts);
+      }
+      logger.error('Error updating account:', err);
+    },
+    onSettled: (data, error, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
-      // Also invalidate transactions if balance changed
-      if (updatedAccount.balance !== undefined) {
+      if (variables.balance !== undefined) {
         queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
       }
-    },
-    onError: (error) => {
-      logger.error('Error updating account:', error);
     },
   });
 
@@ -102,18 +111,28 @@ export function useAccounts() {
       if (error) throw error;
       return accountId;
     },
-    onSuccess: (deletedAccountId) => {
-      // Optimistic update: remove from cache immediately
-      queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
-        if (!old) return old;
-        return old.filter(acc => acc.id !== deletedAccountId);
-      });
-      // ✅ Invalidação imediata dispara refetch automático sem delay
+    onMutate: async (accountId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.accounts });
+      const previousAccounts = queryClient.getQueryData<Account[]>(queryKeys.accounts);
+
+      if (previousAccounts) {
+        queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
+          if (!old) return [];
+          return old.filter(acc => acc.id !== accountId);
+        });
+      }
+
+      return { previousAccounts };
+    },
+    onError: (err, accountId, context) => {
+      if (context?.previousAccounts) {
+        queryClient.setQueryData(queryKeys.accounts, context.previousAccounts);
+      }
+      logger.error('Error deleting account:', err);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
-    },
-    onError: (error) => {
-      logger.error('Error deleting account:', error);
     },
   });
 

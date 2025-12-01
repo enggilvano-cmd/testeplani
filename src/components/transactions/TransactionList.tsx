@@ -76,6 +76,16 @@ export function TransactionList({
                     {transaction.current_installment}/{transaction.installments}
                   </Badge>
                 )}
+                {(transaction.is_fixed || transaction.parent_transaction_id) && (
+                  <Badge variant="outline" className="text-xs border-primary text-primary">
+                    Fixa
+                  </Badge>
+                )}
+                {transaction.is_provision && (
+                  <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground hover:bg-muted/80">
+                    Provisão
+                  </Badge>
+                )}
                 {transaction.status === "pending" && (
                   <Badge variant="destructive" className="text-xs">
                     Pendente
@@ -101,7 +111,10 @@ export function TransactionList({
                   : "text-primary"
               }`}
             >
-              {transaction.type === "income" ? "+" : transaction.type === "expense" ? "-" : ""}
+              {transaction.type === "income" ? "+" : 
+               transaction.type === "expense" ? 
+                 (transaction.is_provision && transaction.amount > 0 ? "+" : "-") 
+                 : ""}
               {formatCurrency(Math.abs(transaction.amount), currency)}
             </span>
 

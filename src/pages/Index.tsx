@@ -69,6 +69,16 @@ const PlaniFlowApp = () => {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus(); // Status de conexão para decisões de UI
 
+  // Cleanup expired provisions on mount
+  useEffect(() => {
+    if (user && isOnline) {
+      supabase.rpc('cleanup_expired_provisions', { p_user_id: user.id })
+        .then(({ error }) => {
+          if (error) logger.error('Error cleaning up provisions:', error);
+        });
+    }
+  }, [user, isOnline]);
+
   // Enforce subscription restrictions
   useEffect(() => {
     if (!authLoading && !isSubscriptionActive() && currentPage !== 'profile') {

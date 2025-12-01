@@ -103,11 +103,11 @@ export function useImportMutations() {
             return { ...result, transactionData: data };
           }
 
-          // Se tem parcelas ou invoice_month, atualizar os campos extras
+          // Se tem parcelas ou invoice_month ou outros campos extras, atualizar
           const responseData = result.data as { transaction?: { id: string } };
           const transactionId = responseData?.transaction?.id;
 
-          if (transactionId && (data.installments || data.current_installment || data.invoice_month)) {
+          if (transactionId) {
             const updates: Record<string, unknown> = {};
             
             if (data.installments) updates.installments = data.installments;
@@ -116,14 +116,25 @@ export function useImportMutations() {
               updates.invoice_month = data.invoice_month;
               updates.invoice_month_overridden = true;
             }
+            
+            // Novos campos para fidelidade 100%
+            if (data.to_account_id) updates.to_account_id = data.to_account_id;
+            if (data.is_fixed !== undefined) updates.is_fixed = data.is_fixed;
+            if (data.is_recurring !== undefined) updates.is_recurring = data.is_recurring;
+            if (data.recurrence_type) updates.recurrence_type = data.recurrence_type;
+            if (data.recurrence_end_date) updates.recurrence_end_date = data.recurrence_end_date;
+            if (data.is_provision !== undefined) updates.is_provision = data.is_provision;
+            if (data.reconciled !== undefined) updates.reconciled = data.reconciled;
 
-            const { error: updateError } = await supabase
-              .from('transactions')
-              .update(updates)
-              .eq('id', transactionId);
+            if (Object.keys(updates).length > 0) {
+              const { error: updateError } = await supabase
+                .from('transactions')
+                .update(updates)
+                .eq('id', transactionId);
 
-            if (updateError) {
-              logger.error('Error updating transaction metadata:', updateError);
+              if (updateError) {
+                logger.error('Error updating transaction metadata:', updateError);
+              }
             }
           }
 

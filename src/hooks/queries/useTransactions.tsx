@@ -89,7 +89,7 @@ export function useTransactions(params: UseTransactionsParams = {}) {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
 
-  // Helper para filtrar transações em memória (usado offline)
+      // Helper para filtrar transações em memória (usado offline)
   const filterTransactionsInMemory = async (transactions: Transaction[]) => {
     // Carregar contas e categorias para enriquecer dados e filtrar por tipo de conta
     const accounts = await offlineDatabase.getAccounts(user!.id);
@@ -264,6 +264,7 @@ export function useTransactions(params: UseTransactionsParams = {}) {
           linked_transaction_id,
           is_recurring,
           is_fixed,
+          is_provision,
           recurrence_type,
           recurrence_end_date,
           invoice_month,

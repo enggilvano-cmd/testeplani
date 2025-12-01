@@ -92,6 +92,7 @@ export async function exportTransactionsToExcel(
   const exportData = transactions.map(transaction => {
     const account = accounts.find(a => a.id === transaction.account_id);
     const category = categories.find(c => c.id === transaction.category_id);
+    const toAccount = transaction.to_account_id ? accounts.find(a => a.id === transaction.to_account_id) : null;
 
     return {
       'Data': format(new Date(transaction.date), 'dd/MM/yyyy', { locale: ptBR }),
@@ -99,13 +100,19 @@ export async function exportTransactionsToExcel(
       'Categoria': category?.name || '-',
       'Tipo': getTransactionTypeLabel(transaction.type),
       'Conta': account?.name || 'Desconhecida',
+      'Conta Destino': toAccount?.name || '',
       'Valor': formatBRNumber(Math.abs(transaction.amount)),
       'Status': transaction.status === 'completed' ? 'Concluída' : 'Pendente',
       'Parcelas': transaction.installments 
         ? `${transaction.current_installment}/${transaction.installments}`
         : '',
       'Mês Fatura': transaction.invoice_month || '',
-      'Fixa': transaction.is_fixed ? 'Sim' : 'Não'
+      'Fixa': transaction.is_fixed ? 'Sim' : 'Não',
+      'Recorrência': transaction.is_recurring ? 'Sim' : 'Não',
+      'Tipo Recorrência': transaction.recurrence_type || '',
+      'Fim Recorrência': transaction.recurrence_end_date ? format(new Date(transaction.recurrence_end_date), 'dd/MM/yyyy', { locale: ptBR }) : '',
+      'Provisão': transaction.is_provision ? 'Sim' : 'Não',
+      'Conciliado': transaction.reconciled ? 'Sim' : 'Não'
     };
   });
 
@@ -120,11 +127,17 @@ export async function exportTransactionsToExcel(
     { wch: 20 },  // Categoria
     { wch: 15 },  // Tipo
     { wch: 25 },  // Conta
+    { wch: 25 },  // Conta Destino
     { wch: 15 },  // Valor
     { wch: 12 },  // Status
     { wch: 12 },  // Parcelas
     { wch: 12 },  // Mês Fatura
     { wch: 12 },  // Fixa
+    { wch: 12 },  // Recorrência
+    { wch: 15 },  // Tipo Recorrência
+    { wch: 15 },  // Fim Recorrência
+    { wch: 12 },  // Provisão
+    { wch: 12 },  // Conciliado
   ];
   ws['!cols'] = colWidths;
 
@@ -177,6 +190,7 @@ export async function exportAllDataToExcel(
   const transactionsData = transactions.map(transaction => {
     const account = accounts.find(a => a.id === transaction.account_id);
     const category = categories.find(c => c.id === transaction.category_id);
+    const toAccount = transaction.to_account_id ? accounts.find(a => a.id === transaction.to_account_id) : null;
 
     return {
       'Data': format(new Date(transaction.date), 'dd/MM/yyyy', { locale: ptBR }),
@@ -184,19 +198,26 @@ export async function exportAllDataToExcel(
       'Categoria': category?.name || '-',
       'Tipo': getTransactionTypeLabel(transaction.type),
       'Conta': account?.name || 'Desconhecida',
+      'Conta Destino': toAccount?.name || '',
       'Valor': formatBRNumber(Math.abs(transaction.amount)),
       'Status': transaction.status === 'completed' ? 'Concluída' : 'Pendente',
       'Parcelas': transaction.installments 
         ? `${transaction.current_installment}/${transaction.installments}`
         : '',
       'Mês Fatura': transaction.invoice_month || '',
-      'Fixa': transaction.is_fixed ? 'Sim' : 'Não'
+      'Fixa': transaction.is_fixed ? 'Sim' : 'Não',
+      'Recorrência': transaction.is_recurring ? 'Sim' : 'Não',
+      'Tipo Recorrência': transaction.recurrence_type || '',
+      'Fim Recorrência': transaction.recurrence_end_date ? format(new Date(transaction.recurrence_end_date), 'dd/MM/yyyy', { locale: ptBR }) : '',
+      'Provisão': transaction.is_provision ? 'Sim' : 'Não',
+      'Conciliado': transaction.reconciled ? 'Sim' : 'Não'
     };
   });
   const wsTransactions = XLSX.utils.json_to_sheet(transactionsData);
   wsTransactions['!cols'] = [
     { wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 15 },
-    { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
+    { wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
     { wch: 12 }, { wch: 12 }
   ];
   XLSX.utils.book_append_sheet(wb, wsTransactions, 'Transações');

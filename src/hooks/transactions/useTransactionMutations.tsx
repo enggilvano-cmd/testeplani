@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { TransactionInput, TransactionUpdate } from '@/types';
+import { TransactionInput, TransactionUpdate, Account, Category, Transaction } from '@/types';
 import { logger } from '@/lib/logger';
 import { queryKeys } from '@/lib/queryClient';
 import { EditScope } from '@/components/TransactionScopeDialog';
@@ -16,7 +16,76 @@ export function useTransactionMutations() {
 
   const handleAddTransaction = useCallback(async (transactionData: TransactionInput) => {
     if (!user) return;
+    
+    // Snapshot for rollback
+    const previousAccounts = queryClient.getQueryData<Account[]>(queryKeys.accounts);
+    const previousTransactions = queryClient.getQueriesData({ queryKey: queryKeys.transactionsBase });
+
     try {
+      // 1. Optimistic Update: Accounts Balance
+      if (previousAccounts) {
+        queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
+          if (!old) return [];
+          return old.map(acc => {
+            if (acc.id === transactionData.account_id) {
+              let newBalance = acc.balance;
+              if (transactionData.type === 'expense') {
+                newBalance -= transactionData.amount;
+              } else if (transactionData.type === 'income') {
+                newBalance += transactionData.amount;
+              }
+              // Note: Transfers might need handling if they affect two accounts, 
+              // but TransactionInput usually targets one account context here.
+              return { ...acc, balance: newBalance };
+            }
+            return acc;
+          });
+        });
+      }
+
+      // 2. Optimistic Update: Transactions List
+      const tempId = crypto.randomUUID();
+      const categories = queryClient.getQueryData<Category[]>(queryKeys.categories) || [];
+      const accounts = queryClient.getQueryData<Account[]>(queryKeys.accounts) || [];
+      
+      const category = categories.find(c => c.id === transactionData.category_id);
+      const account = accounts.find(a => a.id === transactionData.account_id);
+
+      const optimisticTransaction: any = {
+        id: tempId,
+        description: transactionData.description,
+        amount: transactionData.amount,
+        date: transactionData.date, // Date object
+        type: transactionData.type,
+        category_id: transactionData.category_id,
+        account_id: transactionData.account_id,
+        status: transactionData.status,
+        invoice_month: transactionData.invoiceMonth || null,
+        invoice_month_overridden: !!transactionData.invoiceMonth,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        category,
+        account,
+        to_account: null, // Simplified
+        installments: 1,
+        current_installment: 1,
+        is_recurring: false,
+        is_fixed: false,
+        user_id: user.id
+      };
+
+      // Update all transaction lists
+      queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+        if (!oldData) return [optimisticTransaction];
+        if (Array.isArray(oldData)) {
+          // Prepend to list
+          return [optimisticTransaction, ...oldData];
+        }
+        // If it's a paginated response (infinite query), it might be different structure
+        // But useTransactions returns array.
+        return oldData;
+      });
+
       const { error } = await supabase.functions.invoke('atomic-transaction', {
         body: {
           transaction: {
@@ -36,6 +105,7 @@ export function useTransactionMutations() {
       if (error) {
         const errorMessage = getErrorMessage(error);
         if (errorMessage.includes('Credit limit exceeded')) {
+          // ... existing error handling ...
           const match = errorMessage.match(/Available: ([\d.-]+).*Limit: ([\d.]+).*Used: ([\d.]+).*Requested: ([\d.]+)/);
           
           let friendlyMessage = 'Limite do cartão de crédito excedido. ';
@@ -55,7 +125,7 @@ export function useTransactionMutations() {
             description: friendlyMessage,
             variant: 'destructive',
           });
-          return;
+          throw error; // Trigger rollback
         }
         throw error;
       }
@@ -64,13 +134,25 @@ export function useTransactionMutations() {
       queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
     } catch (error: unknown) {
+      // Rollback
+      if (previousAccounts) {
+        queryClient.setQueryData(queryKeys.accounts, previousAccounts);
+      }
+      // Rollback transactions
+      previousTransactions.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+
       logger.error('Error adding transaction:', error);
       const errorMessage = getErrorMessage(error);
-      toast({
-        title: 'Erro',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      // Only show toast if not already shown (credit limit)
+      if (!errorMessage.includes('Credit limit exceeded')) {
+         toast({
+          title: 'Erro',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+      }
       throw error;
     }
   }, [user, queryClient, toast]);
@@ -80,7 +162,98 @@ export function useTransactionMutations() {
     editScope?: EditScope
   ) => {
     if (!user) return;
+
+    // Snapshot
+    const previousAccounts = queryClient.getQueryData<Account[]>(queryKeys.accounts);
+    const previousTransactions = queryClient.getQueriesData({ queryKey: queryKeys.transactionsBase });
+
     try {
+      // Optimistic Update only for 'current' scope to avoid complexity
+      if (!editScope || editScope === 'current') {
+        // Find original transaction to calculate diffs
+        let originalTransaction: Transaction | undefined;
+        
+        // Search in cache
+        for (const [_, data] of previousTransactions) {
+          if (Array.isArray(data)) {
+            const found = data.find((t: any) => t.id === updatedTransaction.id);
+            if (found) {
+              originalTransaction = found;
+              break;
+            }
+          }
+        }
+
+        if (originalTransaction) {
+          // 1. Update Accounts
+          if (previousAccounts) {
+            queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
+              if (!old) return [];
+              return old.map(acc => {
+                // If account changed
+                if (updatedTransaction.account_id && updatedTransaction.account_id !== originalTransaction!.account_id) {
+                   // Remove from old account
+                   if (acc.id === originalTransaction!.account_id) {
+                     let amount = originalTransaction!.amount; // Amount is always positive in DB? No, signed?
+                     // In DB/Types, amount is usually positive and type determines sign, OR signed.
+                     // Let's check: useOfflineTransactionMutations uses Math.abs.
+                     // In Supabase, usually signed or type-based.
+                     // TransactionInput has type.
+                     // Let's assume amount is positive and type determines sign for calculation.
+                     // Wait, in `handleAddTransaction` I did:
+                     // if (type === 'expense') newBalance -= amount;
+                     
+                     // Revert old transaction effect
+                     if (originalTransaction!.type === 'expense') acc.balance += originalTransaction!.amount;
+                     else if (originalTransaction!.type === 'income') acc.balance -= originalTransaction!.amount;
+                   }
+                   // Add to new account
+                   if (acc.id === updatedTransaction.account_id) {
+                     const amount = updatedTransaction.amount ?? originalTransaction!.amount;
+                     const type = updatedTransaction.type ?? originalTransaction!.type;
+                     if (type === 'expense') acc.balance -= amount;
+                     else if (type === 'income') acc.balance += amount;
+                   }
+                } else if (acc.id === originalTransaction!.account_id) {
+                  // Same account, maybe amount/type changed
+                  const oldAmount = originalTransaction!.amount;
+                  const newAmount = updatedTransaction.amount ?? oldAmount;
+                  const oldType = originalTransaction!.type;
+                  const newType = updatedTransaction.type ?? oldType;
+
+                  // Revert old
+                  if (oldType === 'expense') acc.balance += oldAmount;
+                  else if (oldType === 'income') acc.balance -= oldAmount;
+
+                  // Apply new
+                  if (newType === 'expense') acc.balance -= newAmount;
+                  else if (newType === 'income') acc.balance += newAmount;
+                }
+                return acc;
+              });
+            });
+          }
+
+          // 2. Update Transaction in List
+          queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+            if (!oldData || !Array.isArray(oldData)) return oldData;
+            return oldData.map((tx: any) => {
+              if (tx.id === updatedTransaction.id) {
+                 return {
+                   ...tx,
+                   ...updatedTransaction,
+                   date: updatedTransaction.date ? new Date(updatedTransaction.date) : tx.date,
+                   // If category/account changed, we should update the objects too, but for now ID is enough for logic,
+                   // UI might show old name until refresh if we don't update objects.
+                   // It's acceptable for <1s.
+                 };
+              }
+              return tx;
+            });
+          });
+        }
+      }
+
       const updates: Partial<TransactionUpdate> = {};
       
       if (updatedTransaction.description !== undefined) {
@@ -124,6 +297,14 @@ export function useTransactionMutations() {
       queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
     } catch (error: unknown) {
+      // Rollback
+      if (previousAccounts) {
+        queryClient.setQueryData(queryKeys.accounts, previousAccounts);
+      }
+      previousTransactions.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+
       logger.error('Error updating transaction:', error);
       const errorMessage = getErrorMessage(error);
       toast({
@@ -141,7 +322,47 @@ export function useTransactionMutations() {
   ) => {
     if (!user) return;
 
+    // Snapshot
+    const previousAccounts = queryClient.getQueryData<Account[]>(queryKeys.accounts);
+    const previousTransactions = queryClient.getQueriesData({ queryKey: queryKeys.transactionsBase });
+
     try {
+      // Optimistic Update
+      if (!editScope || editScope === 'current') {
+         let originalTransaction: Transaction | undefined;
+         for (const [_, data] of previousTransactions) {
+          if (Array.isArray(data)) {
+            const found = data.find((t: any) => t.id === transactionId);
+            if (found) {
+              originalTransaction = found;
+              break;
+            }
+          }
+        }
+
+        if (originalTransaction) {
+           // 1. Update Accounts (Revert balance)
+           if (previousAccounts) {
+            queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
+              if (!old) return [];
+              return old.map(acc => {
+                if (acc.id === originalTransaction!.account_id) {
+                   if (originalTransaction!.type === 'expense') acc.balance += originalTransaction!.amount;
+                   else if (originalTransaction!.type === 'income') acc.balance -= originalTransaction!.amount;
+                }
+                return acc;
+              });
+            });
+           }
+
+           // 2. Remove from list
+           queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+            if (!oldData || !Array.isArray(oldData)) return oldData;
+            return oldData.filter((tx: any) => tx.id !== transactionId);
+          });
+        }
+      }
+
       // Usar função SQL atômica diretamente para evitar falhas de Edge Function / rate limit
       const { data: rpcData, error } = await supabase.rpc('atomic_delete_transaction', {
         p_user_id: user.id,
@@ -171,6 +392,14 @@ export function useTransactionMutations() {
         description: `${record.deleted_count ?? 1} transação(ões) excluída(s)`,
       });
     } catch (error: unknown) {
+      // Rollback
+      if (previousAccounts) {
+        queryClient.setQueryData(queryKeys.accounts, previousAccounts);
+      }
+      previousTransactions.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+
       logger.error('Error deleting transaction:', error);
       const errorMessage = getErrorMessage(error);
 

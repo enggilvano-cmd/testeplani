@@ -57,6 +57,7 @@ export interface Transaction {
   recurrence_type?: "daily" | "weekly" | "monthly" | "yearly"; // Type of recurrence
   recurrence_end_date?: Date | string; // When the recurrence ends
   is_fixed?: boolean;
+  is_provision?: boolean;
   reconciled?: boolean;
   reconciled_at?: string | null;
   reconciled_by?: string | null;
@@ -152,11 +153,17 @@ export interface ImportTransactionData {
   type: "income" | "expense" | "transfer";
   category?: string;
   account_id: string;
+  to_account_id?: string;
   status?: "pending" | "completed";
   installments?: number;
   current_installment?: number;
   invoice_month?: string;
   is_fixed?: boolean;
+  is_recurring?: boolean;
+  recurrence_type?: "daily" | "weekly" | "monthly" | "yearly";
+  recurrence_end_date?: string;
+  is_provision?: boolean;
+  reconciled?: boolean;
 }
 
 export interface ImportAccountData {
