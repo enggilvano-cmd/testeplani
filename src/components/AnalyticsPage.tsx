@@ -36,6 +36,7 @@ import {
   YAxis,
   Line,
   ComposedChart,
+  ReferenceLine,
 } from "recharts";
 import { loadHtmlToImage, loadJsPDF } from "@/lib/lazyImports";
 import {
@@ -206,7 +207,7 @@ export default function AnalyticsPage({
   
   const chartHeight = isDesktop 
     ? "aspect-auto h-[576px]" 
-    : responsiveConfig.containerHeight;
+    : isMobile ? "min-h-[350px]" : responsiveConfig.containerHeight;
   const { categories } = useCategories();
   
   const contentRef = useRef<HTMLDivElement>(null);
@@ -470,28 +471,50 @@ export default function AnalyticsPage({
     );
 
     const firstMonthKey = sortedEntries.length > 0 ? sortedEntries[0][0] : null;
-    const previousBalance = firstMonthKey
-      ? transactions
-          .filter((t) => !isTransferLike(t as Transaction))
-          .reduce((acc, transaction) => {
-            const transactionDate =
-              typeof transaction.date === "string"
-                ? createDateFromString(transaction.date)
-                : transaction.date;
-            const monthKey = format(transactionDate, "yyyy-MM");
-            const amount = Math.abs(transaction.amount);
-
-            if (monthKey < firstMonthKey) {
-              if (transaction.type === "income") {
-                return acc + amount;
-              } else if (transaction.type === "expense") {
-                return acc - amount;
-              }
-            }
-
-            return acc;
-          }, 0)
-      : 0;
+    
+    // Calculate initial balance based on current account balances (Anchor)
+    // This ensures manual balance adjustments are reflected
+    let previousBalance = 0;
+    
+    if (firstMonthKey) {
+      const [year, month] = firstMonthKey.split('-').map(Number);
+      const startDate = new Date(year, month - 1, 1);
+      
+      // 1. Start with Current Global Balance
+      const currentTotalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+      
+      // 2. Reverse completed transactions since start date
+      const completedSinceTarget = transactions.filter(t => {
+        if (isTransferLike(t)) return false;
+        if (t.status !== 'completed') return false;
+        const tDate = typeof t.date === 'string' ? createDateFromString(t.date) : t.date;
+        return tDate >= startDate;
+      });
+      
+      const netChangeSinceTarget = completedSinceTarget.reduce((acc, t) => {
+        const amount = Math.abs(Number(t.amount));
+        if (t.type === 'income') return acc + amount;
+        if (t.type === 'expense') return acc - amount;
+        return acc;
+      }, 0);
+      
+      // 3. Add pending transactions before start date (to get projected balance at that time)
+      const pendingBeforeTarget = transactions.filter(t => {
+        if (isTransferLike(t)) return false;
+        if (t.status !== 'pending') return false;
+        const tDate = typeof t.date === 'string' ? createDateFromString(t.date) : t.date;
+        return tDate < startDate;
+      });
+      
+      const netPendingBeforeTarget = pendingBeforeTarget.reduce((acc, t) => {
+        const amount = Math.abs(Number(t.amount));
+        if (t.type === 'income') return acc + amount;
+        if (t.type === 'expense') return acc - amount;
+        return acc;
+      }, 0);
+      
+      previousBalance = currentTotalBalance - netChangeSinceTarget + netPendingBeforeTarget;
+    }
 
     let saldoAcumulado = previousBalance;
 
@@ -534,7 +557,7 @@ export default function AnalyticsPage({
 
   const accountBalanceData = useMemo(() => {
     return accounts
-      .filter((acc) => acc.type !== "credit")
+      .filter((acc) => acc.type !== "credit" || acc.balance > 0)
       .map((account) => ({
         name: account.name.split(" - ")[0] || account.name,
         balance: account.balance,
@@ -563,7 +586,8 @@ export default function AnalyticsPage({
       .filter((acc) => acc.type === "credit")
       .map((account) => {
         const usedCredit = account.balance < 0 ? Math.abs(account.balance) : 0;
-        const availableCredit = (account.limit_amount || 0) - usedCredit;
+        const surplus = account.balance > 0 ? account.balance : 0;
+        const availableCredit = (account.limit_amount || 0) - usedCredit + surplus;
         
         return {
           name: account.name.split(" - ")[0] || account.name,
@@ -1214,6 +1238,50 @@ export default function AnalyticsPage({
     setDateFilter("all");
   };
 
+  // Helper to check if charts have non-zero values
+  const showMonthlyChart = useMemo(() => {
+    return monthlyData.some(d => d.receitas !== 0 || d.despesas !== 0 || d.saldo !== 0);
+  }, [monthlyData]);
+
+  const showIncomeChart = incomeData.length > 0;
+  const showExpenseChart = expenseData.length > 0;
+
+  const showAccountBalanceChart = useMemo(() => {
+    return accountBalanceData.some(d => d.balance !== 0);
+  }, [accountBalanceData]);
+
+  const showInvestmentChart = useMemo(() => {
+    return investmentBalanceData.some(d => d.balance !== 0);
+  }, [investmentBalanceData]);
+
+  const showSavingsChart = useMemo(() => {
+    return savingsBalanceData.some(d => d.balance !== 0);
+  }, [savingsBalanceData]);
+
+  const showCheckingChart = useMemo(() => {
+    return checkingBalanceData.some(d => d.balance !== 0);
+  }, [checkingBalanceData]);
+
+  const showMealVoucherChart = useMemo(() => {
+    return mealVoucherBalanceData.some(d => d.balance !== 0);
+  }, [mealVoucherBalanceData]);
+
+  const showCreditCardBalanceChart = useMemo(() => {
+    return creditCardBalanceData.some(d => d.balance !== 0);
+  }, [creditCardBalanceData]);
+
+  const showCreditCardUsedChart = useMemo(() => {
+    return creditCardUsedData.some(d => d.balance !== 0);
+  }, [creditCardUsedData]);
+
+  const showOverdraftBalanceChart = useMemo(() => {
+    return overdraftBalanceData.some(d => d.balance !== 0);
+  }, [overdraftBalanceData]);
+
+  const showOverdraftUsedChart = useMemo(() => {
+    return overdraftUsedData.some(d => d.balance !== 0);
+  }, [overdraftUsedData]);
+
   return (
     <div ref={contentRef} className="spacing-responsive-lg fade-in pb-6 sm:pb-8">{/*  Header */}
       <div className="flex flex-col gap-3">
@@ -1230,7 +1298,7 @@ export default function AnalyticsPage({
       </div>
 
       {/* Summary Cards */}
-      <div className="analytics-section grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 sm:mt-8">
+      <div className="analytics-section grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 sm:mt-8">
         <Card className="financial-card">
           <CardContent className="p-2 sm:p-3">
             <div className="flex flex-col items-center gap-2 text-center">
@@ -1265,7 +1333,7 @@ export default function AnalyticsPage({
           </CardContent>
         </Card>
 
-        <Card className="financial-card md:col-span-2 lg:col-span-1">
+        <Card className="financial-card col-span-2 md:col-span-2 lg:col-span-1">
           <CardContent className="p-2 sm:p-3">
             <div className="flex flex-col items-center gap-2 text-center">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1373,6 +1441,7 @@ export default function AnalyticsPage({
       {/* Charts Grid */}
       <div className="analytics-section grid grid-cols-1 gap-6 sm:gap-8 mt-6 sm:mt-8">
         {/* Monthly Trend */}
+        {showMonthlyChart && (
         <Card className="financial-card">
           <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
             <CardTitle className="text-headline flex items-center gap-2">
@@ -1392,20 +1461,23 @@ export default function AnalyticsPage({
                     margin={{
                       top: 20,
                       right: isMobile ? 15 : 240,
-                      bottom: isMobile ? 20 : 30,
-                      left: isMobile ? 10 : 20
+                      bottom: isMobile ? 0 : 30,
+                      left: isMobile ? 0 : 20
                     }}
                   >
                     <XAxis
                       dataKey="month"
                       {...getBarChartAxisProps(responsiveConfig).xAxis}
+                      height={isMobile ? 45 : undefined}
                     />
                     <YAxis
                       tickFormatter={(value) =>
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       {...getBarChartAxisProps(responsiveConfig).yAxis}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={monthlyTooltipFormatter}
@@ -1558,8 +1630,10 @@ export default function AnalyticsPage({
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Income Category Pie Chart */}
+        {showIncomeChart && (
         <Card className="financial-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 pt-3 sm:px-4 sm:pt-4">
             <CardTitle className="text-headline flex items-center gap-2">
@@ -1588,7 +1662,7 @@ export default function AnalyticsPage({
                   cy="50%"
                   labelLine={false}
                   label={false}
-                  outerRadius={responsiveConfig.outerRadius}
+                  outerRadius={isMobile ? "100%" : responsiveConfig.outerRadius}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -1685,8 +1759,10 @@ export default function AnalyticsPage({
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Expense Category Pie Chart */}
+        {showExpenseChart && (
         <Card className="financial-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 pt-3 sm:px-4 sm:pt-4">
             <CardTitle className="text-headline flex items-center gap-2">
@@ -1715,7 +1791,7 @@ export default function AnalyticsPage({
                   cy="50%"
                   labelLine={false}
                   label={false}
-                  outerRadius={responsiveConfig.outerRadius}
+                  outerRadius={isMobile ? "100%" : responsiveConfig.outerRadius}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -1812,8 +1888,10 @@ export default function AnalyticsPage({
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Account Balances */}
+        {showAccountBalanceChart && (
         <Card className="financial-card">
           <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
             <CardTitle className="text-headline flex items-center gap-2">
@@ -1833,8 +1911,8 @@ export default function AnalyticsPage({
                     margin={{
                       top: 20,
                       right: isMobile ? 15 : 240,
-                      bottom: isMobile ? 20 : 30,
-                      left: isMobile ? 10 : 20
+                      bottom: isMobile ? 0 : 30,
+                      left: isMobile ? 0 : 20
                     }}
                   >
                   <XAxis
@@ -1848,7 +1926,9 @@ export default function AnalyticsPage({
                       formatCurrencyForAxis(value / 100, isMobile)
                     }
                     tick={{ fontSize: isMobile ? 9 : 11 }}
+                    width={isMobile ? 35 : 60}
                   />
+                  <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                   <ChartTooltip
                     content={<ChartTooltipContent />}
                     formatter={accountTooltipFormatter}
@@ -1983,9 +2063,10 @@ export default function AnalyticsPage({
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Investment Account Balances */}
-        {investmentBalanceData.length > 0 && (
+        {showInvestmentChart && (
           <Card className="financial-card">
             <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
               <CardTitle className="text-headline flex items-center gap-2">
@@ -2005,8 +2086,8 @@ export default function AnalyticsPage({
                       margin={{
                         top: 20,
                         right: isMobile ? 15 : 240,
-                        bottom: isMobile ? 20 : 30,
-                        left: isMobile ? 10 : 20
+                        bottom: isMobile ? 0 : 30,
+                        left: isMobile ? 0 : 20
                       }}
                     >
                     <XAxis
@@ -2020,7 +2101,9 @@ export default function AnalyticsPage({
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       tick={{ fontSize: isMobile ? 9 : 11 }}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={accountTooltipFormatter}
@@ -2158,7 +2241,7 @@ export default function AnalyticsPage({
         )}
 
         {/* Savings Account Balances */}
-        {savingsBalanceData.length > 0 && (
+        {showSavingsChart && (
           <Card className="financial-card">
             <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
               <CardTitle className="text-headline flex items-center gap-2">
@@ -2178,8 +2261,8 @@ export default function AnalyticsPage({
                       margin={{
                         top: 20,
                         right: isMobile ? 15 : 240,
-                        bottom: isMobile ? 20 : 30,
-                        left: isMobile ? 10 : 20
+                        bottom: isMobile ? 0 : 30,
+                        left: isMobile ? 0 : 20
                       }}
                     >
                     <XAxis
@@ -2193,7 +2276,9 @@ export default function AnalyticsPage({
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       tick={{ fontSize: isMobile ? 9 : 11 }}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={accountTooltipFormatter}
@@ -2333,7 +2418,7 @@ export default function AnalyticsPage({
         {/* Credit Card Balances */}
 
         {/* Checking Account Balances */}
-        {checkingBalanceData.length > 0 && (
+        {showCheckingChart && (
           <Card className="financial-card">
             <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
               <CardTitle className="text-headline flex items-center gap-2">
@@ -2353,8 +2438,8 @@ export default function AnalyticsPage({
                       margin={{
                         top: 20,
                         right: isMobile ? 15 : 240,
-                        bottom: isMobile ? 20 : 30,
-                        left: isMobile ? 10 : 20
+                        bottom: isMobile ? 0 : 30,
+                        left: isMobile ? 0 : 20
                       }}
                     >
                     <XAxis
@@ -2368,7 +2453,9 @@ export default function AnalyticsPage({
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       tick={{ fontSize: isMobile ? 9 : 11 }}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={accountTooltipFormatter}
@@ -2506,7 +2593,7 @@ export default function AnalyticsPage({
         )}
 
         {/* Meal Voucher Account Balances */}
-        {mealVoucherBalanceData.length > 0 && (
+        {showMealVoucherChart && (
           <Card className="financial-card">
             <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
               <CardTitle className="text-headline flex items-center gap-2">
@@ -2526,8 +2613,8 @@ export default function AnalyticsPage({
                       margin={{
                         top: 20,
                         right: isMobile ? 15 : 240,
-                        bottom: isMobile ? 20 : 30,
-                        left: isMobile ? 10 : 20
+                        bottom: isMobile ? 0 : 30,
+                        left: isMobile ? 0 : 20
                       }}
                     >
                     <XAxis
@@ -2541,7 +2628,9 @@ export default function AnalyticsPage({
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       tick={{ fontSize: isMobile ? 9 : 11 }}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={accountTooltipFormatter}
@@ -2679,7 +2768,7 @@ export default function AnalyticsPage({
         )}
 
         {/* Credit Card Balances */}
-        {creditCardBalanceData.length > 0 && (
+        {showCreditCardBalanceChart && (
           <Card className="financial-card">
             <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
               <CardTitle className="text-headline flex items-center gap-2">
@@ -2699,8 +2788,8 @@ export default function AnalyticsPage({
                       margin={{
                         top: 20,
                         right: isMobile ? 15 : 240,
-                        bottom: isMobile ? 20 : 30,
-                        left: isMobile ? 10 : 20
+                        bottom: isMobile ? 0 : 30,
+                        left: isMobile ? 0 : 20
                       }}
                     >
                     <XAxis
@@ -2714,7 +2803,9 @@ export default function AnalyticsPage({
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       tick={{ fontSize: isMobile ? 9 : 11 }}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={(value: number, _name: string, props: any) => {
@@ -2857,7 +2948,7 @@ export default function AnalyticsPage({
         )}
 
         {/* Credit Card Used Limit */}
-        {creditCardUsedData.length > 0 && (
+        {showCreditCardUsedChart && (
           <Card className="financial-card">
             <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
               <CardTitle className="text-headline flex items-center gap-2">
@@ -2877,8 +2968,8 @@ export default function AnalyticsPage({
                       margin={{
                         top: 20,
                         right: isMobile ? 15 : 240,
-                        bottom: isMobile ? 20 : 30,
-                        left: isMobile ? 10 : 20
+                        bottom: isMobile ? 0 : 30,
+                        left: isMobile ? 0 : 20
                       }}
                     >
                     <XAxis
@@ -2892,7 +2983,9 @@ export default function AnalyticsPage({
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       tick={{ fontSize: isMobile ? 9 : 11 }}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={(value: number, _name: string, props: any) => {
@@ -3007,7 +3100,7 @@ export default function AnalyticsPage({
         )}
 
         {/* Overdraft Available - Cheque Especial */}
-        {overdraftBalanceData.length > 0 && (
+        {showOverdraftBalanceChart && (
           <Card className="financial-card">
             <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
               <CardTitle className="text-headline flex items-center gap-2">
@@ -3027,8 +3120,8 @@ export default function AnalyticsPage({
                       margin={{
                         top: 20,
                         right: isMobile ? 15 : 240,
-                        bottom: isMobile ? 20 : 30,
-                        left: isMobile ? 10 : 20
+                        bottom: isMobile ? 0 : 30,
+                        left: isMobile ? 0 : 20
                       }}
                     >
                     <XAxis
@@ -3042,7 +3135,9 @@ export default function AnalyticsPage({
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       tick={{ fontSize: isMobile ? 9 : 11 }}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={(value: number, _name: string, props: any) => {
@@ -3185,7 +3280,7 @@ export default function AnalyticsPage({
         )}
 
         {/* Overdraft Used Limit - Cheque Especial */}
-        {overdraftUsedData.length > 0 && (
+        {showOverdraftUsedChart && (
           <Card className="financial-card">
             <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
               <CardTitle className="text-headline flex items-center gap-2">
@@ -3205,8 +3300,8 @@ export default function AnalyticsPage({
                       margin={{
                         top: 20,
                         right: isMobile ? 15 : 240,
-                        bottom: isMobile ? 20 : 30,
-                        left: isMobile ? 10 : 20
+                        bottom: isMobile ? 0 : 30,
+                        left: isMobile ? 0 : 20
                       }}
                     >
                     <XAxis
@@ -3220,7 +3315,9 @@ export default function AnalyticsPage({
                         formatCurrencyForAxis(value / 100, isMobile)
                       }
                       tick={{ fontSize: isMobile ? 9 : 11 }}
+                      width={isMobile ? 35 : 60}
                     />
+                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.5} />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
                       formatter={(value: number, _name: string, props: any) => {
@@ -3339,6 +3436,7 @@ export default function AnalyticsPage({
 
 
       {/* Expense Details Table */}
+      {showExpenseChart && (
       <Card className="financial-card mt-6 sm:mt-8">
         <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
           <CardTitle className="text-headline">
@@ -3403,8 +3501,10 @@ export default function AnalyticsPage({
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Income Details Table */}
+      {showIncomeChart && (
       <Card className="financial-card mt-6 sm:mt-8">
         <CardHeader className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
           <CardTitle className="text-headline">
@@ -3469,6 +3569,7 @@ export default function AnalyticsPage({
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

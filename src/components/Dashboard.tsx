@@ -90,18 +90,20 @@ export function Dashboard({
       />
 
       <div className="space-y-3 sm:space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-          <FilterCard
-            dateFilter={dateFilter}
-            setDateFilter={setDateFilter}
-            selectedMonth={selectedMonth}
-            customStartDate={customStartDate}
-            setCustomStartDate={setCustomStartDate}
-            customEndDate={customEndDate}
-            setCustomEndDate={setCustomEndDate}
-            goToPreviousMonth={goToPreviousMonth}
-            goToNextMonth={goToNextMonth}
-          />
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+          <div className="col-span-2 sm:col-span-1">
+            <FilterCard
+              dateFilter={dateFilter}
+              setDateFilter={setDateFilter}
+              selectedMonth={selectedMonth}
+              customStartDate={customStartDate}
+              setCustomStartDate={setCustomStartDate}
+              customEndDate={customEndDate}
+              setCustomEndDate={setCustomEndDate}
+              goToPreviousMonth={goToPreviousMonth}
+              goToNextMonth={goToNextMonth}
+            />
+          </div>
 
           <CardErrorBoundary fallbackMessage="Erro ao carregar saldos">
             <BalanceCards
@@ -126,7 +128,7 @@ export function Dashboard({
 
         <CardErrorBoundary fallbackMessage="Erro ao carregar gráfico">
           <FinancialEvolutionChart
-            transactions={transactions.filter(t => !(t.is_provision && t.amount > 0))}
+            transactions={transactions}
             accounts={accounts}
             dateFilter={dateFilter}
             selectedMonth={selectedMonth}

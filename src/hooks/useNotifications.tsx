@@ -239,10 +239,16 @@ export function useNotifications() {
         setPushEnabled(true);
         return { success: true };
       }
-      return { success: false, error: 'Falha ao obter subscrição' };
+      
+      // Se retornou null sem lançar erro, verifique permissões
+      if (Notification.permission === 'denied') {
+        return { success: false, error: 'Permissão de notificação negada. Habilite nas configurações do navegador.' };
+      }
+      
+      return { success: false, error: 'Falha ao obter subscrição. Verifique se o app está instalado na tela inicial (iOS) ou se o navegador suporta notificações.' };
     } catch (error: any) {
       logger.error('Error enabling push notifications:', error);
-      return { success: false, error: error.message || 'Erro desconhecido' };
+      return { success: false, error: error.message || 'Erro desconhecido ao ativar notificações' };
     }
   }, [user]);
 

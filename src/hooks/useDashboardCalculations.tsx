@@ -19,8 +19,13 @@ export function useDashboardCalculations(
   // Saldo total das contas (excluindo credit e investment)
   const totalBalance = useMemo(() => 
     accounts
-      .filter((acc) => acc.type !== 'credit' && acc.type !== 'investment')
-      .reduce((sum, acc) => sum + acc.balance, 0),
+      .filter((acc) => acc.type !== 'investment')
+      .reduce((sum, acc) => {
+        if (acc.type === 'credit') {
+          return sum + (acc.balance > 0 ? acc.balance : 0);
+        }
+        return sum + acc.balance;
+      }, 0),
     [accounts]
   );
 

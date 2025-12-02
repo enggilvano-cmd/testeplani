@@ -47,6 +47,53 @@ export async function requestPushNotificationPermission(): Promise<boolean> {
 }
 
 /**
+ * Helper to wait for Service Worker activation
+ */
+async function waitForActivation(registration: ServiceWorkerRegistration): Promise<void> {
+  if (registration.active) return;
+
+  const sw = registration.installing || registration.waiting;
+  
+  if (!sw) {
+    // If no active, installing or waiting, try ready as last resort
+    if (registration.active) return;
+    await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout waiting for ready')), 5000))
+    ]);
+    return;
+  }
+
+  // Force skip waiting if installed
+  if (sw.state === 'installed') {
+     sw.postMessage({ type: 'SKIP_WAITING' });
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    // 30s timeout for activation attempt
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Timeout waiting for activation'));
+    }, 30000);
+
+    const stateChangeHandler = () => {
+      if (sw.state === 'activated') {
+        clearTimeout(timeoutId);
+        sw.removeEventListener('statechange', stateChangeHandler);
+        resolve();
+      }
+    };
+
+    sw.addEventListener('statechange', stateChangeHandler);
+    
+    if (sw.state === 'activated') {
+      clearTimeout(timeoutId);
+      sw.removeEventListener('statechange', stateChangeHandler);
+      resolve();
+    }
+  });
+}
+
+/**
  * Subscribe to push notifications
  */
 export async function subscribeToPushNotifications(userId: string): Promise<PushSubscriptionData | null> {
@@ -69,8 +116,56 @@ export async function subscribeToPushNotifications(userId: string): Promise<Push
   }
 
   try {
-    // Get service worker registration
-    const registration = await navigator.serviceWorker.ready;
+    // Check if we have a registration already
+    let registration = await navigator.serviceWorker.getRegistration();
+
+    // If no registration found, try to register manually
+    if (!registration) {
+      logger.info('No service worker registration found. Attempting to register /sw.js manually...');
+      try {
+        // IMPORTANT: Capture the returned registration object!
+        registration = await navigator.serviceWorker.register('/sw.js', {
+          scope: '/'
+        });
+        logger.info('Manual Service Worker registration successful', registration);
+      } catch (regError: any) {
+        logger.error('Failed to register Service Worker manually:', regError);
+        // Throwing here to give the user specific feedback about why registration failed
+        throw new Error(`Falha ao registrar o Service Worker: ${regError.message || regError}`);
+      }
+    }
+
+    // Double check if we have a registration now
+    if (!registration) {
+      throw new Error('Não foi possível obter o registro do Service Worker.');
+    }
+
+    // Ensure the Service Worker is active
+    if (!registration.active) {
+      logger.info('Service Worker registered but not active. Waiting for activation...');
+      
+      try {
+        await waitForActivation(registration);
+      } catch (e) {
+        logger.warn('SW activation timed out. Unregistering and retrying...', e);
+        // Force unregister to clear any bad state
+        await registration.unregister();
+        
+        // Try fresh register
+        try {
+          registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          logger.info('Re-registered Service Worker');
+          await waitForActivation(registration);
+        } catch (e2) {
+           logger.error('Critical failure in SW activation retry:', e2);
+           throw new Error('Falha crítica na ativação do Service Worker. Tente limpar o cache do navegador e recarregar.');
+        }
+      }
+    }
+
+    if (!registration.active) {
+       throw new Error('O Service Worker foi registrado mas falhou ao ativar. Tente recarregar a página.');
+    }
 
     // Check if already subscribed
     let subscription = await registration.pushManager.getSubscription();

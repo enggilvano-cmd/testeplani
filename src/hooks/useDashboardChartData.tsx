@@ -20,29 +20,78 @@ export function useDashboardChartData(
     const isTransferLike = (t: Transaction) =>
       t.type === 'transfer' || Boolean((t as any).to_account_id) || Boolean((t as any).linked_transaction_id);
 
+    const isProvision = (t: Transaction) => t.is_provision && t.amount > 0;
+
+    // Helper to calculate balance at the START of a specific date
+    // Anchored to the current actual balance from accounts
+    const calculateBalanceAtStartOfDate = (targetDate: Date) => {
+      // 1. Start with the current actual balance (sum of all accounts)
+      // This includes the effect of all COMPLETED transactions up to now
+      const currentTotalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+      
+      // 2. Subtract COMPLETED transactions that happened ON or AFTER the target date
+      // We are moving backwards in time, so we reverse the effect of these transactions
+      const completedSinceTarget = transactions.filter(t => {
+        if (isTransferLike(t)) return false;
+        if (t.status !== 'completed') return false;
+        
+        const tDate = typeof t.date === 'string' ? createDateFromString(t.date) : t.date;
+        // Include transactions on the target date itself because we want the balance at the START of that day
+        return tDate >= targetDate;
+      });
+      
+      const netChangeSinceTarget = completedSinceTarget.reduce((acc, t) => {
+        if (t.type === 'income') return acc + t.amount;
+        if (t.type === 'expense') return acc - t.amount;
+        return acc;
+      }, 0);
+      
+      // 3. Add PENDING transactions that happened BEFORE the target date
+      // These are "debts" or "receivables" that should have affected the balance by that time
+      // if we are projecting a "real" balance including pending items
+      const pendingBeforeTarget = transactions.filter(t => {
+        if (isTransferLike(t)) return false;
+        if (t.status !== 'pending') return false;
+        
+        const tDate = typeof t.date === 'string' ? createDateFromString(t.date) : t.date;
+        return tDate < targetDate;
+      });
+      
+      const netPendingBeforeTarget = pendingBeforeTarget.reduce((acc, t) => {
+        if (t.type === 'income') return acc + t.amount;
+        if (t.type === 'expense') return acc - t.amount;
+        return acc;
+      }, 0);
+      
+      // Formula: Balance(Start) = Current - (Completed >= Start) + (Pending < Start)
+      return currentTotalBalance - netChangeSinceTarget + netPendingBeforeTarget;
+    };
+
     if (chartScale === 'daily') {
       let dailyFilteredTrans = transactions;
+      let startDate: Date;
 
       if (dateFilter === 'current_month') {
         const now = new Date();
-        const start = startOfMonth(now);
+        startDate = startOfMonth(now);
         const end = endOfMonth(now);
         dailyFilteredTrans = transactions.filter((t) => {
           const transactionDate = typeof t.date === 'string' 
             ? createDateFromString(t.date) 
             : t.date;
-          return isWithinInterval(transactionDate, { start, end });
+          return isWithinInterval(transactionDate, { start: startDate, end });
         });
       } else if (dateFilter === 'month_picker') {
-        const start = startOfMonth(selectedMonth);
+        startDate = startOfMonth(selectedMonth);
         const end = endOfMonth(selectedMonth);
         dailyFilteredTrans = transactions.filter((t) => {
           const transactionDate = typeof t.date === 'string' 
             ? createDateFromString(t.date) 
             : t.date;
-          return isWithinInterval(transactionDate, { start, end });
+          return isWithinInterval(transactionDate, { start: startDate, end });
         });
       } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
+        startDate = customStartDate;
         dailyFilteredTrans = transactions.filter((t) => {
           const transactionDate = typeof t.date === 'string' 
             ? createDateFromString(t.date) 
@@ -52,12 +101,15 @@ export function useDashboardChartData(
             end: customEndDate,
           });
         });
+      } else {
+        // Fallback for 'all' or undefined
+        startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       }
 
       if (dailyFilteredTrans.length === 0) return [];
 
       const dailyTotals = dailyFilteredTrans
-        .filter(t => !isTransferLike(t)) // Excluir transferências (saída e entrada)
+        .filter(t => !isTransferLike(t) && !isProvision(t)) // Excluir transferências e provisões
         .reduce((acc, transaction) => {
         const transactionDate = typeof transaction.date === 'string'
           ? createDateFromString(transaction.date)
@@ -81,11 +133,12 @@ export function useDashboardChartData(
         a.localeCompare(b)
       );
 
-      // BUG FIX: Incluir TODOS os tipos de conta no saldo inicial
-      // Cartões de crédito têm saldo negativo (dívida), que deve ser incluído
-      const saldoInicial = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+      // Calculate initial balance based on the start date of the view
+      // This ensures consistency with the current account balance
+      const saldoInicial = calculateBalanceAtStartOfDate(startDate);
 
       let saldoAcumulado = saldoInicial;
+      
       return sortedEntries.map(([dateKey, data]) => {
         saldoAcumulado = saldoAcumulado + data.income - data.expenses;
         const [year, month, day] = dateKey.split('-').map((num) => parseInt(num, 10));
@@ -99,8 +152,9 @@ export function useDashboardChartData(
         };
       });
     } else {
+      // Monthly Scale
       const monthlyTotals = transactions
-        .filter(t => !isTransferLike(t)) // Excluir transferências (saída e entrada)
+        .filter(t => !isTransferLike(t) && !isProvision(t)) // Excluir transferências e provisões
         .reduce((acc, transaction) => {
         const transactionDate = typeof transaction.date === 'string'
           ? createDateFromString(transaction.date)
@@ -130,26 +184,12 @@ export function useDashboardChartData(
         monthsToShow.push(monthKey);
       }
 
-      const previousYearBalance = transactions
-        .filter(t => !isTransferLike(t)) // Excluir transferências (saída e entrada)
-        .reduce((acc, transaction) => {
-        const transactionDate = typeof transaction.date === 'string'
-          ? createDateFromString(transaction.date)
-          : transaction.date;
-        const transactionYear = transactionDate.getFullYear();
+      // Calculate initial balance at the start of the chart year
+      const startOfYear = new Date(chartYear, 0, 1);
+      const saldoInicial = calculateBalanceAtStartOfDate(startOfYear);
 
-        if (transactionYear < chartYear) {
-          if (transaction.type === 'income') {
-            return acc + transaction.amount;
-          } else if (transaction.type === 'expense') {
-            return acc + transaction.amount;
-          }
-        }
-
-        return acc;
-      }, 0);
-
-      let saldoAcumulado = previousYearBalance;
+      let saldoAcumulado = saldoInicial;
+      
       return monthsToShow.map((monthKey) => {
         const data = monthlyTotals[monthKey] || { income: 0, expenses: 0 };
         const saldoMensal = data.income - data.expenses;

@@ -37,8 +37,8 @@ export function FilterCard({
   goToNextMonth,
 }: FilterCardProps) {
   return (
-    <Card className="financial-card">
-      <CardContent className="p-3">
+    <Card className="financial-card h-full flex flex-col justify-center">
+      <CardContent className="p-3 w-full">
         <div className="space-y-3">
           <div>
             <label id="period-filter-label" className="text-caption font-medium mb-1.5 block text-foreground">

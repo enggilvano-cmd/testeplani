@@ -196,8 +196,12 @@ export function AccountsPage({
   };
 
   const totalBalance = filteredAccounts
-    .filter((acc) => acc.type !== "credit")
-    .reduce((sum, acc) => sum + acc.balance, 0);
+    .reduce((sum, acc) => {
+      if (acc.type === "credit") {
+        return sum + (acc.balance > 0 ? acc.balance : 0);
+      }
+      return sum + acc.balance;
+    }, 0);
 
   const creditUsed = filteredAccounts
     .reduce((sum, acc) => {

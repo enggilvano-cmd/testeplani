@@ -14,8 +14,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === 'development' && componentTagger(),
     VitePWA({
-      registerType: 'prompt', // Ask user to update
-      // 'generateSW' cria um arquivo novo e limpo no build, ignorando o antigo public/sw.js
+      registerType: 'autoUpdate', // Update automatically
       strategy: 'generateSW', 
       injectRegister: 'auto', // Inject registration script
       devOptions: {
@@ -28,12 +27,25 @@ export default defineConfig(({ mode }) => ({
         importScripts: ['/push-sw.js'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
+        skipWaiting: true,
         maximumFileSizeToCacheInBytes: 10000000,
         navigateFallback: 'index.html',
         globPatterns: [
-          '**/*.{js,css,html,ico,png,svg,webp,woff,woff2,ttf,eot}'
+          '**/*.{css,html,ico,png,svg,webp,woff,woff2,ttf,eot}'
         ],
         runtimeCaching: [
+          // 0. JS Files (Runtime Cache instead of Precache for faster SW activation)
+          {
+            urlPattern: ({ request }) => request.destination === 'script' || request.url.endsWith('.js'),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'js-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 dias
+              },
+            },
+          },
           // 1. Google Fonts
           {
             urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,

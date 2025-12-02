@@ -50,7 +50,7 @@ export function EditFixedTransactionModal({
 
       setFormData({
         description: transaction.description,
-        amountInCents: Math.round(Math.abs(Number(transaction.amount)) * 100),
+        amountInCents: Math.round(Math.abs(Number(transaction.amount))),
         date: dateObj,
         type: transaction.type as "income" | "expense",
         category_id: transaction.category_id || "",
@@ -98,8 +98,13 @@ export function EditFixedTransactionModal({
       return;
     }
 
-    const year = formData.date.getFullYear();
-    const month = String(formData.date.getMonth() + 1).padStart(2, '0');
+    // Lógica para preservar mês e ano da transação original, alterando apenas o dia
+    const originalDateObj = typeof transaction.date === 'string' 
+      ? createDateFromString(transaction.date) 
+      : transaction.date;
+
+    const year = originalDateObj.getFullYear();
+    const month = String(originalDateObj.getMonth() + 1).padStart(2, '0');
     const day = String(formData.date.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
 

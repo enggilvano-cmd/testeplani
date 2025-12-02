@@ -46,7 +46,7 @@ export function BalanceCards({
   return (
     <>
       <Card
-        className="financial-card cursor-pointer apple-interaction hover:scale-[1.02] transition-transform"
+        className="financial-card cursor-pointer apple-interaction hover:scale-[1.02] transition-transform col-span-2 sm:col-span-1"
         onClick={() => onNavigateToAccounts?.()}
         role="button"
         tabIndex={0}

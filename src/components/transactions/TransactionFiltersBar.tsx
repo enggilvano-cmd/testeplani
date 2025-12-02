@@ -5,17 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
-import { TransactionFilterChips } from "./TransactionFilterChips";
+import { TransactionFilterChips, FilterChip } from "./TransactionFilterChips";
 import { TransactionFilterDialog } from "./TransactionFilterDialog";
 import type { Account, Category } from "@/types";
-
-interface FilterChip {
-  id: string;
-  label: string;
-  value: string;
-  color?: string;
-  onRemove: () => void;
-}
 
 interface TransactionFiltersBarProps {
   // Search

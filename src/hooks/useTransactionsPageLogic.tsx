@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/lib/logger";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import type { Transaction, Account, Category } from "@/types";
@@ -222,12 +222,19 @@ export function useTransactionsPageLogic({
       }
       
       if (periodLabel) {
-        chips.push({
+        const chip: any = {
           id: "period",
           label: periodLabel,
           value: periodFilter,
           onRemove: () => handleDateFilterChange("all"),
-        });
+        };
+
+        if (periodFilter === "month_picker") {
+          chip.onPrevious = () => handleMonthChange(subMonths(selectedMonth, 1));
+          chip.onNext = () => handleMonthChange(addMonths(selectedMonth, 1));
+        }
+
+        chips.push(chip);
       }
     }
 

@@ -67,14 +67,10 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-1c2fcea1'], (function (workbox) { 'use strict';
+define(['./workbox-e4259612'], (function (workbox) { 'use strict';
 
   importScripts("/push-sw.js");
-  self.addEventListener('message', event => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-      self.skipWaiting();
-    }
-  });
+  self.skipWaiting();
   workbox.clientsClaim();
 
   /**
@@ -87,12 +83,21 @@ define(['./workbox-1c2fcea1'], (function (workbox) { 'use strict';
     "revision": "d41d8cd98f00b204e9800998ecf8427e"
   }, {
     "url": "index.html",
-    "revision": "0.c3593fk8gj"
+    "revision": "0.gvt664d283c"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
+  workbox.registerRoute(({
+    request
+  }) => request.destination === "script" || request.url.endsWith(".js"), new workbox.StaleWhileRevalidate({
+    "cacheName": "js-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 50,
+      maxAgeSeconds: 2592000
+    })]
+  }), 'GET');
   workbox.registerRoute(/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i, new workbox.CacheFirst({
     "cacheName": "google-fonts-cache",
     plugins: [new workbox.ExpirationPlugin({

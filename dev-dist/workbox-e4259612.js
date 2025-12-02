@@ -2134,6 +2134,39 @@ define(['exports'], (function (exports) { 'use strict';
       }
     }
 
+    // @ts-ignore
+    try {
+      self['workbox:strategies:7.3.0'] && _();
+    } catch (e) {}
+
+    /*
+      Copyright 2018 Google LLC
+
+      Use of this source code is governed by an MIT-style
+      license that can be found in the LICENSE file or at
+      https://opensource.org/licenses/MIT.
+    */
+    const cacheOkAndOpaquePlugin = {
+      /**
+       * Returns a valid response (to allow caching) if the status is 200 (OK) or
+       * 0 (opaque).
+       *
+       * @param {Object} options
+       * @param {Response} options.response
+       * @return {Response|null}
+       *
+       * @private
+       */
+      cacheWillUpdate: async ({
+        response
+      }) => {
+        if (response.status === 200 || response.status === 0) {
+          return response;
+        }
+        return null;
+      }
+    };
+
     /*
       Copyright 2020 Google LLC
       Use of this source code is governed by an MIT-style
@@ -2252,11 +2285,6 @@ define(['exports'], (function (exports) { 'use strict';
     function timeout(ms) {
       return new Promise(resolve => setTimeout(resolve, ms));
     }
-
-    // @ts-ignore
-    try {
-      self['workbox:strategies:7.3.0'] && _();
-    } catch (e) {}
 
     /*
       Copyright 2020 Google LLC
@@ -3015,116 +3043,6 @@ define(['exports'], (function (exports) { 'use strict';
       https://opensource.org/licenses/MIT.
     */
     /**
-     * An implementation of a [cache-first](https://developer.chrome.com/docs/workbox/caching-strategies-overview/#cache-first-falling-back-to-network)
-     * request strategy.
-     *
-     * A cache first strategy is useful for assets that have been revisioned,
-     * such as URLs like `/styles/example.a8f5f1.css`, since they
-     * can be cached for long periods of time.
-     *
-     * If the network request fails, and there is no cache match, this will throw
-     * a `WorkboxError` exception.
-     *
-     * @extends workbox-strategies.Strategy
-     * @memberof workbox-strategies
-     */
-    class CacheFirst extends Strategy {
-      /**
-       * @private
-       * @param {Request|string} request A request to run this strategy for.
-       * @param {workbox-strategies.StrategyHandler} handler The event that
-       *     triggered the request.
-       * @return {Promise<Response>}
-       */
-      async _handle(request, handler) {
-        const logs = [];
-        {
-          finalAssertExports.isInstance(request, Request, {
-            moduleName: 'workbox-strategies',
-            className: this.constructor.name,
-            funcName: 'makeRequest',
-            paramName: 'request'
-          });
-        }
-        let response = await handler.cacheMatch(request);
-        let error = undefined;
-        if (!response) {
-          {
-            logs.push(`No response found in the '${this.cacheName}' cache. ` + `Will respond with a network request.`);
-          }
-          try {
-            response = await handler.fetchAndCachePut(request);
-          } catch (err) {
-            if (err instanceof Error) {
-              error = err;
-            }
-          }
-          {
-            if (response) {
-              logs.push(`Got response from network.`);
-            } else {
-              logs.push(`Unable to get a response from the network.`);
-            }
-          }
-        } else {
-          {
-            logs.push(`Found a cached response in the '${this.cacheName}' cache.`);
-          }
-        }
-        {
-          logger.groupCollapsed(messages.strategyStart(this.constructor.name, request));
-          for (const log of logs) {
-            logger.log(log);
-          }
-          messages.printFinalResponse(response);
-          logger.groupEnd();
-        }
-        if (!response) {
-          throw new WorkboxError('no-response', {
-            url: request.url,
-            error
-          });
-        }
-        return response;
-      }
-    }
-
-    /*
-      Copyright 2018 Google LLC
-
-      Use of this source code is governed by an MIT-style
-      license that can be found in the LICENSE file or at
-      https://opensource.org/licenses/MIT.
-    */
-    const cacheOkAndOpaquePlugin = {
-      /**
-       * Returns a valid response (to allow caching) if the status is 200 (OK) or
-       * 0 (opaque).
-       *
-       * @param {Object} options
-       * @param {Response} options.response
-       * @return {Response|null}
-       *
-       * @private
-       */
-      cacheWillUpdate: async ({
-        response
-      }) => {
-        if (response.status === 200 || response.status === 0) {
-          return response;
-        }
-        return null;
-      }
-    };
-
-    /*
-      Copyright 2018 Google LLC
-
-      Use of this source code is governed by an MIT-style
-      license that can be found in the LICENSE file or at
-      https://opensource.org/licenses/MIT.
-    */
-    /**
      * An implementation of a
      * [stale-while-revalidate](https://developer.chrome.com/docs/workbox/caching-strategies-overview/#stale-while-revalidate)
      * request strategy.
@@ -3207,6 +3125,88 @@ define(['exports'], (function (exports) { 'use strict';
             if (err instanceof Error) {
               error = err;
             }
+          }
+        }
+        {
+          logger.groupCollapsed(messages.strategyStart(this.constructor.name, request));
+          for (const log of logs) {
+            logger.log(log);
+          }
+          messages.printFinalResponse(response);
+          logger.groupEnd();
+        }
+        if (!response) {
+          throw new WorkboxError('no-response', {
+            url: request.url,
+            error
+          });
+        }
+        return response;
+      }
+    }
+
+    /*
+      Copyright 2018 Google LLC
+
+      Use of this source code is governed by an MIT-style
+      license that can be found in the LICENSE file or at
+      https://opensource.org/licenses/MIT.
+    */
+    /**
+     * An implementation of a [cache-first](https://developer.chrome.com/docs/workbox/caching-strategies-overview/#cache-first-falling-back-to-network)
+     * request strategy.
+     *
+     * A cache first strategy is useful for assets that have been revisioned,
+     * such as URLs like `/styles/example.a8f5f1.css`, since they
+     * can be cached for long periods of time.
+     *
+     * If the network request fails, and there is no cache match, this will throw
+     * a `WorkboxError` exception.
+     *
+     * @extends workbox-strategies.Strategy
+     * @memberof workbox-strategies
+     */
+    class CacheFirst extends Strategy {
+      /**
+       * @private
+       * @param {Request|string} request A request to run this strategy for.
+       * @param {workbox-strategies.StrategyHandler} handler The event that
+       *     triggered the request.
+       * @return {Promise<Response>}
+       */
+      async _handle(request, handler) {
+        const logs = [];
+        {
+          finalAssertExports.isInstance(request, Request, {
+            moduleName: 'workbox-strategies',
+            className: this.constructor.name,
+            funcName: 'makeRequest',
+            paramName: 'request'
+          });
+        }
+        let response = await handler.cacheMatch(request);
+        let error = undefined;
+        if (!response) {
+          {
+            logs.push(`No response found in the '${this.cacheName}' cache. ` + `Will respond with a network request.`);
+          }
+          try {
+            response = await handler.fetchAndCachePut(request);
+          } catch (err) {
+            if (err instanceof Error) {
+              error = err;
+            }
+          }
+          {
+            if (response) {
+              logs.push(`Got response from network.`);
+            } else {
+              logs.push(`Unable to get a response from the network.`);
+            }
+          }
+        } else {
+          {
+            logs.push(`Found a cached response in the '${this.cacheName}' cache.`);
           }
         }
         {

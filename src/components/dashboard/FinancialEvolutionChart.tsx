@@ -102,7 +102,7 @@ export function FinancialEvolutionChart({
           key={uniqueKey}
           cx={cx}
           cy={cy}
-          r={isMobile ? 3 : 4}
+          r={4}
           fill={saldo >= 0 ? 'hsl(var(--primary))' : 'hsl(var(--destructive))'}
           stroke="hsl(var(--background))"
           strokeWidth={2}
@@ -174,7 +174,7 @@ export function FinancialEvolutionChart({
       <CardContent className="p-3 pt-0">
         <div className="relative min-h-[200px] sm:min-h-[300px] lg:min-h-[350px]">
           {chartData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-[200px] sm:h-[250px] text-muted-foreground">
+            <div className="flex flex-col items-center justify-center h-[250px] sm:h-[250px] text-muted-foreground">
               <BarChart3 className="h-12 w-12 mb-3 opacity-50" />
               <p className="text-sm font-medium">Nenhum dado disponível</p>
             </div>
@@ -194,21 +194,22 @@ export function FinancialEvolutionChart({
                   color: 'hsl(var(--primary))',
                 },
               }}
-              className="h-[200px] sm:h-[300px] lg:h-[350px] w-full"
+              className="h-[300px] sm:h-[300px] lg:h-[350px] w-full"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart
                   data={chartData}
                   margin={{
                     top: 20,
-                    right: isMobile ? 10 : 30,
-                    left: isMobile ? 10 : 20,
-                    bottom: isMobile ? 60 : 50,
+                    right: isMobile ? 0 : 30,
+                    left: isMobile ? -10 : 20,
+                    bottom: isMobile ? (chartScale === 'daily' ? 60 : 20) : 50,
                   }}
                 >
                   <XAxis
                     dataKey="month"
                     {...getBarChartAxisProps(responsiveConfig).xAxis}
+                    height={chartScale === 'monthly' ? 30 : responsiveConfig.axisHeight}
                     interval={
                       chartScale === 'daily'
                         ? isMobile
@@ -220,17 +221,24 @@ export function FinancialEvolutionChart({
                     tickMargin={10}
                     angle={chartScale === 'daily' ? (isMobile ? -45 : -30) : 0}
                     textAnchor={chartScale === 'daily' ? 'end' : 'middle'}
+                    tick={{
+                      fontSize: 11,
+                      fill: 'hsl(var(--muted-foreground))',
+                    }}
                   />
 
                   <YAxis
                     axisLine={false}
                     tickLine={false}
                     tick={{
-                      fontSize: isMobile ? 9 : 11,
+                      fontSize: isMobile ? 10 : 11,
                       fill: 'hsl(var(--muted-foreground))',
                     }}
-                    tickFormatter={(value) => formatCurrencyForAxis(value / 100, isMobile)}
-                    width={isMobile ? 50 : 80}
+                    tickFormatter={(value) => {
+                      const formatted = formatCurrencyForAxis(value / 100, isMobile);
+                      return isMobile ? formatted.replace('R$', '').trim() : formatted;
+                    }}
+                    width={isMobile ? 35 : 80}
                   />
 
                   <ChartTooltip
@@ -269,10 +277,10 @@ export function FinancialEvolutionChart({
                     type="monotone"
                     dataKey="saldo"
                     stroke="hsl(var(--primary))"
-                    strokeWidth={isMobile ? 2 : 3}
+                    strokeWidth={3}
                     dot={renderDot}
                     activeDot={{
-                      r: isMobile ? 5 : 6,
+                      r: 6,
                       strokeWidth: 2,
                       fill: 'hsl(var(--primary))',
                       stroke: 'hsl(var(--background))',
@@ -290,7 +298,7 @@ export function FinancialEvolutionChart({
           )}
 
           {isMobile && chartData.length > 0 && (
-            <div className="flex justify-center gap-4 mt-3 text-xs">
+            <div className="flex justify-center gap-4 mt-2 text-xs border-t pt-3">
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 rounded bg-success"></div>
                 <span className="text-muted-foreground">Receitas</span>

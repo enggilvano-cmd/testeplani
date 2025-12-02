@@ -427,10 +427,16 @@ export function FixedTransactionsPage() {
 
       // Editar a transação principal SOMENTE se estiver PENDENTE
       if (mainTransaction?.status === "pending") {
+        // Preparar updates para o backend (converter valor para centavos se necessário)
+        const backendUpdates = { ...updates };
+        if (typeof backendUpdates.amount === 'number') {
+          backendUpdates.amount = Math.round(backendUpdates.amount * 100);
+        }
+
         const { data, error: mainError } = await supabase.functions.invoke('atomic-edit-transaction', {
           body: {
             transaction_id: transaction.id,
-            updates,
+            updates: backendUpdates,
             scope: 'current',
           },
         });
@@ -446,7 +452,7 @@ export function FixedTransactionsPage() {
       // 2) Buscar e editar todas as filhas PENDENTES dessa fixa
       const { data: childTransactions, error: childError } = await supabase
         .from("transactions")
-        .select("id, status")
+        .select("id, status, date")
         .eq("parent_transaction_id", transaction.id)
         .eq("user_id", user.id)
         .eq("status", "pending"); // Buscar APENAS pendentes
@@ -456,10 +462,39 @@ export function FixedTransactionsPage() {
       // Editar apenas as filhas pendentes com os mesmos campos alterados
       if (childTransactions && childTransactions.length > 0) {
         for (const child of childTransactions) {
+          const childUpdates = { ...updates };
+
+          // Converter valor para centavos para o backend
+          if (typeof childUpdates.amount === 'number') {
+            childUpdates.amount = Math.round(childUpdates.amount * 100);
+          }
+
+          // Se houver atualização de data, calcular a nova data para a filha
+          // mantendo o mês e ano originais da filha, alterando apenas o dia
+          if (updates.date) {
+            const newDay = new Date(updates.date as string).getUTCDate();
+            const childDate = new Date(child.date);
+            
+            // Criar nova data mantendo ano e mês da filha, mas com o novo dia
+            // Usando UTC para evitar problemas de fuso horário
+            const newChildDate = new Date(Date.UTC(
+              childDate.getUTCFullYear(),
+              childDate.getUTCMonth(),
+              newDay
+            ));
+
+            // Ajustar se o mês mudou (ex: dia 31 em fevereiro)
+            if (newChildDate.getUTCMonth() !== childDate.getUTCMonth()) {
+              newChildDate.setUTCDate(0); // Define para o último dia do mês anterior (o mês correto)
+            }
+
+            childUpdates.date = newChildDate.toISOString().split('T')[0];
+          }
+
           const { data, error } = await supabase.functions.invoke('atomic-edit-transaction', {
             body: {
               transaction_id: child.id,
-              updates,
+              updates: childUpdates,
               scope: 'current',
             },
           });
