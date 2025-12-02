@@ -585,9 +585,6 @@ export type Database = {
           is_recurring: boolean | null
           linked_transaction_id: string | null
           parent_transaction_id: string | null
-          reconciled: boolean | null
-          reconciled_at: string | null
-          reconciled_by: string | null
           recurrence_end_date: string | null
           recurrence_type: Database["public"]["Enums"]["recurrence_type"] | null
           status: Database["public"]["Enums"]["transaction_status"]
@@ -614,9 +611,6 @@ export type Database = {
           is_recurring?: boolean | null
           linked_transaction_id?: string | null
           parent_transaction_id?: string | null
-          reconciled?: boolean | null
-          reconciled_at?: string | null
-          reconciled_by?: string | null
           recurrence_end_date?: string | null
           recurrence_type?:
             | Database["public"]["Enums"]["recurrence_type"]
@@ -645,9 +639,6 @@ export type Database = {
           is_recurring?: boolean | null
           linked_transaction_id?: string | null
           parent_transaction_id?: string | null
-          reconciled?: boolean | null
-          reconciled_at?: string | null
-          reconciled_by?: string | null
           recurrence_end_date?: string | null
           recurrence_type?:
             | Database["public"]["Enums"]["recurrence_type"]
@@ -903,9 +894,6 @@ export type Database = {
           is_recurring: boolean
           linked_transaction_id: string
           parent_transaction_id: string
-          reconciled: boolean
-          reconciled_at: string
-          reconciled_by: string
           recurrence_end_date: string
           recurrence_type: Database["public"]["Enums"]["recurrence_type"]
           status: Database["public"]["Enums"]["transaction_status"]

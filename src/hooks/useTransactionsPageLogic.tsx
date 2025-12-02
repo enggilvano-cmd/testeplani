@@ -289,7 +289,7 @@ export function useTransactionsPageLogic({
       const exportData = transactions.map(t => ({
         ...t,
         date: typeof t.date === 'string' ? t.date : t.date.toISOString(),
-      })) as Array<{ id: string; description: string; amount: number; date: string; type: 'income' | 'expense' | 'transfer'; status: 'pending' | 'completed'; account_id: string; category_id?: string | null; to_account_id?: string | null; installments?: number | null; current_installment?: number | null; invoice_month?: string | null; is_recurring?: boolean | null; is_fixed?: boolean | null; reconciled?: boolean | null; created_at?: string }>;
+      })) as Array<{ id: string; description: string; amount: number; date: string; type: 'income' | 'expense' | 'transfer'; status: 'pending' | 'completed'; account_id: string; category_id?: string | null; to_account_id?: string | null; installments?: number | null; current_installment?: number | null; invoice_month?: string | null; is_recurring?: boolean | null; is_fixed?: boolean | null; created_at?: string }>;
       await exportTransactionsToExcel(exportData, accounts, categories);
       
       toast({

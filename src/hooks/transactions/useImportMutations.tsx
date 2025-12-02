@@ -120,11 +120,7 @@ export function useImportMutations() {
             // Novos campos para fidelidade 100%
             if (data.to_account_id) updates.to_account_id = data.to_account_id;
             if (data.is_fixed !== undefined) updates.is_fixed = data.is_fixed;
-            if (data.is_recurring !== undefined) updates.is_recurring = data.is_recurring;
-            if (data.recurrence_type) updates.recurrence_type = data.recurrence_type;
-            if (data.recurrence_end_date) updates.recurrence_end_date = data.recurrence_end_date;
             if (data.is_provision !== undefined) updates.is_provision = data.is_provision;
-            if (data.reconciled !== undefined) updates.reconciled = data.reconciled;
 
             if (Object.keys(updates).length > 0) {
               const { error: updateError } = await supabase

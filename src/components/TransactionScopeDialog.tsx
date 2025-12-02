@@ -11,7 +11,7 @@ interface TransactionScopeDialogProps {
   onScopeSelected: (scope: EditScope) => void;
   currentInstallment?: number;
   totalInstallments?: number;
-  isRecurring?: boolean;
+  isFixed?: boolean;
   mode?: "edit" | "delete";
   hasCompleted?: boolean;
   pendingCount?: number;
@@ -23,7 +23,7 @@ export function TransactionScopeDialog({
   onScopeSelected,
   currentInstallment = 1,
   totalInstallments = 1,
-  isRecurring = false,
+  isFixed = false,
   mode = "edit",
   hasCompleted = false,
   pendingCount = 0,
@@ -35,8 +35,8 @@ export function TransactionScopeDialog({
 
   const isDelete = mode === "delete";
 
-  // Textos para transações recorrentes
-  if (isRecurring) {
+  // Textos para transações fixas
+  if (isFixed) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[500px]">
@@ -46,8 +46,8 @@ export function TransactionScopeDialog({
             </DialogTitle>
             <DialogDescription>
               {isDelete 
-                ? "Defina se deseja excluir apenas esta ocorrência ou toda a série de recorrências."
-                : "Defina se deseja editar apenas esta ocorrência ou toda a série de recorrências."
+                ? "Defina se deseja excluir apenas esta ocorrência ou toda a série de transações fixas."
+                : "Defina se deseja editar apenas esta ocorrência ou toda a série de transações fixas."
               }
             </DialogDescription>
           </DialogHeader>
@@ -103,8 +103,8 @@ export function TransactionScopeDialog({
                 <div className="font-medium">Todas as Ocorrências</div>
                 <div className="text-sm text-muted-foreground">
                   {isDelete 
-                    ? "Excluir toda a série de transações recorrentes"
-                    : "Editar toda a série de transações recorrentes"
+                    ? "Excluir toda a série de transações fixas"
+                    : "Editar toda a série de transações fixas"
                   }
                 </div>
               </div>

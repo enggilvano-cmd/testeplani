@@ -678,7 +678,7 @@ const PlaniFlowApp = () => {
         }}
         currentInstallment={markingAsPaidTransaction?.current_installment || 1}
         totalInstallments={markingAsPaidTransaction?.installments || 1}
-        isRecurring={Boolean(markingAsPaidTransaction?.is_recurring || markingAsPaidTransaction?.is_fixed)}
+        isRecurring={Boolean(markingAsPaidTransaction?.is_fixed)}
         mode="edit"
       />
     </Layout>

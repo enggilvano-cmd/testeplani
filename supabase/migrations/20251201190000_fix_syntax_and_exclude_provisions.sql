@@ -152,7 +152,7 @@ CREATE OR REPLACE FUNCTION public.handle_provision_deduction()
 RETURNS TRIGGER 
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $trigger$
 DECLARE
   v_provision_id UUID;
   v_provision_account_id UUID;
@@ -267,7 +267,7 @@ BEGIN
 
   RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$trigger$ LANGUAGE plpgsql;
 
 -- 5. Create Trigger
 DROP TRIGGER IF EXISTS trigger_deduct_provision ON public.transactions;

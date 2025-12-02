@@ -108,11 +108,7 @@ export async function exportTransactionsToExcel(
         : '',
       'Mês Fatura': transaction.invoice_month || '',
       'Fixa': transaction.is_fixed ? 'Sim' : 'Não',
-      'Recorrência': transaction.is_recurring ? 'Sim' : 'Não',
-      'Tipo Recorrência': transaction.recurrence_type || '',
-      'Fim Recorrência': transaction.recurrence_end_date ? format(new Date(transaction.recurrence_end_date), 'dd/MM/yyyy', { locale: ptBR }) : '',
-      'Provisão': transaction.is_provision ? 'Sim' : 'Não',
-      'Conciliado': transaction.reconciled ? 'Sim' : 'Não'
+      'Provisão': transaction.is_provision ? 'Sim' : 'Não'
     };
   });
 
@@ -133,11 +129,7 @@ export async function exportTransactionsToExcel(
     { wch: 12 },  // Parcelas
     { wch: 12 },  // Mês Fatura
     { wch: 12 },  // Fixa
-    { wch: 12 },  // Recorrência
-    { wch: 15 },  // Tipo Recorrência
-    { wch: 15 },  // Fim Recorrência
     { wch: 12 },  // Provisão
-    { wch: 12 },  // Conciliado
   ];
   ws['!cols'] = colWidths;
 
@@ -206,19 +198,14 @@ export async function exportAllDataToExcel(
         : '',
       'Mês Fatura': transaction.invoice_month || '',
       'Fixa': transaction.is_fixed ? 'Sim' : 'Não',
-      'Recorrência': transaction.is_recurring ? 'Sim' : 'Não',
-      'Tipo Recorrência': transaction.recurrence_type || '',
-      'Fim Recorrência': transaction.recurrence_end_date ? format(new Date(transaction.recurrence_end_date), 'dd/MM/yyyy', { locale: ptBR }) : '',
-      'Provisão': transaction.is_provision ? 'Sim' : 'Não',
-      'Conciliado': transaction.reconciled ? 'Sim' : 'Não'
+      'Provisão': transaction.is_provision ? 'Sim' : 'Não'
     };
   });
   const wsTransactions = XLSX.utils.json_to_sheet(transactionsData);
   wsTransactions['!cols'] = [
     { wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 15 },
     { wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
-    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
-    { wch: 12 }, { wch: 12 }
+    { wch: 12 }, { wch: 12 }, { wch: 12 }
   ];
   XLSX.utils.book_append_sheet(wb, wsTransactions, 'Transações');
 

@@ -53,14 +53,8 @@ export interface Transaction {
   linked_transaction_id?: string; // Para vincular pagamentos/transferências
   invoice_month?: string; // Month of credit card invoice (YYYY-MM)
   invoice_month_overridden?: boolean; // True when user manually sets invoice month
-  is_recurring?: boolean; // Is this a recurring transaction
-  recurrence_type?: "daily" | "weekly" | "monthly" | "yearly"; // Type of recurrence
-  recurrence_end_date?: Date | string; // When the recurrence ends
   is_fixed?: boolean;
   is_provision?: boolean;
-  reconciled?: boolean;
-  reconciled_at?: string | null;
-  reconciled_by?: string | null;
   created_at?: string;
   updated_at?: string;
   // Relations from JOINs
@@ -159,11 +153,7 @@ export interface ImportTransactionData {
   current_installment?: number;
   invoice_month?: string;
   is_fixed?: boolean;
-  is_recurring?: boolean;
-  recurrence_type?: "daily" | "weekly" | "monthly" | "yearly";
-  recurrence_end_date?: string;
   is_provision?: boolean;
-  reconciled?: boolean;
 }
 
 export interface ImportAccountData {

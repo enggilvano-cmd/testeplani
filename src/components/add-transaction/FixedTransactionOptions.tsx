@@ -5,7 +5,6 @@ interface FixedTransactionOptionsProps {
   isFixed: boolean;
   date: string;
   isInstallment: boolean;
-  isRecurring: boolean;
   onFixedChange: (checked: boolean) => void;
 }
 
@@ -13,7 +12,6 @@ export function FixedTransactionOptions({
   isFixed,
   date,
   isInstallment,
-  isRecurring,
   onFixedChange,
 }: FixedTransactionOptionsProps) {
   return (
@@ -25,7 +23,7 @@ export function FixedTransactionOptions({
         <Switch
           id="fixed"
           checked={isFixed}
-          disabled={isInstallment || isRecurring}
+          disabled={isInstallment}
           onCheckedChange={onFixedChange}
           className="data-[state=unchecked]:bg-muted data-[state=unchecked]:border data-[state=unchecked]:border-primary/50"
         />

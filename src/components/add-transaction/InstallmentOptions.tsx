@@ -8,7 +8,6 @@ interface InstallmentOptionsProps {
   installments: string;
   customInstallments: string;
   amount: number;
-  isRecurring: boolean;
   isFixed: boolean;
   onInstallmentChange: (checked: boolean) => void;
   onInstallmentsChange: (value: string) => void;
@@ -20,7 +19,6 @@ export function InstallmentOptions({
   installments,
   customInstallments,
   amount,
-  isRecurring,
   isFixed,
   onInstallmentChange,
   onInstallmentsChange,
@@ -35,7 +33,7 @@ export function InstallmentOptions({
         <Switch
           id="installment"
           checked={isInstallment}
-          disabled={isRecurring || isFixed}
+          disabled={isFixed}
           onCheckedChange={onInstallmentChange}
           className="data-[state=unchecked]:bg-muted data-[state=unchecked]:border data-[state=unchecked]:border-primary/50"
         />

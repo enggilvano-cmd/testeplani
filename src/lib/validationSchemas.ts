@@ -214,14 +214,6 @@ export const addTransactionSchema = z.object({
   
   invoiceMonth: z.string().optional(),
   
-  isRecurring: z.boolean().optional(),
-  
-  recurrenceType: z
-    .enum(["daily", "weekly", "monthly", "yearly"])
-    .optional(),
-  
-  recurrenceEndDate: z.string().optional(),
-  
   isFixed: z.boolean().optional(),
 });
 

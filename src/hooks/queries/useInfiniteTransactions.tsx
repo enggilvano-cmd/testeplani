@@ -95,7 +95,6 @@ export function useInfiniteTransactions(params: UseInfiniteTransactionsParams = 
           recurrence_end_date,
           invoice_month,
           invoice_month_overridden,
-          reconciled,
           created_at,
           updated_at,
           categories:category_id (

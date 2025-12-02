@@ -71,7 +71,7 @@ export function EditFixedTransactionModal({
     if (open && transaction) {
       setFormData({
         description: transaction.description,
-        amount: Number(transaction.amount),
+        amount: Math.abs(Number(transaction.amount)),
         date: transaction.date,
         type: transaction.type,
         category_id: transaction.category_id || "",

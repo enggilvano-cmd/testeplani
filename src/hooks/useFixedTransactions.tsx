@@ -28,7 +28,7 @@ export function useFixedTransactions(): UseFixedTransactionsResult {
     }
 
     try {
-      setIsLoading(true);
+      // setIsLoading(true); // Removido para evitar flicker (loading skeleton) em atualizações subsequentes
       
       // Carrega do cache primeiro (instantâneo)
       const cachedData = await offlineDatabase.getFixedTransactions(user.id);

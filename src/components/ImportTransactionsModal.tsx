@@ -55,11 +55,7 @@ interface ImportedTransaction {
   parcelas?: string; // Mantido como string para leitura inicial
   invoiceMonth?: string;
   isFixed?: boolean;
-  isRecurring?: boolean;
-  recurrenceType?: string;
-  recurrenceEndDate?: string;
   isProvision?: boolean;
-  reconciled?: boolean;
   isValid: boolean;
   errors: string[];
   accountId?: string;
@@ -70,6 +66,9 @@ interface ImportedTransaction {
   isDuplicate: boolean;
   existingTransactionId?: string;
   resolution: 'skip' | 'add' | 'replace'; // Ação para duplicatas
+  id?: string;
+  parentTransactionId?: string;
+  linkedTransactionId?: string;
 }
 
 export function ImportTransactionsModal({ 
@@ -108,11 +107,7 @@ export function ImportTransactionsModal({
     installments: ['Parcelas', 'Installments', 'Cuotas'],
     invoiceMonth: ['Mês Fatura', 'Invoice Month', 'Mes Factura'],
     isFixed: ['Fixa', 'Fixed', 'Fija'],
-    isRecurring: ['Recorrência', 'Recurrence', 'Recurrencia'],
-    recurrenceType: ['Tipo Recorrência', 'Recurrence Type', 'Tipo Recurrencia'],
-    recurrenceEndDate: ['Fim Recorrência', 'Recurrence End Date', 'Fin Recurrencia'],
-    isProvision: ['Provisão', 'Provision', 'Provisión'],
-    reconciled: ['Conciliado', 'Reconciled', 'Conciliado']
+    isProvision: ['Provisão', 'Provision', 'Provisión']
   } as const;
 
   const pick = (row: Record<string, unknown>, keys: readonly string[]) => {
@@ -292,21 +287,14 @@ export function ImportTransactionsModal({
 
     // Processar campos opcionais adicionais
     const invoiceMonth = String(pick(row, HEADERS.invoiceMonth) || '');
-    const isFixedStr = String(pick(row, HEADERS.isFixed) || '').toLowerCase();
-    const isFixed = isFixedStr === 'sim' || isFixedStr === 'yes' || isFixedStr === 'sí';
     
-    const isRecurringStr = String(pick(row, HEADERS.isRecurring) || '').toLowerCase();
-    const isRecurring = isRecurringStr === 'sim' || isRecurringStr === 'yes' || isRecurringStr === 'sí';
-    
-    const recurrenceType = String(pick(row, HEADERS.recurrenceType) || '');
-    const recurrenceEndDate = String(pick(row, HEADERS.recurrenceEndDate) || '');
+    // Ignorar a coluna 'Fixa' na importação para evitar criar regras de recorrência indesejadas.
+    // O usuário deseja que essas transações voltem para o extrato (Transações) e não para Transações Fixas.
+    const isFixed = false;
     
     const isProvisionStr = String(pick(row, HEADERS.isProvision) || '').toLowerCase();
     const isProvision = isProvisionStr === 'sim' || isProvisionStr === 'yes' || isProvisionStr === 'sí';
     
-    const reconciledStr = String(pick(row, HEADERS.reconciled) || '').toLowerCase();
-    const reconciled = reconciledStr === 'sim' || reconciledStr === 'yes' || reconciledStr === 'sí';
-
     // Normalização de data para evitar diferenças de fuso horário
     const normalizeToUTCDate = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0));
 
@@ -365,11 +353,7 @@ export function ImportTransactionsModal({
       parcelas: String(pick(row, HEADERS.installments) || ''),
       invoiceMonth,
       isFixed,
-      isRecurring,
-      recurrenceType,
-      recurrenceEndDate,
       isProvision,
-      reconciled,
       isValid,
       errors,
       accountId: accountId,
@@ -477,11 +461,7 @@ export function ImportTransactionsModal({
             parseInt(t.parcelas.split('/')[0], 10) || undefined : undefined,
           invoice_month: t.invoiceMonth && t.invoiceMonth.trim() ? t.invoiceMonth.trim() : undefined,
           is_fixed: t.isFixed || undefined,
-          is_recurring: t.isRecurring || undefined,
-          recurrence_type: t.recurrenceType as 'daily' | 'weekly' | 'monthly' | 'yearly' | undefined,
-          recurrence_end_date: t.recurrenceEndDate ? parseDate(t.recurrenceEndDate)?.toISOString().split('T')[0] : undefined,
-          is_provision: t.isProvision || undefined,
-          reconciled: t.reconciled || undefined
+          is_provision: t.isProvision || undefined
         };
       });
 

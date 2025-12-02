@@ -326,11 +326,30 @@ export function FixedTransactionsPage() {
       return;
     }
 
+    // --- OPTIMISTIC UPDATE START ---
+    // 1. Close modal immediately
+    setEditModalOpen(false);
+    const currentTransactionToEdit = transactionToEdit; // Capture for closure
+    setTransactionToEdit(null);
+
+    // 2. Update local DB immediately
+    const updatedTransaction = { ...currentTransactionToEdit, ...updates };
+    await offlineDatabase.saveTransactions([updatedTransaction as any]);
+    
+    // 3. Refresh UI immediately
+    loadFixedTransactions();
+    
+    toast({
+        title: "Salvando...",
+        description: "Atualizando transação em segundo plano.",
+    });
+    // --- OPTIMISTIC UPDATE END ---
+
     const isTempId = transaction.id.startsWith('temp-');
 
     const saveOffline = async () => {
-      const updatedTransaction = { ...transactionToEdit, ...updates };
-      await offlineDatabase.saveTransactions([updatedTransaction as any]);
+      // We already saved to offlineDatabase above!
+      // Just enqueue the sync job.
       
       await offlineQueue.enqueue({
         type: 'edit',
@@ -341,11 +360,6 @@ export function FixedTransactionsPage() {
         },
         retries: 0
       });
-
-      toast({ title: "Editado offline", description: "Sincronizará quando online." });
-      loadFixedTransactions();
-      setEditModalOpen(false);
-      setTransactionToEdit(null);
     };
 
     if (!isOnline || isTempId) {
@@ -428,8 +442,6 @@ export function FixedTransactionsPage() {
       ]);
 
       loadFixedTransactions();
-      setEditModalOpen(false);
-      setTransactionToEdit(null);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes("Failed to send a request") || 

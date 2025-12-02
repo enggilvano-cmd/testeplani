@@ -100,7 +100,7 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
             id, description, amount, date, type, status, category_id, account_id, to_account_id,
             installments, current_installment, parent_transaction_id, linked_transaction_id,
             is_recurring, is_fixed, recurrence_type, recurrence_end_date, invoice_month,
-            invoice_month_overridden, reconciled, created_at, updated_at
+            invoice_month_overridden, created_at, updated_at
           `)
           .eq('user_id', user.id),
         supabase

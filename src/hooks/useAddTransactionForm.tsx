@@ -23,9 +23,6 @@ interface FormData {
   isInstallment: boolean;
   installments: string;
   invoiceMonth: string;
-  isRecurring: boolean;
-  recurrenceType: "daily" | "weekly" | "monthly" | "yearly";
-  recurrenceEndDate: string;
   isFixed: boolean;
 }
 
@@ -50,9 +47,6 @@ const initialFormState: FormData = {
   isInstallment: false,
   installments: "2",
   invoiceMonth: "",
-  isRecurring: false,
-  recurrenceType: "monthly",
-  recurrenceEndDate: "",
   isFixed: false,
 };
 
@@ -169,9 +163,6 @@ export function useAddTransactionForm({
         installments: formData.installments,
         customInstallments: customInstallments,
         invoiceMonth: formData.invoiceMonth,
-        isRecurring: formData.isRecurring,
-        recurrenceType: formData.recurrenceType,
-        recurrenceEndDate: formData.recurrenceEndDate,
         isFixed: formData.isFixed,
       };
 
@@ -376,54 +367,6 @@ export function useAddTransactionForm({
   }, [formData, onClose, onSuccess, queryClient]);
 
   const handleSingleTransaction = async () => {
-    // Se for transação recorrente, usar edge function atômico
-    if (formData.isRecurring) {
-      const { data, error } = await supabase.functions.invoke('atomic-create-recurring', {
-        body: {
-          description: formData.description,
-          amount: Math.abs(formData.amount),
-          date: formData.date,
-          type: formData.type,
-          category_id: formData.category_id,
-          account_id: formData.account_id,
-          status: formData.status,
-          recurrence_type: formData.recurrenceType,
-          recurrence_end_date: formData.recurrenceEndDate || undefined,
-        },
-      });
-
-      if (error) {
-        logger.error('Error creating recurring transaction:', error);
-        throw new Error(error.message || 'Erro ao criar transação recorrente');
-      }
-
-      const result = Array.isArray(data) ? data[0] : data;
-
-      if (!result?.success) {
-        throw new Error(result?.error || 'Erro ao criar transação recorrente');
-      }
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
-      ]);
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: queryKeys.transactionsBase }),
-        queryClient.refetchQueries({ queryKey: queryKeys.accounts }),
-      ]);
-
-      toast({
-        title: "Transação Recorrente Criada",
-        description: `${result.created_count} transações foram geradas com sucesso`,
-        variant: "default",
-      });
-
-      if (onSuccess) {
-        onSuccess();
-      }
-      return;
-    }
-
     // Transação simples
     const transactionPayload = {
       description: formData.description,
@@ -435,7 +378,6 @@ export function useAddTransactionForm({
       status: formData.status,
       invoiceMonth: formData.invoiceMonth || undefined,
       invoiceMonthOverridden: Boolean(formData.invoiceMonth),
-      is_recurring: false,
     };
 
     await onAddTransaction(transactionPayload);

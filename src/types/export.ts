@@ -35,9 +35,7 @@ export interface ExportTransaction {
   installments?: number | null;
   current_installment?: number | null;
   invoice_month?: string | null;
-  is_recurring?: boolean | null;
   is_fixed?: boolean | null;
-  reconciled?: boolean | null;
   created_at?: string;
 }
 

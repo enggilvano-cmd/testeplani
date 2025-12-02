@@ -144,7 +144,6 @@ export function EditTransactionModal({
           onScopeSelected={processEdit}
           currentInstallment={transaction?.current_installment || 1}
           totalInstallments={transaction?.installments || 1}
-          isRecurring={Boolean(transaction?.is_recurring)}
           mode="edit"
           hasCompleted={hasCompletedTransactions}
           pendingCount={pendingTransactionsCount}

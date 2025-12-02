@@ -135,7 +135,6 @@ export function AddTransactionModal({
             installments={formData.installments}
             customInstallments={customInstallments}
             amount={formData.amount}
-            isRecurring={formData.isRecurring}
             isFixed={formData.isFixed}
             onInstallmentChange={(checked: boolean) =>
               setFormData((prev) => ({
@@ -153,7 +152,6 @@ export function AddTransactionModal({
             isFixed={formData.isFixed}
             date={formData.date}
             isInstallment={formData.isInstallment}
-            isRecurring={formData.isRecurring}
             onFixedChange={(checked) =>
               setFormData((prev) => ({
                 ...prev,

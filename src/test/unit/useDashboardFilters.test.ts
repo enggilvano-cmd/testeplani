@@ -19,17 +19,11 @@ describe('useDashboardFilters', () => {
     installments: undefined,
     current_installment: undefined,
     parent_transaction_id: undefined,
-    is_recurring: false,
     is_fixed: false,
-    recurrence_type: undefined,
-    recurrence_end_date: undefined,
     to_account_id: undefined,
     linked_transaction_id: undefined,
     invoice_month: undefined,
     invoice_month_overridden: false,
-    reconciled: false,
-    reconciled_at: undefined,
-    reconciled_by: undefined,
     ...overrides,
   });
 
