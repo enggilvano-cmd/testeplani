@@ -284,11 +284,6 @@ export default function AnalyticsPage({
           transactionDate >= customStartDate &&
           transactionDate <= customEndDate);
 
-      // Exclude overspent provisions (positive amount)
-      if (transaction.is_provision && transaction.amount > 0) {
-        return false;
-      }
-
       return (
         matchesSearch &&
         matchesType &&
@@ -440,6 +435,14 @@ export default function AnalyticsPage({
   }, [nonTransferFilteredTransactions, categories]);
 
 
+  const transactionsForBalance = useMemo(() => {
+    // Return all transactions to show global balance, ignoring filters
+    // except maybe account if we want to show balance for specific account?
+    // User request: "a linha de acumulados ... nao deve respeitar os filtro"
+    // This implies showing the GLOBAL balance history regardless of filters.
+    return transactions;
+  }, [transactions]);
+
   const monthlyData = useMemo(() => {
     const monthlyTotals = nonTransferFilteredTransactions.reduce(
       (acc, transaction) => {
@@ -470,60 +473,66 @@ export default function AnalyticsPage({
       a.localeCompare(b)
     );
 
-    const firstMonthKey = sortedEntries.length > 0 ? sortedEntries[0][0] : null;
-    
-    // Calculate initial balance based on current account balances (Anchor)
-    // This ensures manual balance adjustments are reflected
-    let previousBalance = 0;
-    
-    if (firstMonthKey) {
-      const [year, month] = firstMonthKey.split('-').map(Number);
-      const startDate = new Date(year, month - 1, 1);
-      
-      // 1. Start with Current Global Balance
+    // Helper to calculate balance at the START of a specific date
+    // Anchored to the current actual balance from accounts
+    const calculateBalanceAtStartOfDate = (targetDate: Date) => {
+      // 1. Start with the current actual balance (sum of all accounts)
+      // This includes the effect of all COMPLETED transactions up to now
       const currentTotalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
       
-      // 2. Reverse completed transactions since start date
-      const completedSinceTarget = transactions.filter(t => {
+      const targetDateStr = format(targetDate, 'yyyy-MM-dd');
+
+      // 2. Subtract COMPLETED transactions that happened ON or AFTER the target date
+      // We are moving backwards in time, so we reverse the effect of these transactions
+      const completedSinceTarget = transactionsForBalance.filter(t => {
         if (isTransferLike(t)) return false;
         if (t.status !== 'completed') return false;
+        
         const tDate = typeof t.date === 'string' ? createDateFromString(t.date) : t.date;
-        return tDate >= startDate;
+        const tDateStr = format(tDate, 'yyyy-MM-dd');
+        
+        // Include transactions on the target date itself because we want the balance at the START of that day
+        return tDateStr >= targetDateStr;
       });
       
       const netChangeSinceTarget = completedSinceTarget.reduce((acc, t) => {
-        const amount = Math.abs(Number(t.amount));
-        if (t.type === 'income') return acc + amount;
-        if (t.type === 'expense') return acc - amount;
+        if (t.type === 'income') return acc + Math.abs(t.amount);
+        if (t.type === 'expense') return acc - Math.abs(t.amount);
         return acc;
       }, 0);
       
-      // 3. Add pending transactions before start date (to get projected balance at that time)
-      const pendingBeforeTarget = transactions.filter(t => {
+      // 3. Add PENDING transactions that happened BEFORE the target date
+      // These are "debts" or "receivables" that should have affected the balance by that time
+      // if we are projecting a "real" balance including pending items
+      const pendingBeforeTarget = transactionsForBalance.filter(t => {
         if (isTransferLike(t)) return false;
         if (t.status !== 'pending') return false;
+        
         const tDate = typeof t.date === 'string' ? createDateFromString(t.date) : t.date;
-        return tDate < startDate;
+        const tDateStr = format(tDate, 'yyyy-MM-dd');
+
+        return tDateStr < targetDateStr;
       });
       
       const netPendingBeforeTarget = pendingBeforeTarget.reduce((acc, t) => {
-        const amount = Math.abs(Number(t.amount));
-        if (t.type === 'income') return acc + amount;
-        if (t.type === 'expense') return acc - amount;
+        if (t.type === 'income') return acc + Math.abs(t.amount);
+        if (t.type === 'expense') return acc - Math.abs(t.amount);
         return acc;
       }, 0);
       
-      previousBalance = currentTotalBalance - netChangeSinceTarget + netPendingBeforeTarget;
-    }
-
-    let saldoAcumulado = previousBalance;
+      // Formula: Balance(Start) = Current - (Completed >= Start) + (Pending < Start)
+      return currentTotalBalance - netChangeSinceTarget + netPendingBeforeTarget;
+    };
 
     const sortedMonths = sortedEntries.map(([monthKey, data]) => {
-      const saldoMensal = data.income + data.expenses;
-      saldoAcumulado += saldoMensal;
       const [year, month] = monthKey
         .split("-")
         .map((num) => parseInt(num, 10));
+      
+      // Calculate balance at the END of this month (which is START of next month)
+      // This ensures we show the "Real Balance" at that point in time, regardless of filters
+      const nextMonthStart = new Date(year, month, 1); // Month is 0-indexed in Date constructor, so month (1-12) becomes next month index
+      const saldoReal = calculateBalanceAtStartOfDate(nextMonthStart);
 
       return {
         month: format(new Date(year, month - 1, 1), "MMM/yy", {
@@ -531,12 +540,12 @@ export default function AnalyticsPage({
         }),
         receitas: data.income,
         despesas: Math.abs(data.expenses),
-        saldo: saldoAcumulado,
+        saldo: saldoReal,
       };
     });
 
     return sortedMonths;
-  }, [nonTransferFilteredTransactions, transactions]);
+  }, [nonTransferFilteredTransactions, transactionsForBalance, accounts]);
 
 
   const totalsByType = useMemo(() => {
@@ -1060,7 +1069,7 @@ export default function AnalyticsPage({
       color: "hsl(var(--destructive))",
     },
     saldo: {
-      label: "Saldo",
+      label: "Saldo Acumulado",
       color: "hsl(var(--primary))",
     },
   };
@@ -1553,7 +1562,7 @@ export default function AnalyticsPage({
                   {Object.entries(chartConfig).map(([key, config]) => {
                     const value = key === 'receitas' ? totalsByType.income :
                                   key === 'despesas' ? totalsByType.expenses :
-                                  (totalsByType.income - totalsByType.expenses);
+                                  (monthlyData.length > 0 ? monthlyData[monthlyData.length - 1].saldo : 0);
                     
                     const textColor = key === 'receitas' ? 'text-success' :
                                       key === 'despesas' ? 'text-destructive' :
@@ -1592,16 +1601,14 @@ export default function AnalyticsPage({
             {/* Legenda - mobile (abaixo do gráfico) */}
             {isMobile && (
               <div className="mt-4 flex flex-col gap-2 px-2">
-                {Object.entries(chartConfig).map(([key, config]) => {
+                  {Object.entries(chartConfig).map(([key, config]) => {
                   const value = key === 'receitas' ? totalsByType.income :
                                 key === 'despesas' ? totalsByType.expenses :
-                                (totalsByType.income - totalsByType.expenses);
+                                (monthlyData.length > 0 ? monthlyData[monthlyData.length - 1].saldo : 0);
                   
                   const textColor = key === 'receitas' ? 'text-success' :
                                     key === 'despesas' ? 'text-destructive' :
-                                    value >= 0 ? 'text-success' : 'text-destructive';
-
-                  return (
+                                    value >= 0 ? 'text-success' : 'text-destructive';                  return (
                     <div 
                       key={`legend-monthly-mobile-${key}`} 
                       className={cn(

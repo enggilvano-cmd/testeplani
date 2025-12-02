@@ -29,6 +29,8 @@ export function useDashboardChartData(
       // This includes the effect of all COMPLETED transactions up to now
       const currentTotalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
       
+      const targetDateStr = format(targetDate, 'yyyy-MM-dd');
+
       // 2. Subtract COMPLETED transactions that happened ON or AFTER the target date
       // We are moving backwards in time, so we reverse the effect of these transactions
       const completedSinceTarget = transactions.filter(t => {
@@ -36,13 +38,15 @@ export function useDashboardChartData(
         if (t.status !== 'completed') return false;
         
         const tDate = typeof t.date === 'string' ? createDateFromString(t.date) : t.date;
+        const tDateStr = format(tDate, 'yyyy-MM-dd');
+        
         // Include transactions on the target date itself because we want the balance at the START of that day
-        return tDate >= targetDate;
+        return tDateStr >= targetDateStr;
       });
       
       const netChangeSinceTarget = completedSinceTarget.reduce((acc, t) => {
-        if (t.type === 'income') return acc + t.amount;
-        if (t.type === 'expense') return acc - t.amount;
+        if (t.type === 'income') return acc + Math.abs(t.amount);
+        if (t.type === 'expense') return acc - Math.abs(t.amount);
         return acc;
       }, 0);
       
@@ -54,12 +58,14 @@ export function useDashboardChartData(
         if (t.status !== 'pending') return false;
         
         const tDate = typeof t.date === 'string' ? createDateFromString(t.date) : t.date;
-        return tDate < targetDate;
+        const tDateStr = format(tDate, 'yyyy-MM-dd');
+
+        return tDateStr < targetDateStr;
       });
       
       const netPendingBeforeTarget = pendingBeforeTarget.reduce((acc, t) => {
-        if (t.type === 'income') return acc + t.amount;
-        if (t.type === 'expense') return acc - t.amount;
+        if (t.type === 'income') return acc + Math.abs(t.amount);
+        if (t.type === 'expense') return acc - Math.abs(t.amount);
         return acc;
       }, 0);
       
@@ -109,7 +115,7 @@ export function useDashboardChartData(
       if (dailyFilteredTrans.length === 0) return [];
 
       const dailyTotals = dailyFilteredTrans
-        .filter(t => !isTransferLike(t) && !isProvision(t)) // Excluir transferências e provisões
+        .filter(t => !isTransferLike(t)) // Excluir transferências
         .reduce((acc, transaction) => {
         const transactionDate = typeof transaction.date === 'string'
           ? createDateFromString(transaction.date)
@@ -154,7 +160,7 @@ export function useDashboardChartData(
     } else {
       // Monthly Scale
       const monthlyTotals = transactions
-        .filter(t => !isTransferLike(t) && !isProvision(t)) // Excluir transferências e provisões
+        .filter(t => !isTransferLike(t)) // Excluir transferências
         .reduce((acc, transaction) => {
         const transactionDate = typeof transaction.date === 'string'
           ? createDateFromString(transaction.date)
