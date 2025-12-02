@@ -35,6 +35,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { FixedTransactionFilterDialog } from "@/components/fixedtransactions/FixedTransactionFilterDialog";
 import { FixedTransactionFilterChips } from "@/components/fixedtransactions/FixedTransactionFilterChips";
+import { Category, Account } from "@/types";
 
 interface FixedTransaction {
   id: string;
@@ -47,20 +48,15 @@ interface FixedTransaction {
   is_fixed: boolean;
   is_provision?: boolean;
   category?: { name: string; color: string } | null;
-  account?: { name: string } | null;
-}
-
-interface Account {
-  id: string;
-  name: string;
-  type: "checking" | "savings" | "credit" | "investment";
-  balance: number;
-  color: string;
+  account?: { name: string; color: string } | null;
 }
 
 interface FixedTransactionsFilters {
   searchTerm: string;
   filterType: "all" | "income" | "expense";
+  categoryId: string;
+  accountId: string;
+  isProvision: string;
 }
 
 export function FixedTransactionsPage() {
@@ -73,14 +69,23 @@ export function FixedTransactionsPage() {
     {
       searchTerm: "",
       filterType: "all",
+      categoryId: "all",
+      accountId: "all",
+      isProvision: "all",
     }
   );
 
   const searchTerm = filters.searchTerm;
   const filterType = filters.filterType;
+  const categoryId = filters.categoryId || "all";
+  const accountId = filters.accountId || "all";
+  const isProvision = filters.isProvision || "all";
 
   const setSearchTerm = (value: string) => setFilters((prev) => ({ ...prev, searchTerm: value }));
   const setFilterType = (value: typeof filters.filterType) => setFilters((prev) => ({ ...prev, filterType: value }));
+  const setCategoryId = (value: string) => setFilters((prev) => ({ ...prev, categoryId: value }));
+  const setAccountId = (value: string) => setFilters((prev) => ({ ...prev, accountId: value }));
+  const setIsProvision = (value: string) => setFilters((prev) => ({ ...prev, isProvision: value }));
   
   const isOnline = useOnlineStatus();
 
@@ -94,6 +99,7 @@ export function FixedTransactionsPage() {
   const transactions = data || [];
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [transactionToDelete, setTransactionToDelete] = useState<FixedTransaction | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -120,17 +126,71 @@ export function FixedTransactionsPage() {
       });
     }
 
+    if (categoryId !== "all") {
+      const category = categories.find((c) => c.id === categoryId);
+      if (category) {
+        chips.push({
+          id: "category",
+          label: category.name,
+          value: categoryId,
+          onRemove: () => setCategoryId("all"),
+        });
+      }
+    }
+
+    if (accountId !== "all") {
+      const account = accounts.find((a) => a.id === accountId);
+      if (account) {
+        chips.push({
+          id: "account",
+          label: account.name,
+          value: accountId,
+          onRemove: () => setAccountId("all"),
+        });
+      }
+    }
+
+    if (isProvision !== "all") {
+      chips.push({
+        id: "provision",
+        label: isProvision === "true" ? "Apenas Provisões" : "Sem Provisões",
+        value: isProvision,
+        onRemove: () => setIsProvision("all"),
+      });
+    }
+
     return chips;
-  }, [filterType]);
+  }, [filterType, categoryId, accountId, isProvision, categories, accounts]);
 
   const clearAllFilters = () => {
     setFilterType("all");
+    setCategoryId("all");
+    setAccountId("all");
+    setIsProvision("all");
   };
 
   useEffect(() => {
     loadAccounts();
+    loadCategories();
   }, []);
 
+  const loadCategories = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      logger.error("Error loading categories:", error);
+    }
+  };
 
   const loadAccounts = async () => {
     try {
@@ -759,9 +819,17 @@ export function FixedTransactionsPage() {
         .includes(searchTerm.toLowerCase());
       const matchesType =
         filterType === "all" || transaction.type === filterType;
-      return matchesSearch && matchesType;
+      const matchesCategory =
+        categoryId === "all" || transaction.category_id === categoryId;
+      const matchesAccount =
+        accountId === "all" || transaction.account_id === accountId;
+      const matchesProvision =
+        isProvision === "all" ||
+        (isProvision === "true" ? transaction.is_provision : !transaction.is_provision);
+
+      return matchesSearch && matchesType && matchesCategory && matchesAccount && matchesProvision;
     });
-  }, [transactions, searchTerm, filterType]);
+  }, [transactions, searchTerm, filterType, categoryId, accountId, isProvision]);
 
   const stats = useMemo(() => {
     const totalFixed = filteredTransactions.length;
@@ -789,15 +857,17 @@ export function FixedTransactionsPage() {
           .eq("parent_transaction_id", transaction.id)
           .eq("status", "pending");
 
+        const account = transaction.account || accounts.find(a => a.id === transaction.account_id);
+
         return {
           Descrição: transaction.description,
-          Valor: formatBRNumber(transaction.amount),
+          Valor: formatBRNumber(Math.abs(transaction.amount)),
           Tipo: transaction.type === "income" ? "Receita" : "Despesa",
-          Conta: transaction.account?.name || "",
+          Conta: account?.name || "",
           Categoria: transaction.category?.name || "",
           "Dia do Mês": parseInt(transaction.date.split('-')[2], 10),
-          Status: "Pendente",
           "Meses Gerados": count || 0,
+          "Provisão": transaction.is_provision ? "Sim" : "Não",
         };
       });
 
@@ -937,7 +1007,15 @@ export function FixedTransactionsPage() {
                 onOpenChange={setFilterDialogOpen}
                 filterType={filterType}
                 onFilterTypeChange={(value) => setFilterType(value as typeof filterType)}
+                categoryId={categoryId}
+                onCategoryIdChange={setCategoryId}
+                accountId={accountId}
+                onAccountIdChange={setAccountId}
+                isProvision={isProvision}
+                onIsProvisionChange={setIsProvision}
                 activeFiltersCount={filterChips.length}
+                accounts={accounts}
+                categories={categories}
               />
               
               <FixedTransactionFilterChips
@@ -986,7 +1064,9 @@ export function FixedTransactionsPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredTransactions.map((transaction) => (
+          filteredTransactions.map((transaction) => {
+            const account = transaction.account || accounts.find(a => a.id === transaction.account_id);
+            return (
             <Card key={transaction.id}>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -1006,6 +1086,7 @@ export function FixedTransactionsPage() {
                     </div>
                     <div className="flex flex-wrap gap-4 text-body text-muted-foreground">
                       <span>💰 {formatCurrency(Number(transaction.amount))}</span>
+                      <span>📅 Todo dia {parseInt(transaction.date.split('-')[2], 10)}</span>
                       {transaction.category && (
                         <span className="flex items-center gap-1">
                           <span
@@ -1015,10 +1096,15 @@ export function FixedTransactionsPage() {
                           {transaction.category.name}
                         </span>
                       )}
-                      {transaction.account && (
-                        <span>🏦 {transaction.account.name}</span>
+                      {account && (
+                        <span className="flex items-center gap-1">
+                          <span
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: account.color }}
+                          />
+                          {account.name}
+                        </span>
                       )}
-                      <span>📅 Todo dia {parseInt(transaction.date.split('-')[2], 10)}</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -1048,7 +1134,7 @@ export function FixedTransactionsPage() {
                 </div>
               </CardContent>
             </Card>
-          ))
+          )})
         )}
       </div>
 
@@ -1103,6 +1189,7 @@ export function FixedTransactionsPage() {
         onOpenChange={setImportModalOpen}
         onImportComplete={loadFixedTransactions}
         accounts={accounts}
+        categories={categories}
       />
     </div>
   );

@@ -36,10 +36,6 @@ export function FixedTransactionScopeDialog({
           <DialogTitle>
             {isDelete ? "Excluir Transação Fixa" : "Editar Transação Fixa"}
           </DialogTitle>
-          <DialogDescription>
-            Esta transação fixa gerou {pendingCount > 0 ? `${pendingCount} transação(ões) pendente(s)` : 'transações adicionais'}. 
-            Escolha quais transações você deseja {isDelete ? "excluir" : "editar"}:
-          </DialogDescription>
         </DialogHeader>
         
         {hasCompleted && (
@@ -54,7 +50,7 @@ export function FixedTransactionScopeDialog({
         <div className="space-y-3 pt-4">
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             onClick={() => handleScopeSelection("current")}
           >
             <div className="text-left">
@@ -70,7 +66,7 @@ export function FixedTransactionScopeDialog({
 
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             onClick={() => handleScopeSelection("current-and-remaining")}
           >
             <div className="text-left">
@@ -86,7 +82,7 @@ export function FixedTransactionScopeDialog({
 
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             onClick={() => handleScopeSelection("all")}
           >
             <div className="text-left">

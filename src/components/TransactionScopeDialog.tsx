@@ -64,8 +64,8 @@ export function TransactionScopeDialog({
           <div className="space-y-3 pt-4">
             <Button 
               variant="outline" 
-              className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
-              onClick={() => handleScopeSelection("current")}
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            onClick={() => handleScopeSelection("current")}
             >
               <div className="text-left">
                 <div className="font-medium">Apenas Esta Ocorrência</div>
@@ -80,8 +80,8 @@ export function TransactionScopeDialog({
 
             <Button 
               variant="outline" 
-              className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
-              onClick={() => handleScopeSelection("current-and-remaining")}
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            onClick={() => handleScopeSelection("current-and-remaining")}
             >
               <div className="text-left">
                 <div className="font-medium">Esta e Próximas Ocorrências</div>
@@ -96,8 +96,8 @@ export function TransactionScopeDialog({
 
             <Button 
               variant="outline" 
-              className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
-              onClick={() => handleScopeSelection("all")}
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            onClick={() => handleScopeSelection("all")}
             >
               <div className="text-left">
                 <div className="font-medium">Todas as Ocorrências</div>
@@ -127,29 +127,14 @@ export function TransactionScopeDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {isDelete ? "Escolher escopo da exclusão" : "Escolher escopo da edição"}
+            {isDelete ? "Excluir Transação Parcelada" : "Editar Transação Parcelada"}
           </DialogTitle>
-          <DialogDescription>
-            {isDelete 
-              ? `Defina se deseja excluir apenas esta ocorrência ou toda a série (atual: ${currentInstallment} de ${totalInstallments}).`
-              : `Defina se deseja editar apenas esta ocorrência ou toda a série (atual: ${currentInstallment} de ${totalInstallments}).`
-            }
-          </DialogDescription>
         </DialogHeader>
         
-        {hasCompleted && (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Algumas parcelas já foram pagas e não poderão ser {isDelete ? "excluídas" : "editadas"} em alguns escopos.
-            </AlertDescription>
-          </Alert>
-        )}
-
         <div className="space-y-3 pt-4">
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             onClick={() => handleScopeSelection("current")}
           >
             <div className="text-left">
@@ -166,8 +151,8 @@ export function TransactionScopeDialog({
           {currentInstallment < totalInstallments && (
             <Button 
               variant="outline" 
-              className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
-              onClick={() => handleScopeSelection("current-and-remaining")}
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            onClick={() => handleScopeSelection("current-and-remaining")}
             >
               <div className="text-left">
                 <div className="font-medium">Esta e Próximas Parcelas</div>
@@ -183,7 +168,7 @@ export function TransactionScopeDialog({
 
           <Button 
             variant="outline" 
-            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0"
+            className="w-full justify-start h-auto p-4 hover:bg-accent hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             onClick={() => handleScopeSelection("all")}
           >
             <div className="text-left">

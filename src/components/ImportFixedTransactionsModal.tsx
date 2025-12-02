@@ -22,6 +22,8 @@ import { Upload, FileSpreadsheet, AlertCircle, Download, MoreVertical, PlusCircl
 import { supabase } from "@/integrations/supabase/client";
 import { ImportSummaryCards } from "@/components/import/ImportSummaryCards";
 
+import { Category } from "@/types";
+
 interface Account {
   id: string;
   name: string;
@@ -33,6 +35,7 @@ interface ImportFixedTransactionsModalProps {
   onOpenChange: (open: boolean) => void;
   onImportComplete: () => void;
   accounts: Account[];
+  categories: Category[];
 }
 
 interface ImportedFixedTransaction {
@@ -42,13 +45,12 @@ interface ImportedFixedTransaction {
   conta: string;
   categoria: string;
   diaDoMes: number;
-  status?: string;
   mesesGerados?: number;
+  isProvision: boolean;
   isValid: boolean;
   errors: string[];
   accountId?: string;
   parsedType?: 'income' | 'expense';
-  parsedStatus?: 'completed' | 'pending';
   isDuplicate: boolean;
   existingTransactionId?: string;
   resolution: 'skip' | 'add' | 'replace';
@@ -59,16 +61,18 @@ export function ImportFixedTransactionsModal({
   onOpenChange,
   onImportComplete,
   accounts,
+  categories,
 }: ImportFixedTransactionsModalProps) {
-  interface ExistingTransaction {
+    interface ExistingTransaction {
     id: string;
     description: string;
     account_id: string;
     amount: number;
     date: string;
-  }
-
-  const [file, setFile] = useState<File | null>(null);
+    type: string;
+    category_id: string;
+    is_provision?: boolean;
+  }  const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importedData, setImportedData] = useState<ImportedFixedTransaction[]>([]);
@@ -94,14 +98,8 @@ export function ImportFixedTransactionsModal({
     return null;
   };
 
-  // Validar status
-  const validateStatus = (status: string): 'completed' | 'pending' | null => {
-    if (!status) return 'pending'; // padrão para fixas
-    const normalizedStatus = normalizeString(status);
-    if (['concluida', 'completed', 'finalizada'].includes(normalizedStatus)) return 'completed';
-    if (['pendente', 'pending'].includes(normalizedStatus)) return 'pending';
-    return null;
-  };
+  // Validar status - REMOVIDO pois não é mais usado na importação/exportação
+  // const validateStatus = ...
 
   // Encontrar conta por nome
   const findAccountByName = (accountName: string): Account | null => {
@@ -112,13 +110,19 @@ export function ImportFixedTransactionsModal({
   // Extrair valor da célula (suporta diferentes formatos)
   const extractValue = (row: Record<string, unknown>, keys: string[]): unknown => {
     for (const key of keys) {
+      // Tentativa direta
       if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
         return row[key];
       }
-      const lowerKey = key.toLowerCase();
+      
+      // Busca insensível a maiúsculas/minúsculas, espaços e acentos
+      const normalizedKey = normalizeString(key);
       for (const rowKey of Object.keys(row)) {
-        if (rowKey.toLowerCase() === lowerKey) {
-          return row[rowKey];
+        if (normalizeString(rowKey) === normalizedKey) {
+           const val = row[rowKey];
+           if (val !== undefined && val !== null && val !== '') {
+             return val;
+           }
         }
       }
     }
@@ -153,16 +157,20 @@ export function ImportFixedTransactionsModal({
     const descricao = String(extractValue(row, ['Descrição', 'Description', 'descricao', 'description']) || '');
     
     // Parse valor com suporte ao formato brasileiro (ponto = milhar, vírgula = decimal)
-    // SEMPRE positivo - o edge function aplica o sinal baseado no tipo
+    // Retorna valor em REAIS (float)
     const rawValor = String(extractValue(row, ['Valor', 'Amount', 'valor', 'amount']) || '0');
-    const valor = Math.abs(Math.round(parseFloat(rawValor.replace(/\./g, '').replace(',', '.')) * 100));
+    // Remove pontos de milhar e troca vírgula decimal por ponto
+    const cleanValor = rawValor.replace(/\./g, '').replace(',', '.');
+    const valor = Math.abs(parseFloat(cleanValor));
     
     const tipo = String(extractValue(row, ['Tipo', 'Type', 'tipo', 'type']) || '');
     const conta = String(extractValue(row, ['Conta', 'Account', 'conta', 'account']) || '');
     const categoria = String(extractValue(row, ['Categoria', 'Category', 'categoria', 'category']) || '');
     const diaDoMes = parseInt(String(extractValue(row, ['Dia do Mês', 'Day of Month', 'diaDoMes', 'dia']) || '0'));
-    const status = String(extractValue(row, ['Status', 'status']) || 'pending');
     const mesesGerados = parseInt(String(extractValue(row, ['Meses Gerados', 'Generated Months', 'mesesGerados', 'meses']) || '0'));
+    
+    const rawProvisao = String(extractValue(row, ['Provisão', 'Provision', 'provisao', 'provision', 'is_provision', 'provisionado', 'é provisão', 'e provisao']) || '');
+    const isProvision = ['sim', 'yes', 'true', 'verdadeiro', '1', 's', 'y', 'ok'].includes(normalizeString(rawProvisao));
 
     // Validações
     if (!descricao) {
@@ -202,14 +210,8 @@ export function ImportFixedTransactionsModal({
     }
 
     const account = findAccountByName(conta);
-    if (!account) {
+    if (!account && conta) {
       errors.push('Conta não encontrada');
-      isValid = false;
-    }
-
-    const parsedStatus = validateStatus(status);
-    if (!parsedStatus) {
-      errors.push('Status inválido (use: Pendente ou Concluída)');
       isValid = false;
     }
 
@@ -223,10 +225,27 @@ export function ImportFixedTransactionsModal({
         const isSameDescription = normalizeString(tx.description) === normalizeString(descricao);
         const isSameAmount = Math.abs(tx.amount) === valorInCents;
         const isSameAccount = tx.account_id === account.id;
-        const txDate = new Date(tx.date);
-        const isSameDay = txDate.getDate() === diaDoMes;
         
-        return isSameDescription && isSameAmount && isSameAccount && isSameDay;
+        // Comparação de data segura (string split)
+        const txDay = parseInt(tx.date.split('-')[2], 10);
+        const isSameDay = txDay === diaDoMes;
+
+        // Comparação de tipo
+        const isSameType = tx.type === parsedType;
+
+        // Comparação de categoria (se possível resolver)
+        let isSameCategory = true;
+        if (categoria && categories.length > 0) {
+           const categoryId = categories.find(c => normalizeString(c.name) === normalizeString(categoria))?.id;
+           if (categoryId) {
+             isSameCategory = tx.category_id === categoryId;
+           }
+        }
+
+        // Comparação de provisão
+        const isSameProvision = (tx.is_provision || false) === isProvision;
+        
+        return isSameDescription && isSameAmount && isSameAccount && isSameDay && isSameType && isSameCategory && isSameProvision;
       });
 
       if (existing) {
@@ -242,13 +261,12 @@ export function ImportFixedTransactionsModal({
       conta,
       categoria,
       diaDoMes,
-      status,
       mesesGerados,
+      isProvision,
       isValid,
       errors,
       accountId: account?.id,
       parsedType: parsedType || undefined,
-      parsedStatus: parsedStatus || undefined,
       isDuplicate,
       existingTransactionId,
       resolution: isDuplicate ? 'skip' : 'add',
@@ -334,8 +352,8 @@ export function ImportFixedTransactionsModal({
           'Conta': accounts[0]?.name || 'Conta Corrente',
           'Categoria': 'Habitação',
           'Dia do Mês': 5,
-          'Status': 'Pendente',
-          'Meses Gerados': 12
+          'Meses Gerados': 12,
+          'Provisão': 'Não'
         },
         {
           'Descrição': 'Salário',
@@ -344,8 +362,8 @@ export function ImportFixedTransactionsModal({
           'Conta': accounts[0]?.name || 'Conta Corrente',
           'Categoria': 'Salário',
           'Dia do Mês': 1,
-          'Status': 'Pendente',
-          'Meses Gerados': 0
+          'Meses Gerados': 0,
+          'Provisão': 'Não'
         },
         {
           'Descrição': 'Internet',
@@ -354,8 +372,8 @@ export function ImportFixedTransactionsModal({
           'Conta': accounts[0]?.name || 'Conta Corrente',
           'Categoria': 'Serviços',
           'Dia do Mês': 10,
-          'Status': 'Pendente',
-          'Meses Gerados': 0
+          'Meses Gerados': 0,
+          'Provisão': 'Sim'
         }
       ];
 
@@ -371,8 +389,8 @@ export function ImportFixedTransactionsModal({
         { wch: 25 }, // Conta
         { wch: 20 }, // Categoria
         { wch: 12 }, // Dia do Mês
-        { wch: 12 }, // Status
-        { wch: 15 }  // Meses Gerados
+        { wch: 15 }, // Meses Gerados
+        { wch: 12 }  // Provisão
       ];
       ws['!cols'] = colWidths;
 
@@ -493,6 +511,11 @@ export function ImportFixedTransactionsModal({
           const amount = Math.round(Math.abs(t.valor) * 100);
           const categoryId = categoryMap.get(normalizeString(t.categoria)) || null;
 
+          // Log para debug da provisão
+          if (t.isProvision) {
+            logger.info(`Importando transação com provisão: ${t.descricao}`, { isProvision: t.isProvision });
+          }
+
           const { data, error } = await supabase.functions.invoke('atomic-create-fixed', {
             body: {
               description: t.descricao.trim(),
@@ -501,7 +524,8 @@ export function ImportFixedTransactionsModal({
               type: t.parsedType,
               category_id: categoryId,
               account_id: t.accountId,
-              status: t.parsedStatus || 'pending',
+              status: 'pending',
+              is_provision: !!t.isProvision, // Garante envio explícito do booleano
             },
           });
 
@@ -562,6 +586,7 @@ export function ImportFixedTransactionsModal({
                           status: "pending" as const,
                           user_id: user.id,
                           is_fixed: false,
+                          is_provision: t.isProvision,
                           parent_transaction_id: data.parent_id,
                         });
                       }
@@ -725,7 +750,7 @@ export function ImportFixedTransactionsModal({
                         <li><strong>Conta:</strong> Nome da conta (deve existir)</li>
                         <li><strong>Categoria:</strong> Categoria da transação</li>
                         <li><strong>Dia do Mês:</strong> Número de 1 a 31</li>
-                        <li><strong>Status:</strong> Pendente ou Concluída (opcional)</li>
+                        <li><strong>Provisão:</strong> Sim ou Não (opcional)</li>
                       </ul>
                     </div>
                     <Button
@@ -866,12 +891,10 @@ export function ImportFixedTransactionsModal({
                               <span className="ml-1 truncate" title={transaction.categoria}>{transaction.categoria}</span>
                             </div>
                           )}
-                          {transaction.status && (
-                            <div>
-                              <span className="text-muted-foreground">Status:</span>
-                              <span className="ml-1 capitalize">{transaction.status}</span>
-                            </div>
-                          )}
+                          <div>
+                            <span className="text-muted-foreground">Provisão:</span>
+                            <span className="ml-1">{transaction.isProvision ? 'Sim' : 'Não'}</span>
+                          </div>
                         </div>
 
                         {/* Resolution Badge for Duplicates */}

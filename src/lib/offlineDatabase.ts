@@ -213,6 +213,16 @@ class OfflineDatabase {
 
   async getFixedTransactions(userId: string): Promise<Transaction[]> {
     if (!this.db) await this.init();
+
+    // Fetch categories and accounts first to join
+    const [categories, accounts] = await Promise.all([
+        this.getCategories(userId),
+        this.getAccounts(userId)
+    ]);
+
+    const categoryMap = new Map(categories.map(c => [c.id, c]));
+    const accountMap = new Map(accounts.map(a => [a.id, a]));
+
     return new Promise((resolve, reject) => {
       const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readonly');
       const store = tx.objectStore(STORES.TRANSACTIONS);
@@ -227,8 +237,15 @@ class OfflineDatabase {
           (txData.parent_transaction_id === null || txData.parent_transaction_id === undefined)
         );
 
-        fixedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        resolve(fixedTransactions);
+        // Join with categories and accounts
+        const enrichedTransactions = fixedTransactions.map(tx => ({
+            ...tx,
+            category: tx.category_id ? categoryMap.get(tx.category_id) : undefined,
+            account: tx.account_id ? accountMap.get(tx.account_id) : undefined
+        }));
+
+        enrichedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        resolve(enrichedTransactions);
       };
       request.onerror = () => reject(request.error);
     });

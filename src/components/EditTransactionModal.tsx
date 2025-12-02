@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useCategories } from "@/hooks/useCategories";
 import { TransactionScopeDialog, EditScope } from "./TransactionScopeDialog";
@@ -8,6 +9,8 @@ import { EditTransactionModalProps } from "@/types/formProps";
 import { useEditTransactionScope } from "@/hooks/edit-transaction/useEditTransactionScope";
 import { useEditTransactionForm } from "@/hooks/edit-transaction/useEditTransactionForm";
 import { EditTransactionFormFields } from "./edit-transaction/EditTransactionFormFields";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export function EditTransactionModal({
   open,
@@ -38,6 +41,42 @@ export function EditTransactionModal({
     validateForm,
     getUpdates,
   } = useEditTransactionForm(transaction, accounts, open, isTransfer);
+
+  const [fixedSequence, setFixedSequence] = useState<{ current: number; total: number } | null>(null);
+
+  useEffect(() => {
+    async function loadSequence() {
+      if (isFixed && transaction) {
+        const parentId = transaction.parent_transaction_id || transaction.id;
+        const { data } = await supabase
+          .from('transactions')
+          .select('id, date')
+          .or(`id.eq.${parentId},parent_transaction_id.eq.${parentId}`)
+          .order('date', { ascending: true });
+        
+        if (data) {
+          // Ordenação secundária por ID para garantir consistência em datas iguais
+          const sortedData = data.sort((a, b) => {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            if (dateA === dateB) {
+              return a.id.localeCompare(b.id);
+            }
+            return dateA - dateB;
+          });
+
+          const index = sortedData.findIndex(t => t.id === transaction.id);
+          setFixedSequence({
+            current: index !== -1 ? index + 1 : 1,
+            total: sortedData.length
+          });
+        }
+      } else {
+        setFixedSequence(null);
+      }
+    }
+    loadSequence();
+  }, [isFixed, transaction, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,14 +129,23 @@ export function EditTransactionModal({
           <DialogHeader>
             <DialogTitle className="text-headline">
               Editar Transação
-              {isInstallment && (
-                <span className="text-body font-normal text-muted-foreground block">
-                  Parcela {transaction?.current_installment} de {transaction?.installments}
-                </span>
-              )}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isInstallment && (
+              <div className="space-y-2">
+                <div className="text-body font-medium">
+                  Parcela {transaction?.current_installment} de {transaction?.installments}
+                </div>
+              </div>
+            )}
+            {isFixed && fixedSequence && (
+              <div className="space-y-2">
+                <div className="text-body font-medium">
+                  Parcela {fixedSequence.current} de {fixedSequence.total}
+                </div>
+              </div>
+            )}
             <EditTransactionFormFields
               formData={formData}
               onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}

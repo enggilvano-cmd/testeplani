@@ -9,7 +9,9 @@ export function useEditTransactionScope(transaction: Transaction | null) {
   const [hasCompletedTransactions, setHasCompletedTransactions] = useState(false);
 
   const isInstallment = Boolean(transaction?.installments && transaction.installments > 1);
-  const isFixed = Boolean(transaction?.is_fixed || transaction?.parent_transaction_id);
+  // Fix: Only consider it fixed if is_fixed is explicitly true. 
+  // Checking parent_transaction_id caused installment transactions (which also have parents) to be treated as fixed.
+  const isFixed = Boolean(transaction?.is_fixed);
 
   const checkScopeRequired = async () => {
     if (!transaction) return false;

@@ -256,7 +256,7 @@ export function TransactionsPage({
         onImportTransactions={onImportTransactions}
       />
 
-      {pendingDeleteTransaction && (pendingDeleteTransaction.is_fixed || pendingDeleteTransaction.parent_transaction_id) && (
+      {pendingDeleteTransaction && pendingDeleteTransaction.is_fixed && (
         <FixedTransactionScopeDialog
           open={scopeDialogOpen}
           onOpenChange={setScopeDialogOpen}
@@ -279,7 +279,7 @@ export function TransactionsPage({
         />
       )}
 
-      {pendingDeleteTransaction && !pendingDeleteTransaction.is_fixed && !pendingDeleteTransaction.parent_transaction_id && (
+      {pendingDeleteTransaction && !pendingDeleteTransaction.is_fixed && (
         <TransactionScopeDialog
           open={scopeDialogOpen}
           onOpenChange={setScopeDialogOpen}
