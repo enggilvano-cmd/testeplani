@@ -224,7 +224,7 @@ export function EditAccountModal({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-caption">Saldo Atual</Label>
+            <Label className="text-caption">Saldo Inicial</Label>
             <CurrencyInput
               value={formData.balanceInCents}
               onValueChange={(value) =>
@@ -242,8 +242,8 @@ export function EditAccountModal({
               {formData.type === "credit" 
                 ? "Limite do Cartão" 
                 : formData.type === "checking" 
-                ? "Limite de Cheque Especial (opcional)" 
-                : "Limite (opcional)"}
+                ? "Limite de Cheque Especial" 
+                : "Limite"}
             </Label>
             <CurrencyInput
               id="limit"

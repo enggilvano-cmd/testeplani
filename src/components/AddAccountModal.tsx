@@ -218,8 +218,8 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
               {formData.type === "credit" 
                 ? "Limite do Cartão" 
                 : formData.type === "checking" 
-                ? "Limite de Cheque Especial (opcional)" 
-                : "Limite (opcional)"}
+                ? "Limite de Cheque Especial" 
+                : "Limite"}
             </Label>
             <CurrencyInput
               value={formData.limitInCents || 0}
