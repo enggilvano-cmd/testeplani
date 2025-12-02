@@ -11,8 +11,12 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getTodayString, createDateFromString } from "@/lib/dateUtils";
 import { useCategories } from "@/hooks/useCategories";
-import { TransactionFormFields } from "./add-transaction/TransactionFormFields";
-import { AccountCategoryFields } from "./add-transaction/AccountCategoryFields";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrencyInput } from "@/components/forms/CurrencyInput";
+import { DatePicker } from "@/components/ui/date-picker";
+import { ACCOUNT_TYPE_LABELS } from "@/types";
+import { formatCurrency } from "@/lib/formatters";
 
 interface Account {
   id: string;
@@ -140,55 +144,188 @@ export function AddFixedTransactionModal({
           <DialogTitle className="text-headline">Nova Transação Fixa</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <TransactionFormFields
-            description={formData.description}
-            type={formData.type}
-            amount={formData.amount}
-            date={formData.date}
-            status={formData.status}
-            validationErrors={validationErrors}
-            onDescriptionChange={(value) =>
-              setFormData((prev) => ({ ...prev, description: value }))
-            }
-            onTypeChange={(value) =>
-              setFormData((prev) => ({
-                ...prev,
-                type: value as "income" | "expense",
-                category_id: "",
-              }))
-            }
-            onAmountChange={(value) =>
-              setFormData((prev) => ({ ...prev, amount: value }))
-            }
-            onDateChange={(value) =>
-              setFormData((prev) => ({ ...prev, date: value }))
-            }
-            onStatusChange={(value) =>
-              setFormData((prev) => ({ ...prev, status: value }))
-            }
-          />
+          {/* Description */}
+          <div className="space-y-2">
+            <Label htmlFor="description" className="text-caption">Descrição</Label>
+            <Input
+              id="description"
+              placeholder="Ex: Compra no mercado, salário, etc."
+              value={formData.description}
+              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+            />
+            {validationErrors.description && (
+              <p className="text-body text-destructive">{validationErrors.description}</p>
+            )}
+          </div>
 
-          <AccountCategoryFields
-            accountId={formData.account_id}
-            categoryId={formData.category_id}
-            type={formData.type}
-            accounts={accounts}
-            categories={filteredCategories}
-            validationErrors={validationErrors}
-            onAccountChange={(value) =>
-              setFormData((prev) => ({ ...prev, account_id: value }))
-            }
-            onCategoryChange={(value) => {
-              const selectedCategory = categories.find(c => c.id === value);
-              setFormData((prev) => {
-                let newType = prev.type;
-                if (!newType && selectedCategory && selectedCategory.type !== 'both') {
-                  newType = selectedCategory.type as "income" | "expense";
-                }
-                return { ...prev, category_id: value, type: newType };
-              });
-            }}
-          />
+          {/* Type and Amount */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="type" className="text-caption">Tipo</Label>
+              <Select
+                value={formData.type}
+                onValueChange={(value) => setFormData((prev) => ({
+                  ...prev,
+                  type: value as "income" | "expense",
+                  category_id: "",
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">Receita</SelectItem>
+                  <SelectItem value="expense">Despesa</SelectItem>
+                </SelectContent>
+              </Select>
+              {validationErrors.type && (
+                <p className="text-body text-destructive">{validationErrors.type}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount" className="text-caption">Valor</Label>
+              <CurrencyInput
+                id="amount"
+                value={formData.amount}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, amount: value }))}
+                className="h-10 sm:h-11"
+              />
+              {validationErrors.amount && (
+                <p className="text-sm text-destructive">{validationErrors.amount}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Date and Category */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="date" className="text-caption">Data</Label>
+              <DatePicker
+                date={formData.date ? createDateFromString(formData.date) : undefined}
+                onDateChange={(newDate) => {
+                  if (newDate) {
+                    const year = newDate.getFullYear();
+                    const month = String(newDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(newDate.getDate()).padStart(2, '0');
+                    setFormData((prev) => ({ ...prev, date: `${year}-${month}-${day}` }));
+                  }
+                }}
+                placeholder="Selecione a data"
+              />
+              {validationErrors.date && (
+                <p className="text-body text-destructive">{validationErrors.date}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category_id" className="text-caption">Categoria</Label>
+              <Select
+                value={formData.category_id}
+                onValueChange={(value) => {
+                  const selectedCategory = categories.find(c => c.id === value);
+                  setFormData((prev) => {
+                    let newType = prev.type;
+                    if (!newType && selectedCategory && selectedCategory.type !== 'both') {
+                      newType = selectedCategory.type as "income" | "expense";
+                    }
+                    return { ...prev, category_id: value, type: newType };
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredCategories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: category.color }}
+                        />
+                        {category.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {validationErrors.category_id && (
+                <p className="text-body text-destructive">{validationErrors.category_id}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Account */}
+          <div className="space-y-2">
+            <Label htmlFor="account_id" className="text-caption">Conta</Label>
+            <Select
+              value={formData.account_id}
+              onValueChange={(value) => setFormData((prev) => ({ ...prev, account_id: value }))}
+            >
+              <SelectTrigger className="h-auto">
+                <SelectValue placeholder="Selecione uma conta">
+                  {formData.account_id && (() => {
+                    const selectedAccount = accounts.find((acc) => acc.id === formData.account_id);
+                    if (!selectedAccount) return null;
+                    return (
+                      <div className="flex flex-col gap-1 w-full py-1">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{
+                              backgroundColor: selectedAccount.color || "#6b7280",
+                            }}
+                          />
+                          <span className="text-body font-medium">{selectedAccount.name}</span>
+                          <span className="text-caption text-muted-foreground">
+                            - {ACCOUNT_TYPE_LABELS[selectedAccount.type]}
+                          </span>
+                        </div>
+                        <div className="text-caption text-muted-foreground pl-5">
+                          {formatCurrency(selectedAccount.balance)}
+                          {selectedAccount.limit_amount && selectedAccount.limit_amount > 0 && (
+                            <span className="text-primary font-semibold"> + {formatCurrency(selectedAccount.limit_amount)} limite</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    <div className="flex flex-col gap-1 w-full">
+                      <div className="flex justify-between items-center w-full">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{
+                              backgroundColor: account.color || "#6b7280",
+                            }}
+                          />
+                          <span className="text-body">{account.name}</span>
+                        </div>
+                        <span className="ml-2 text-caption text-muted-foreground">
+                          {ACCOUNT_TYPE_LABELS[account.type]}
+                        </span>
+                      </div>
+                      <div className="text-caption text-muted-foreground">
+                        {formatCurrency(account.balance)}
+                        {account.limit_amount && account.limit_amount > 0 && (
+                          <span className="text-primary"> + {formatCurrency(account.limit_amount)} limite</span>
+                        )}
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {validationErrors.account_id && (
+              <p className="text-body text-destructive">{validationErrors.account_id}</p>
+            )}
+          </div>
 
           <div className="flex items-center space-x-2">
             <Switch

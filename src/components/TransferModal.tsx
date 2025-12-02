@@ -309,12 +309,6 @@ export function TransferModal({ open, onOpenChange, onTransfer }: TransferModalP
             </div>
           </div>
 
-          <p className="text-caption text-center text-muted-foreground pt-2">
-            Não é possível transferir para contas de crédito.
-            <br />
-            Para pagar uma fatura de cartão, use o botão "Pagar Fatura".
-          </p>
-
           {sourceAccounts.length < 2 && (
             <div className="p-4 bg-muted rounded-lg">
               <p className="text-body text-muted-foreground">

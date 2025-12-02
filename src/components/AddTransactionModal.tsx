@@ -11,7 +11,6 @@ import { TransactionFormFields } from "./add-transaction/TransactionFormFields";
 import { AccountCategoryFields } from "./add-transaction/AccountCategoryFields";
 import { InvoiceMonthSelector } from "./add-transaction/InvoiceMonthSelector";
 import { InstallmentOptions } from "./add-transaction/InstallmentOptions";
-import { FixedTransactionOptions } from "./add-transaction/FixedTransactionOptions";
 
 export function AddTransactionModal({
   open,
@@ -72,6 +71,7 @@ export function AddTransactionModal({
             date={formData.date}
             status={formData.status}
             lockType={lockType}
+            hideType={lockType}
             validationErrors={validationErrors}
             onDescriptionChange={(value) =>
               setFormData((prev) => ({ ...prev, description: value }))
@@ -146,18 +146,6 @@ export function AddTransactionModal({
               setFormData((prev) => ({ ...prev, installments: value }));
             }}
             onCustomInstallmentsChange={setCustomInstallments}
-          />
-
-          <FixedTransactionOptions
-            isFixed={formData.isFixed}
-            date={formData.date}
-            isInstallment={formData.isInstallment}
-            onFixedChange={(checked) =>
-              setFormData((prev) => ({
-                ...prev,
-                isFixed: checked,
-              }))
-            }
           />
 
           <div className="flex gap-3 pt-4">

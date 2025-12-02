@@ -12,6 +12,7 @@ interface TransactionFormFieldsProps {
   date: string;
   status: "pending" | "completed";
   lockType?: boolean;
+  hideType?: boolean;
   validationErrors: Record<string, string>;
   onDescriptionChange: (value: string) => void;
   onTypeChange: (value: "income" | "expense" | "transfer") => void;
@@ -27,6 +28,7 @@ export function TransactionFormFields({
   date,
   status,
   lockType = false,
+  hideType = false,
   validationErrors,
   onDescriptionChange,
   onTypeChange,
@@ -49,27 +51,7 @@ export function TransactionFormFields({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="type" className="text-caption">Tipo</Label>
-          <Select
-            value={type}
-            onValueChange={onTypeChange}
-            disabled={lockType}
-          >
-            <SelectTrigger disabled={lockType}>
-              <SelectValue placeholder="Selecione o tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="income">Receita</SelectItem>
-              <SelectItem value="expense">Despesa</SelectItem>
-            </SelectContent>
-          </Select>
-          {validationErrors.type && (
-            <p className="text-body text-destructive">{validationErrors.type}</p>
-          )}
-        </div>
-
+      {hideType ? (
         <div className="space-y-2">
           <Label htmlFor="amount" className="text-caption">Valor</Label>
           <CurrencyInput
@@ -82,7 +64,42 @@ export function TransactionFormFields({
             <p className="text-sm text-destructive">{validationErrors.amount}</p>
           )}
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="type" className="text-caption">Tipo</Label>
+            <Select
+              value={type}
+              onValueChange={onTypeChange}
+              disabled={lockType}
+            >
+              <SelectTrigger disabled={lockType}>
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="income">Receita</SelectItem>
+                <SelectItem value="expense">Despesa</SelectItem>
+              </SelectContent>
+            </Select>
+            {validationErrors.type && (
+              <p className="text-body text-destructive">{validationErrors.type}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="amount" className="text-caption">Valor</Label>
+            <CurrencyInput
+              id="amount"
+              value={amount}
+              onValueChange={onAmountChange}
+              className="h-10 sm:h-11"
+            />
+            {validationErrors.amount && (
+              <p className="text-sm text-destructive">{validationErrors.amount}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
