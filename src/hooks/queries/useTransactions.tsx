@@ -19,6 +19,8 @@ interface UseTransactionsParams {
   categoryId?: string;
   status?: 'pending' | 'completed' | 'all';
   accountType?: 'checking' | 'savings' | 'credit' | 'investment' | 'meal_voucher' | 'all';
+  isFixed?: 'true' | 'false' | 'all';
+  isProvision?: 'true' | 'false' | 'all';
   dateFrom?: string;
   dateTo?: string;
   sortBy?: 'date' | 'amount';
@@ -79,6 +81,8 @@ export function useTransactions(params: UseTransactionsParams = {}) {
     categoryId = 'all',
     status = 'all',
     accountType = 'all',
+    isFixed = 'all',
+    isProvision = 'all',
     dateFrom,
     dateTo,
     sortBy = 'date',
@@ -123,6 +127,18 @@ export function useTransactions(params: UseTransactionsParams = {}) {
       // Status
       if (status !== 'all' && t.status !== status) return false;
 
+      // Is Fixed
+      if (isFixed !== 'all') {
+        const isFixedBool = isFixed === 'true';
+        if (!!t.is_fixed !== isFixedBool) return false;
+      }
+
+      // Is Provision
+      if (isProvision !== 'all') {
+        const isProvisionBool = isProvision === 'true';
+        if (!!t.is_provision !== isProvisionBool) return false;
+      }
+
       // Date Range
       if (dateFrom && t.date < dateFrom) return false;
       if (dateTo && t.date > dateTo) return false;
@@ -145,7 +161,7 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
   // Query for total count with filters
   const countQuery = useQuery({
-    queryKey: [...queryKeys.transactions(), 'count', search, type, accountId, categoryId, status, accountType, dateFrom, dateTo, isOnline],
+    queryKey: [...queryKeys.transactions(), 'count', search, type, accountId, categoryId, status, accountType, isFixed, isProvision, dateFrom, dateTo, isOnline],
     queryFn: async () => {
       if (!user) return 0;
 
@@ -185,6 +201,14 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
       if (status !== 'all') {
         query = query.eq('status', status);
+      }
+
+      if (isFixed !== 'all') {
+        query = query.eq('is_fixed', isFixed === 'true');
+      }
+
+      if (isProvision !== 'all') {
+        query = query.eq('is_provision', isProvision === 'true');
       }
 
       if (dateFrom) {
@@ -314,6 +338,14 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
       if (status !== 'all') {
         query = query.eq('status', status);
+      }
+
+      if (isFixed !== 'all') {
+        query = query.eq('is_fixed', isFixed === 'true');
+      }
+
+      if (isProvision !== 'all') {
+        query = query.eq('is_provision', isProvision === 'true');
       }
 
       if (dateFrom) {

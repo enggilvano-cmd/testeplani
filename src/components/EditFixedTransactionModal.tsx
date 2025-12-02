@@ -12,30 +12,13 @@ import { useCategories } from "@/hooks/useCategories";
 import { createDateFromString } from "@/lib/dateUtils";
 import { EditTransactionFormFields } from "./edit-transaction/EditTransactionFormFields";
 
-interface FixedTransaction {
-  id: string;
-  description: string;
-  amount: number;
-  date: string;
-  type: "income" | "expense";
-  category_id: string | null;
-  account_id: string;
-  is_fixed: boolean;
-}
-
-interface Account {
-  id: string;
-  name: string;
-  type: "checking" | "savings" | "credit" | "investment";
-  balance: number;
-  color: string;
-}
+import { Transaction, Account } from "@/types";
 
 interface EditFixedTransactionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onEditTransaction: (transaction: FixedTransaction) => void;
-  transaction: FixedTransaction;
+  onEditTransaction: (transaction: Transaction) => void;
+  transaction: Transaction;
   accounts: Account[];
 }
 
@@ -61,11 +44,15 @@ export function EditFixedTransactionModal({
 
   useEffect(() => {
     if (open && transaction) {
+      const dateObj = typeof transaction.date === 'string' 
+        ? createDateFromString(transaction.date) 
+        : transaction.date;
+
       setFormData({
         description: transaction.description,
         amountInCents: Math.round(Math.abs(Number(transaction.amount)) * 100),
-        date: createDateFromString(transaction.date),
-        type: transaction.type,
+        date: dateObj,
+        type: transaction.type as "income" | "expense",
         category_id: transaction.category_id || "",
         account_id: transaction.account_id,
         status: "pending", // Fixed transactions don't have status in definition, default to pending
@@ -116,13 +103,21 @@ export function EditFixedTransactionModal({
     const day = String(formData.date.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
 
+    // Ensure amount has correct sign based on type
+    let finalAmount = formData.amountInCents / 100;
+    if (formData.type === "expense") {
+      finalAmount = -Math.abs(finalAmount);
+    } else {
+      finalAmount = Math.abs(finalAmount);
+    }
+
     onEditTransaction({
-      id: transaction.id,
+      ...transaction, // Keep other fields
       description: formData.description,
-      amount: formData.amountInCents / 100,
+      amount: finalAmount,
       date: dateString,
       type: formData.type,
-      category_id: formData.category_id || null,
+      category_id: formData.category_id || "",
       account_id: formData.account_id,
       is_fixed: true,
     });

@@ -26,7 +26,6 @@ export function useOfflineCategoryMutations() {
         name: categoryData.name,
         type: categoryData.type,
         color: categoryData.color || '#6b7280',
-        chart_account_id: categoryData.chart_account_id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -67,7 +66,6 @@ export function useOfflineCategoryMutations() {
     name: string;
     type: 'income' | 'expense' | 'both';
     color?: string;
-    chart_account_id?: string;
   }) => {
     if (isOnline) {
       // Online: usar lógica normal
@@ -79,7 +77,6 @@ export function useOfflineCategoryMutations() {
             name: categoryData.name,
             type: categoryData.type,
             color: categoryData.color || '#6b7280',
-            chart_account_id: categoryData.chart_account_id,
             user_id: user.id,
           });
 
@@ -162,7 +159,6 @@ export function useOfflineCategoryMutations() {
     name?: string;
     type?: 'income' | 'expense' | 'both';
     color?: string;
-    chart_account_id?: string;
   }) => {
     if (isOnline) {
       // Online: usar lógica normal
@@ -302,7 +298,6 @@ export function useOfflineCategoryMutations() {
           name: cat.name,
           type: cat.type,
           color: cat.color || '#6b7280',
-          chart_account_id: cat.chart_account_id,
           user_id: user.id,
         }));
 

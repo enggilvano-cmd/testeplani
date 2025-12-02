@@ -15,7 +15,7 @@ export function useCategories() {
       
       const { data, error } = await supabase
         .from('categories')
-        .select('id, name, type, color, chart_account_id, created_at, updated_at')
+        .select('id, name, type, color, created_at, updated_at')
         .eq('user_id', user.id)
         .order('name', { ascending: true });
         

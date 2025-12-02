@@ -47,7 +47,7 @@ export function useEditTransactionForm(
       
       const initialData: FormData = {
         description: transaction.description || "",
-        amountInCents: Math.abs(transaction.amount),
+        amountInCents: Math.round(Math.abs(transaction.amount) * 100),
         date: transactionDate,
         type: transactionType as "income" | "expense",
         category_id: transaction.category_id || "",
@@ -117,8 +117,17 @@ export function useEditTransactionForm(
       }
     }
     
-    if (formData.amountInCents !== originalData.amountInCents) {
-      updates.amount = Math.abs(formData.amountInCents);
+    const typeChanged = !isTransfer && formData.type !== originalData.type;
+    const amountChanged = formData.amountInCents !== originalData.amountInCents;
+
+    if (amountChanged || typeChanged) {
+      let finalAmount = formData.amountInCents / 100;
+      if (formData.type === "expense") {
+        finalAmount = -Math.abs(finalAmount);
+      } else {
+        finalAmount = Math.abs(finalAmount);
+      }
+      updates.amount = finalAmount;
     }
     
     if (formData.date.getTime() !== originalData.date.getTime()) {

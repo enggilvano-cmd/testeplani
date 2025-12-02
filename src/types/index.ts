@@ -4,7 +4,6 @@ export interface Category {
   name: string;
   type: "income" | "expense" | "both";
   color: string;
-  chart_account_id?: string | null;
   user_id?: string;
 }
 

@@ -28,6 +28,10 @@ interface TransactionFilterDialogProps {
   onFilterTypeChange: (value: string) => void;
   filterStatus: string;
   onFilterStatusChange: (value: string) => void;
+  filterIsFixed: string;
+  onFilterIsFixedChange: (value: string) => void;
+  filterIsProvision: string;
+  onFilterIsProvisionChange: (value: string) => void;
   filterAccountType: string;
   onFilterAccountTypeChange: (value: string) => void;
   filterAccount: string;
@@ -54,6 +58,10 @@ export function TransactionFilterDialog({
   onFilterTypeChange,
   filterStatus,
   onFilterStatusChange,
+  filterIsFixed,
+  onFilterIsFixedChange,
+  filterIsProvision,
+  onFilterIsProvisionChange,
   filterAccountType,
   onFilterAccountTypeChange,
   filterAccount,
@@ -121,6 +129,37 @@ export function TransactionFilterDialog({
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="completed">Concluído</SelectItem>
                   <SelectItem value="pending">Pendente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Fixa e Provisão */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="filterIsFixed">Fixa</Label>
+              <Select value={filterIsFixed} onValueChange={onFilterIsFixedChange}>
+                <SelectTrigger id="filterIsFixed" className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="true">Apenas Fixas</SelectItem>
+                  <SelectItem value="false">Excluir Fixas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="filterIsProvision">Provisão</Label>
+              <Select value={filterIsProvision} onValueChange={onFilterIsProvisionChange}>
+                <SelectTrigger id="filterIsProvision" className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="true">Apenas Provisões</SelectItem>
+                  <SelectItem value="false">Excluir Provisões</SelectItem>
                 </SelectContent>
               </Select>
             </div>

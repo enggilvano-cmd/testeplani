@@ -6,6 +6,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { TransactionScopeDialog, EditScope } from "./TransactionScopeDialog";
 import { FixedTransactionScopeDialog, FixedScope } from "./FixedTransactionScopeDialog";
 import { EditTransactionModalProps } from "@/types/formProps";
+import { TransactionUpdate } from "@/types";
 import { useEditTransactionScope } from "@/hooks/edit-transaction/useEditTransactionScope";
 import { useEditTransactionForm } from "@/hooks/edit-transaction/useEditTransactionForm";
 import { EditTransactionFormFields } from "./edit-transaction/EditTransactionFormFields";
@@ -103,7 +104,7 @@ export function EditTransactionModal({
       return;
     }
 
-    onEditTransaction({ id: transaction.id, ...updates } as typeof transaction, editScope);
+    onEditTransaction({ id: transaction.id, ...updates } as TransactionUpdate, editScope);
     
     const scopeDescription = editScope === "current" ? "Transação atual atualizada com sucesso" : 
                              editScope === "all" ? "Todas as parcelas atualizadas com sucesso" :

@@ -26,6 +26,7 @@ export function EditAccountModal({
   const [formData, setFormData] = useState({
     name: "",
     type: "" as "checking" | "savings" | "credit" | "investment" | "meal_voucher" | "",
+    balanceInCents: 0,
     limitInCents: 0,
     dueDate: "",
     closingDate: "",
@@ -40,6 +41,7 @@ export function EditAccountModal({
       setFormData({
         name: account.name,
         type: account.type,
+        balanceInCents: account.balance,
         limitInCents: account.limit_amount || 0,
         dueDate: account.due_date?.toString() || "",
         closingDate: account.closing_date?.toString() || "",
@@ -61,9 +63,6 @@ export function EditAccountModal({
       });
       return;
     }
-
-    // Mantém o saldo atual da conta sem permitir edição
-    const balanceInCents = account.balance;
 
     // Permite salvar 0 como limite (para remover cheque especial/limite)
     // Antes convertia 0 para null/undefined, o que impedia a atualização
@@ -95,21 +94,55 @@ export function EditAccountModal({
       }
     }
 
-    const updatedAccount: Account = {
-      id: account.id,
-      user_id: account.user_id,
-      name: formData.name.trim(),
-      type: formData.type,
-      balance: balanceInCents,
-      limit_amount: dbLimitAmount ?? undefined,
-      due_date: dueDate,
-      closing_date: closingDate,
-      color: formData.color,
-    };
+    const updates: Partial<Account> & { id: string } = { id: account.id };
+    let hasChanges = false;
+
+    if (formData.name.trim() !== account.name) {
+      updates.name = formData.name.trim();
+      hasChanges = true;
+    }
+    if (formData.type !== account.type) {
+      updates.type = formData.type;
+      hasChanges = true;
+    }
+
+    if (formData.balanceInCents !== account.balance) {
+      updates.balance = formData.balanceInCents;
+      hasChanges = true;
+    }
+    
+    if (dbLimitAmount !== (account.limit_amount || 0)) {
+        updates.limit_amount = dbLimitAmount || 0;
+        hasChanges = true;
+    }
+
+    if (dueDate !== account.due_date) {
+        updates.due_date = dueDate;
+        hasChanges = true;
+    }
+
+    if (closingDate !== account.closing_date) {
+        updates.closing_date = closingDate;
+        hasChanges = true;
+    }
+
+    if (formData.color !== account.color) {
+        updates.color = formData.color;
+        hasChanges = true;
+    }
+
+    if (!hasChanges) {
+        toast({
+            title: "Aviso",
+            description: "Nenhuma alteração detectada",
+        });
+        onOpenChange(false);
+        return;
+    }
 
     setIsSubmitting(true);
     try {
-      await onEditAccount(updatedAccount);
+      await onEditAccount(updates);
 
       toast({
         title: "Sucesso",
@@ -188,6 +221,17 @@ export function EditAccountModal({
                 </SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-caption">Saldo Atual</Label>
+            <CurrencyInput
+              value={formData.balanceInCents}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, balanceInCents: value || 0 }))
+              }
+              allowNegative
+            />
           </div>
 
           <div className="space-y-2">

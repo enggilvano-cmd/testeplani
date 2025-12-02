@@ -41,6 +41,10 @@ interface TransactionsPageProps {
   onFilterCategoryChange: (categoryId: string) => void;
   filterStatus: "all" | "pending" | "completed";
   onFilterStatusChange: (status: "all" | "pending" | "completed") => void;
+  filterIsFixed: string;
+  onFilterIsFixedChange: (value: string) => void;
+  filterIsProvision: string;
+  onFilterIsProvisionChange: (value: string) => void;
   filterAccountType: string;
   onFilterAccountTypeChange: (type: string) => void;
   dateFrom?: string;
@@ -88,6 +92,10 @@ export function TransactionsPage({
   onFilterCategoryChange,
   filterStatus,
   onFilterStatusChange,
+  filterIsFixed,
+  onFilterIsFixedChange,
+  filterIsProvision,
+  onFilterIsProvisionChange,
   filterAccountType,
   onFilterAccountTypeChange,
   dateFrom,
@@ -139,6 +147,10 @@ export function TransactionsPage({
     onFilterTypeChange,
     filterStatus,
     onFilterStatusChange,
+    filterIsFixed,
+    onFilterIsFixedChange,
+    filterIsProvision,
+    onFilterIsProvisionChange,
     filterAccountType,
     onFilterAccountTypeChange,
     filterAccount,
@@ -191,6 +203,10 @@ export function TransactionsPage({
         onFilterTypeChange={onFilterTypeChange}
         filterStatus={filterStatus}
         onFilterStatusChange={onFilterStatusChange}
+        filterIsFixed={filterIsFixed}
+        onFilterIsFixedChange={onFilterIsFixedChange}
+        filterIsProvision={filterIsProvision}
+        onFilterIsProvisionChange={onFilterIsProvisionChange}
         filterAccountType={filterAccountType}
         onFilterAccountTypeChange={onFilterAccountTypeChange}
         filterAccount={filterAccount}

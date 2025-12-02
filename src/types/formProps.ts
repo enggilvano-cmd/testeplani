@@ -3,7 +3,7 @@
  * Garante type safety e consistência nas interfaces dos modais
  */
 
-import { Transaction, Account, Category, TransactionInput, InstallmentTransactionInput } from "./index";
+import { Transaction, Account, Category, TransactionInput, InstallmentTransactionInput, TransactionUpdate } from "./index";
 import {
   AddAccountFormData,
   EditAccountFormData,
@@ -29,7 +29,7 @@ export interface AddAccountModalProps extends BaseModalProps {}
 
 export interface EditAccountModalProps extends BaseModalProps {
   account: Account | null;
-  onEditAccount: (account: Account) => Promise<void>;
+  onEditAccount: (account: Partial<Account> & { id: string }) => Promise<void>;
 }
 
 // ============= Category Modal Props =============
@@ -40,7 +40,7 @@ export interface AddCategoryModalProps extends BaseModalProps {
 
 export interface EditCategoryModalProps extends BaseModalProps {
   category: Category | null;
-  onEditCategory: (category: Category) => void;
+  onEditCategory: (category: Partial<Category> & { id: string }) => void;
 }
 
 // ============= Transaction Modal Props =============
@@ -61,7 +61,7 @@ export interface EditTransactionModalProps extends BaseModalProps {
   transaction: Transaction | null;
   accounts: Account[];
   onEditTransaction: (
-    transaction: Transaction,
+    transaction: TransactionUpdate,
     editScope?: "current" | "current-and-remaining" | "all"
   ) => void;
 }

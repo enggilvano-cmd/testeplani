@@ -18,7 +18,7 @@ export function useAccountHandlers() {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
 
-  const handleEditAccount = useCallback(async (updatedAccount: Account) => {
+  const handleEditAccount = useCallback(async (updatedAccount: Partial<Account> & { id: string }) => {
     if (!user) return;
     try {
       const { error } = await supabase

@@ -21,6 +21,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
   const [formData, setFormData] = useState({
     name: "",
     type: "" as "checking" | "savings" | "credit" | "investment" | "meal_voucher" | "",
+    balanceInCents: 0,
     limitInCents: 0,
     dueDate: "",
     closingDate: "",
@@ -75,8 +76,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
     }
     // --- Fim da Correção ---
 
-    // Saldo inicial sempre começa em 0
-    const balanceInCents = 0;
+    const balanceInCents = formData.balanceInCents;
 
     const limitInCents =
       formData.limitInCents > 0 ? formData.limitInCents : undefined;
@@ -125,6 +125,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
       setFormData({
         name: "",
         type: "" as "checking" | "savings" | "credit" | "investment" | "meal_voucher" | "",
+        balanceInCents: 0,
         limitInCents: 0,
         dueDate: "",
         closingDate: "",
@@ -197,6 +198,18 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
                 </SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Saldo Inicial */}
+          <div className="space-y-2">
+            <Label className="text-caption">Saldo Inicial</Label>
+            <CurrencyInput
+              value={formData.balanceInCents}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, balanceInCents: value || 0 }))
+              }
+              allowNegative
+            />
           </div>
 
           {/* Limite da Conta */}

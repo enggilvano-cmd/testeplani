@@ -118,7 +118,6 @@ export function CategoriesPage({}: CategoriesPageProps) {
         name: categoryData.name,
         type: categoryData.type,
         color: categoryData.color,
-        chart_account_id: categoryData.chart_account_id ?? undefined,
       });
       return;
     }
@@ -151,13 +150,12 @@ export function CategoriesPage({}: CategoriesPageProps) {
       });
     }
   };
-  const handleEditCategory = async (updatedCategory: Category) => {
+  const handleEditCategory = async (updatedCategory: Partial<Category> & { id: string }) => {
     if (!isOnline) {
       await offlineEditCategory(updatedCategory.id, {
         name: updatedCategory.name,
         type: updatedCategory.type,
         color: updatedCategory.color,
-        chart_account_id: updatedCategory.chart_account_id ?? undefined,
       });
       setEditingCategory(null);
       return;

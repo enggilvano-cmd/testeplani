@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, TrendingUp, TrendingDown, Calendar, Search, CalendarPlus, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, Calendar, Search, CalendarPlus, DollarSign, MoreVertical } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +25,7 @@ import { logger } from "@/lib/logger";
 import { AddFixedTransactionModal } from "./AddFixedTransactionModal";
 import { EditFixedTransactionModal } from "./EditFixedTransactionModal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryClient";
 import { FixedTransactionPageActions } from "./fixedtransactions/FixedTransactionPageActions";
 import { ImportFixedTransactionsModal } from "./ImportFixedTransactionsModal";
@@ -35,21 +35,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { FixedTransactionFilterDialog } from "@/components/fixedtransactions/FixedTransactionFilterDialog";
 import { FixedTransactionFilterChips } from "@/components/fixedtransactions/FixedTransactionFilterChips";
-import { Category, Account } from "@/types";
-
-interface FixedTransaction {
-  id: string;
-  description: string;
-  amount: number;
-  date: string;
-  type: "income" | "expense";
-  category_id: string | null;
-  account_id: string;
-  is_fixed: boolean;
-  is_provision?: boolean;
-  category?: { name: string; color: string } | null;
-  account?: { name: string; color: string } | null;
-}
+import { FixedTransactionList } from "./fixedtransactions/FixedTransactionList";
+import type { Category, Account, Transaction } from "@/types";
 
 interface FixedTransactionsFilters {
   searchTerm: string;
@@ -100,11 +87,11 @@ export function FixedTransactionsPage() {
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [transactionToDelete, setTransactionToDelete] = useState<FixedTransaction | null>(null);
+  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [transactionToEdit, setTransactionToEdit] = useState<FixedTransaction | null>(null);
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -210,7 +197,7 @@ export function FixedTransactionsPage() {
     }
   };
 
-  const handleAdd = async (transaction: Omit<FixedTransaction, "id"> & { status?: "pending" | "completed" }) => {
+  const handleAdd = async (transaction: Omit<Transaction, "id" | "created_at" | "updated_at" | "user_id"> & { status?: "pending" | "completed" }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -342,12 +329,12 @@ export function FixedTransactionsPage() {
     }
   };
 
-  const handleEditClick = async (transaction: FixedTransaction) => {
+  const handleEditClick = async (transaction: Transaction) => {
     setTransactionToEdit(transaction);
     setEditModalOpen(true);
   };
 
-  const handleEdit = async (transaction: FixedTransaction) => {
+  const handleEdit = async (transaction: Transaction) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -522,7 +509,7 @@ export function FixedTransactionsPage() {
     }
   };
 
-  const handleDeleteClick = async (transaction: FixedTransaction) => {
+  const handleDeleteClick = async (transaction: Transaction) => {
     setTransactionToDelete(transaction);
     setDeleteDialogOpen(true);
   };
@@ -858,6 +845,7 @@ export function FixedTransactionsPage() {
           .eq("status", "pending");
 
         const account = transaction.account || accounts.find(a => a.id === transaction.account_id);
+        const dateStr = typeof transaction.date === 'string' ? transaction.date : transaction.date.toISOString().split('T')[0];
 
         return {
           Descrição: transaction.description,
@@ -865,7 +853,7 @@ export function FixedTransactionsPage() {
           Tipo: transaction.type === "income" ? "Receita" : "Despesa",
           Conta: account?.name || "",
           Categoria: transaction.category?.name || "",
-          "Dia do Mês": parseInt(transaction.date.split('-')[2], 10),
+          "Dia do Mês": parseInt(dateStr.split('-')[2], 10),
           "Meses Gerados": count || 0,
           "Provisão": transaction.is_provision ? "Sim" : "Não",
         };
@@ -876,7 +864,7 @@ export function FixedTransactionsPage() {
       const XLSX = await loadXLSX();
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Transações Fixas");
+      XLSX.utils.book_append_sheet(wb, ws, "Planejamento");
       
       const fileName = `transacoes_fixas_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
@@ -1028,7 +1016,7 @@ export function FixedTransactionsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar transações fixas..."
+                placeholder="Buscar planejamento..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -1044,7 +1032,7 @@ export function FixedTransactionsPage() {
           <div className="flex gap-3 items-start">
             <CalendarPlus className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
             <p className="text-body text-muted-foreground">
-              <strong>Dica:</strong> Use o botão <CalendarPlus className="h-4 w-4 inline mx-1" /> ao lado de cada transação 
+              <strong>Dica:</strong> Use o botão <MoreVertical className="h-4 w-4 inline mx-1" /> ao lado de cada transação 
               para adicionar automaticamente mais 12 transações no ano subsequente às já lançadas.
             </p>
           </div>
@@ -1052,90 +1040,14 @@ export function FixedTransactionsPage() {
       </Card>
 
       <div className="space-y-4">
-        {filteredTransactions.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">
-                Nenhuma transação fixa encontrada.
-                <br />
-                Adicione transações fixas para gerenciar suas receitas e despesas mensais.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredTransactions.map((transaction) => {
-            const account = transaction.account || accounts.find(a => a.id === transaction.account_id);
-            return (
-            <Card key={transaction.id}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-headline font-semibold">
-                        {transaction.description}
-                      </h3>
-                      <Badge variant={transaction.type === "income" ? "default" : "destructive"}>
-                        {transaction.type === "income" ? "Receita" : "Despesa"}
-                      </Badge>
-                      {transaction.is_provision && (
-                        <Badge variant="secondary">
-                          Provisão
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-4 text-body text-muted-foreground">
-                      <span>💰 {formatCurrency(Number(transaction.amount))}</span>
-                      <span>📅 Todo dia {parseInt(transaction.date.split('-')[2], 10)}</span>
-                      {transaction.category && (
-                        <span className="flex items-center gap-1">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: transaction.category.color }}
-                          />
-                          {transaction.category.name}
-                        </span>
-                      )}
-                      {account && (
-                        <span className="flex items-center gap-1">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: account.color }}
-                          />
-                          {account.name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleGenerateNext12Months(transaction.id)}
-                      title="Gerar mais 12 meses"
-                    >
-                      <CalendarPlus className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleEditClick(transaction)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleDeleteClick(transaction)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )})
-        )}
+        <FixedTransactionList
+          transactions={filteredTransactions}
+          accounts={accounts}
+          categories={categories}
+          onEdit={handleEditClick}
+          onDelete={handleDeleteClick}
+          onGenerateNext12Months={handleGenerateNext12Months}
+        />
       </div>
 
       {/* AlertDialog para confirmação de exclusão */}

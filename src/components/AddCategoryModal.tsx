@@ -8,20 +8,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Category, PREDEFINED_COLORS } from "@/types";
 import { ColorPicker } from "./forms/ColorPicker";
 import { AddCategoryModalProps } from "@/types/formProps";
-import { useChartOfAccounts } from "@/hooks/useChartOfAccounts";
 
 export function AddCategoryModal({ open, onOpenChange, onAddCategory }: AddCategoryModalProps) {
   const [formData, setFormData] = useState({
     name: "",
     type: "" as Category["type"] | "",
-    color: PREDEFINED_COLORS[0],
-    chart_account_id: "_none_" as string | undefined
+    color: PREDEFINED_COLORS[0]
   });
   const { toast } = useToast();
-  
-  // Carregar contas contábeis baseado no tipo selecionado
-  const categoryFilter = formData.type === "income" ? "revenue" : formData.type === "expense" ? "expense" : undefined;
-  const { chartAccounts } = useChartOfAccounts(categoryFilter);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,16 +32,14 @@ export function AddCategoryModal({ open, onOpenChange, onAddCategory }: AddCateg
     onAddCategory({
       name: formData.name.trim(),
       type: formData.type,
-      color: formData.color,
-      chart_account_id: formData.chart_account_id === "_none_" ? null : formData.chart_account_id || null
+      color: formData.color
     });
 
     // Reset form
     setFormData({
       name: "",
       type: "",
-      color: PREDEFINED_COLORS[0],
-      chart_account_id: "_none_"
+      color: PREDEFINED_COLORS[0]
     });
     
     onOpenChange(false);
@@ -57,8 +49,7 @@ export function AddCategoryModal({ open, onOpenChange, onAddCategory }: AddCateg
     setFormData({
       name: "",
       type: "",
-      color: PREDEFINED_COLORS[0],
-      chart_account_id: "_none_"
+      color: PREDEFINED_COLORS[0]
     });
     onOpenChange(false);
   };
@@ -105,33 +96,6 @@ export function AddCategoryModal({ open, onOpenChange, onAddCategory }: AddCateg
             onChange={handleColorChange}
           />
 
-          {formData.type && formData.type !== "both" && (
-            <div className="space-y-2">
-              <Label htmlFor="chart_account" className="text-caption">
-                Conta Contábil (Opcional)
-              </Label>
-              <Select 
-                value={formData.chart_account_id} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, chart_account_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a conta contábil" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none_">Nenhuma</SelectItem>
-                  {chartAccounts.map(account => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.code} - {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Vincule esta categoria a uma conta do plano de contas para que apareça corretamente no DRE
-              </p>
-            </div>
-          )}
-
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={handleCancel} className="flex-1 text-body">
               Cancelar
@@ -145,3 +109,4 @@ export function AddCategoryModal({ open, onOpenChange, onAddCategory }: AddCateg
     </Dialog>
   );
 }
+

@@ -15,6 +15,10 @@ interface UseTransactionsPageLogicProps {
   onFilterTypeChange: (type: "all" | "income" | "expense" | "transfer") => void;
   filterStatus: "all" | "pending" | "completed";
   onFilterStatusChange: (status: "all" | "pending" | "completed") => void;
+  filterIsFixed: string;
+  onFilterIsFixedChange: (value: string) => void;
+  filterIsProvision: string;
+  onFilterIsProvisionChange: (value: string) => void;
   filterAccountType: string;
   onFilterAccountTypeChange: (type: string) => void;
   filterAccount: string;
@@ -43,6 +47,10 @@ export function useTransactionsPageLogic({
   onFilterTypeChange,
   filterStatus,
   onFilterStatusChange,
+  filterIsFixed,
+  onFilterIsFixedChange,
+  filterIsProvision,
+  onFilterIsProvisionChange,
   filterAccountType,
   onFilterAccountTypeChange,
   filterAccount,
@@ -124,7 +132,7 @@ export function useTransactionsPageLogic({
       };
       chips.push({
         id: "type",
-        label: `Tipo: ${typeLabels[filterType as keyof typeof typeLabels]}`,
+        label: typeLabels[filterType as keyof typeof typeLabels],
         value: filterType,
         onRemove: () => onFilterTypeChange("all"),
       });
@@ -137,9 +145,27 @@ export function useTransactionsPageLogic({
       };
       chips.push({
         id: "status",
-        label: `Status: ${statusLabels[filterStatus as keyof typeof statusLabels]}`,
+        label: statusLabels[filterStatus as keyof typeof statusLabels],
         value: filterStatus,
         onRemove: () => onFilterStatusChange("all"),
+      });
+    }
+
+    if (filterIsFixed !== "all") {
+      chips.push({
+        id: "isFixed",
+        label: filterIsFixed === "true" ? "Fixa" : "Não Fixa",
+        value: filterIsFixed,
+        onRemove: () => onFilterIsFixedChange("all"),
+      });
+    }
+
+    if (filterIsProvision !== "all") {
+      chips.push({
+        id: "isProvision",
+        label: filterIsProvision === "true" ? "Provisão" : "Não Provisão",
+        value: filterIsProvision,
+        onRemove: () => onFilterIsProvisionChange("all"),
       });
     }
 
@@ -153,7 +179,7 @@ export function useTransactionsPageLogic({
       };
       chips.push({
         id: "accountType",
-        label: `Tipo: ${accountTypeLabels[filterAccountType as keyof typeof accountTypeLabels]}`,
+        label: accountTypeLabels[filterAccountType as keyof typeof accountTypeLabels],
         value: filterAccountType,
         onRemove: () => onFilterAccountTypeChange("all"),
       });
@@ -164,7 +190,7 @@ export function useTransactionsPageLogic({
       if (account) {
         chips.push({
           id: "account",
-          label: `Conta: ${account.name}`,
+          label: account.name,
           value: filterAccount,
           color: account.color,
           onRemove: () => onFilterAccountChange("all"),
@@ -177,7 +203,7 @@ export function useTransactionsPageLogic({
       if (category) {
         chips.push({
           id: "category",
-          label: `Categoria: ${category.name}`,
+          label: category.name,
           value: filterCategory,
           color: category.color,
           onRemove: () => onFilterCategoryChange("all"),
@@ -198,7 +224,7 @@ export function useTransactionsPageLogic({
       if (periodLabel) {
         chips.push({
           id: "period",
-          label: `Período: ${periodLabel}`,
+          label: periodLabel,
           value: periodFilter,
           onRemove: () => handleDateFilterChange("all"),
         });
@@ -209,6 +235,8 @@ export function useTransactionsPageLogic({
   }, [
     filterType,
     filterStatus,
+    filterIsFixed,
+    filterIsProvision,
     filterAccountType,
     filterAccount,
     filterCategory,
@@ -220,6 +248,8 @@ export function useTransactionsPageLogic({
     categories,
     onFilterTypeChange,
     onFilterStatusChange,
+    onFilterIsFixedChange,
+    onFilterIsProvisionChange,
     onFilterAccountTypeChange,
     onFilterAccountChange,
     onFilterCategoryChange,
@@ -229,6 +259,8 @@ export function useTransactionsPageLogic({
   const clearAllFilters = () => {
     onFilterTypeChange("all");
     onFilterStatusChange("all");
+    onFilterIsFixedChange("all");
+    onFilterIsProvisionChange("all");
     onFilterAccountTypeChange("all");
     onFilterAccountChange("all");
     onFilterCategoryChange("all");

@@ -41,7 +41,7 @@ const menuItems = [
   { id: "categories", label: "Categorias", icon: Tag },
   { id: "credit-bills", label: "Faturas de Cartão", icon: Receipt },
   { id: "transactions", label: "Transações", icon: ArrowLeftRight },
-  { id: "fixed", label: "Transações Fixas", icon: Calendar },
+  { id: "fixed", label: "Planejamento", icon: Calendar },
   { id: "analytics", label: "Análises", icon: BarChart3 },
 ];
 

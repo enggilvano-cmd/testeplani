@@ -50,6 +50,8 @@ interface TransactionsFilters {
   filterCategory: string;
   filterStatus: "all" | "pending" | "completed";
   filterAccountType: "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher";
+  filterIsFixed: "all" | "true" | "false";
+  filterIsProvision: "all" | "true" | "false";
   dateFrom?: string;
   dateTo?: string;
   sortBy: "date" | "amount";
@@ -117,6 +119,8 @@ const PlaniFlowApp = () => {
       filterCategory: "all",
       filterStatus: "all",
       filterAccountType: "all",
+      filterIsFixed: "all",
+      filterIsProvision: "all",
       dateFrom: undefined,
       dateTo: undefined,
       sortBy: "date",
@@ -140,6 +144,8 @@ const PlaniFlowApp = () => {
   const setTransactionsFilterCategory = (filterCategory: string) => updateTransactionsFilter({ filterCategory });
   const setTransactionsFilterStatus = (filterStatus: typeof transactionsFilters.filterStatus) => updateTransactionsFilter({ filterStatus });
   const setTransactionsFilterAccountType = (filterAccountType: typeof transactionsFilters.filterAccountType) => updateTransactionsFilter({ filterAccountType });
+  const setTransactionsFilterIsFixed = (filterIsFixed: typeof transactionsFilters.filterIsFixed) => updateTransactionsFilter({ filterIsFixed });
+  const setTransactionsFilterIsProvision = (filterIsProvision: typeof transactionsFilters.filterIsProvision) => updateTransactionsFilter({ filterIsProvision });
   const setTransactionsDateFrom = (dateFrom: string | undefined) => updateTransactionsFilter({ dateFrom });
   const setTransactionsDateTo = (dateTo: string | undefined) => updateTransactionsFilter({ dateTo });
   const setTransactionsSortBy = (sortBy: typeof transactionsFilters.sortBy) => updateTransactionsFilter({ sortBy });
@@ -156,6 +162,8 @@ const PlaniFlowApp = () => {
   const transactionsFilterCategory = transactionsFilters.filterCategory;
   const transactionsFilterStatus = transactionsFilters.filterStatus;
   const transactionsFilterAccountType = transactionsFilters.filterAccountType;
+  const transactionsFilterIsFixed = transactionsFilters.filterIsFixed;
+  const transactionsFilterIsProvision = transactionsFilters.filterIsProvision;
   const transactionsDateFrom = transactionsFilters.dateFrom;
   const transactionsDateTo = transactionsFilters.dateTo;
   const transactionsSortBy = transactionsFilters.sortBy;
@@ -191,6 +199,8 @@ const PlaniFlowApp = () => {
     categoryId: transactionsFilters.filterCategory,
     status: transactionsFilters.filterStatus,
     accountType: transactionsFilters.filterAccountType,
+    isFixed: transactionsFilters.filterIsFixed,
+    isProvision: transactionsFilters.filterIsProvision,
     dateFrom: transactionsFilters.dateFrom,
     dateTo: transactionsFilters.dateTo,
     sortBy: transactionsFilters.sortBy,
@@ -524,6 +534,10 @@ const PlaniFlowApp = () => {
             onFilterStatusChange={setTransactionsFilterStatus}
             filterAccountType={transactionsFilterAccountType}
             onFilterAccountTypeChange={(value: string) => setTransactionsFilterAccountType(value as "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher")}
+            filterIsFixed={transactionsFilterIsFixed}
+            onFilterIsFixedChange={(value: string) => setTransactionsFilterIsFixed(value as "all" | "true" | "false")}
+            filterIsProvision={transactionsFilterIsProvision}
+            onFilterIsProvisionChange={(value: string) => setTransactionsFilterIsProvision(value as "all" | "true" | "false")}
             dateFrom={transactionsDateFrom}
             dateTo={transactionsDateTo}
             onDateFromChange={setTransactionsDateFrom}

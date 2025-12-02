@@ -33,6 +33,10 @@ interface TransactionFiltersBarProps {
   onFilterTypeChange: (type: "all" | "income" | "expense" | "transfer") => void;
   filterStatus: "all" | "pending" | "completed";
   onFilterStatusChange: (status: "all" | "pending" | "completed") => void;
+  filterIsFixed: string;
+  onFilterIsFixedChange: (value: string) => void;
+  filterIsProvision: string;
+  onFilterIsProvisionChange: (value: string) => void;
   filterAccountType: string;
   onFilterAccountTypeChange: (type: string) => void;
   filterAccount: string;
@@ -66,6 +70,10 @@ export function TransactionFiltersBar({
   onFilterTypeChange,
   filterStatus,
   onFilterStatusChange,
+  filterIsFixed,
+  onFilterIsFixedChange,
+  filterIsProvision,
+  onFilterIsProvisionChange,
   filterAccountType,
   onFilterAccountTypeChange,
   filterAccount,
@@ -116,6 +124,10 @@ export function TransactionFiltersBar({
               onFilterTypeChange={(value) => onFilterTypeChange(value as typeof filterType)}
               filterStatus={filterStatus}
               onFilterStatusChange={(value) => onFilterStatusChange(value as typeof filterStatus)}
+              filterIsFixed={filterIsFixed}
+              onFilterIsFixedChange={onFilterIsFixedChange}
+              filterIsProvision={filterIsProvision}
+              onFilterIsProvisionChange={onFilterIsProvisionChange}
               filterAccountType={filterAccountType}
               onFilterAccountTypeChange={onFilterAccountTypeChange}
               filterAccount={filterAccount}

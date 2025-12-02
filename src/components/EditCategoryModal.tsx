@@ -8,28 +8,21 @@ import { useToast } from "@/hooks/use-toast";
 import { Category, PREDEFINED_COLORS } from "@/types";
 import { ColorPicker } from "@/components/forms/ColorPicker";
 import { EditCategoryModalProps } from "@/types/formProps";
-import { useChartOfAccounts } from "@/hooks/useChartOfAccounts";
 
 export function EditCategoryModal({ open, onOpenChange, onEditCategory, category }: EditCategoryModalProps) {
   const [formData, setFormData] = useState({
     name: "",
     type: "" as Category["type"] | "",
-    color: PREDEFINED_COLORS[0],
-    chart_account_id: "" as string | undefined
+    color: PREDEFINED_COLORS[0]
   });
   const { toast } = useToast();
-  
-  // Carregar contas contábeis baseado no tipo selecionado
-  const categoryFilter = formData.type === "income" ? "revenue" : formData.type === "expense" ? "expense" : undefined;
-  const { chartAccounts } = useChartOfAccounts(categoryFilter);
 
   useEffect(() => {
     if (category) {
       setFormData({
         name: category.name,
         type: category.type,
-        color: category.color,
-        chart_account_id: category.chart_account_id || "_none_"
+        color: category.color
       });
     }
   }, [category]);
@@ -48,13 +41,32 @@ export function EditCategoryModal({ open, onOpenChange, onEditCategory, category
       return;
     }
 
-    onEditCategory({
-      ...category,
-      name: formData.name.trim(),
-      type: formData.type,
-      color: formData.color,
-      chart_account_id: formData.chart_account_id === "_none_" ? null : formData.chart_account_id || null
-    });
+    const updates: Partial<Category> & { id: string } = { id: category.id };
+    let hasChanges = false;
+
+    if (formData.name.trim() !== category.name) {
+      updates.name = formData.name.trim();
+      hasChanges = true;
+    }
+    if (formData.type !== category.type) {
+      updates.type = formData.type;
+      hasChanges = true;
+    }
+    if (formData.color !== category.color) {
+      updates.color = formData.color;
+      hasChanges = true;
+    }
+
+    if (!hasChanges) {
+        toast({
+            title: "Aviso",
+            description: "Nenhuma alteração detectada",
+        });
+        onOpenChange(false);
+        return;
+    }
+
+    onEditCategory(updates);
 
     onOpenChange(false);
   };
@@ -64,8 +76,7 @@ export function EditCategoryModal({ open, onOpenChange, onEditCategory, category
       setFormData({
         name: category.name,
         type: category.type,
-        color: category.color,
-        chart_account_id: category.chart_account_id || "_none_"
+        color: category.color
       });
     }
     onOpenChange(false);
@@ -114,33 +125,6 @@ export function EditCategoryModal({ open, onOpenChange, onEditCategory, category
             value={formData.color}
             onChange={handleColorChange}
           />
-
-          {formData.type && formData.type !== "both" && (
-            <div className="space-y-2">
-              <Label htmlFor="chart_account" className="text-caption">
-                Conta Contábil (Opcional)
-              </Label>
-              <Select 
-                value={formData.chart_account_id} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, chart_account_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a conta contábil" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none_">Nenhuma</SelectItem>
-                  {chartAccounts.map(account => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.code} - {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Vincule esta categoria a uma conta do plano de contas para que apareça corretamente no DRE
-              </p>
-            </div>
-          )}
 
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={handleCancel} className="flex-1 text-body">
