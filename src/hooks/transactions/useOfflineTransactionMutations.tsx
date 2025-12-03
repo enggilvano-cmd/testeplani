@@ -282,6 +282,17 @@ export function useOfflineTransactionMutations() {
     async (transactionId: string, editScope?: EditScope) => {
       const processOfflineDelete = async () => {
         try {
+          // Check if it is "Saldo Inicial"
+          const tx = await offlineDatabase.getTransaction(transactionId);
+          if (tx && tx.description === 'Saldo Inicial') {
+             toast({
+                title: 'Ação não permitida',
+                description: 'O saldo inicial não pode ser excluído. Edite a conta para alterar o saldo inicial.',
+                variant: 'destructive'
+             });
+             return;
+          }
+
           await offlineDatabase.deleteTransaction(transactionId);
 
           await offlineQueue.enqueue({

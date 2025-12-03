@@ -16,6 +16,7 @@ import { logger } from "@/lib/logger";
 import { Account, PREDEFINED_COLORS, ACCOUNT_TYPE_LABELS } from "@/types";
 import { ColorPicker } from "@/components/forms/ColorPicker";
 import { EditAccountModalProps } from "@/types/formProps";
+import { supabase } from "@/integrations/supabase/client";
 
 export function EditAccountModal({
   open,
@@ -37,18 +38,22 @@ export function EditAccountModal({
   const { toast } = useToast();
 
   useEffect(() => {
-    if (account) {
-      setFormData({
-        name: account.name,
-        type: account.type,
-        balanceInCents: account.balance,
-        limitInCents: account.limit_amount || 0,
-        dueDate: account.due_date?.toString() || "",
-        closingDate: account.closing_date?.toString() || "",
-        color: account.color || PREDEFINED_COLORS[0],
-      });
-    }
-  }, [account]);
+    // Resetar e carregar o saldo inicial sempre que a conta ou o modal abre
+    if (!account || !open) return;
+
+    // Usar o initial_balance se disponível, caso contrário usar o balance
+    const balanceValue = account.initial_balance != null ? account.initial_balance : account.balance || 0;
+
+    setFormData({
+      name: account.name,
+      type: account.type,
+      balanceInCents: balanceValue,
+      limitInCents: account.limit_amount || 0,
+      dueDate: account.due_date?.toString() || "",
+      closingDate: account.closing_date?.toString() || "",
+      color: account.color || PREDEFINED_COLORS[0],
+    });
+  }, [account, open]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -106,8 +111,9 @@ export function EditAccountModal({
       hasChanges = true;
     }
 
-    if (formData.balanceInCents !== account.balance) {
-      updates.balance = formData.balanceInCents;
+    // Verifica se houve mudança no saldo inicial ou se é uma migração (initial_balance undefined)
+    if (formData.balanceInCents !== account.initial_balance) {
+      updates.initial_balance = formData.balanceInCents;
       hasChanges = true;
     }
     
@@ -228,10 +234,13 @@ export function EditAccountModal({
             <CurrencyInput
               value={formData.balanceInCents}
               onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, balanceInCents: value || 0 }))
+                setFormData((prev) => ({ ...prev, balanceInCents: value }))
               }
               allowNegative
             />
+            <p className="text-caption text-muted-foreground">
+              Use o botão +/- ou digite o sinal de menos para valores negativos (ex: cheque especial, dívidas).
+            </p>
           </div>
 
           <div className="space-y-2">

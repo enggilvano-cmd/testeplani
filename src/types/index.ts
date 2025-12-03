@@ -12,6 +12,7 @@ export interface Account {
   name: string;
   type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
   balance: number;
+  initial_balance?: number;
   limit_amount?: number;
   due_date?: number;
   closing_date?: number;

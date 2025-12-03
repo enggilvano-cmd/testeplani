@@ -507,21 +507,56 @@ class OfflineSyncManager {
         }
 
         let successCount = 0;
+        const createdAccounts: Account[] = [];
+
         for (const account of accounts) {
           try {
-            const { error } = await supabase
+            const { data, error } = await supabase
               .from('accounts')
               .insert({
                 ...account,
                 user_id: user!.id,
-              });
+              })
+              .select()
+              .single();
 
             if (error) throw error;
+            if (data) createdAccounts.push(data as unknown as Account);
             successCount++;
           } catch (err) {
             logger.warn(`Failed to import account "${account.name}":`, err);
             // Continue com próximas contas em vez de falhar toda a operação
           }
+        }
+
+        // Create Initial Balance Transactions for imported accounts
+        if (createdAccounts.length > 0) {
+            const initialBalanceTransactions = createdAccounts
+                .filter(acc => acc.balance !== 0)
+                .map(acc => {
+                    const isIncome = acc.balance > 0;
+                    const amount = Math.abs(acc.balance);
+                    return {
+                        user_id: user!.id,
+                        description: 'Saldo Inicial',
+                        amount: isIncome ? amount : -amount,
+                        date: new Date().toISOString().split('T')[0],
+                        type: isIncome ? 'income' : 'expense',
+                        account_id: acc.id,
+                        status: 'completed',
+                        category_id: null
+                    };
+                });
+            
+            if (initialBalanceTransactions.length > 0) {
+                const { error: txError } = await supabase
+                    .from('transactions')
+                    .insert(initialBalanceTransactions);
+                
+                if (txError) {
+                    logger.error('Failed to create initial balance transactions for imported accounts in sync', txError);
+                }
+            }
         }
 
         if (successCount === 0) {

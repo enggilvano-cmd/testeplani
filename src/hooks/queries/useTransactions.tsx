@@ -106,6 +106,9 @@ export function useTransactions(params: UseTransactionsParams = {}) {
       // Excluir apenas o PAI das transações fixas (mantém as filhas)
       if (t.is_fixed && !t.parent_transaction_id) return false;
 
+      // Excluir transações de Saldo Inicial
+      if (t.description === 'Saldo Inicial') return false;
+
       // Search
       if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
 
@@ -176,7 +179,9 @@ export function useTransactions(params: UseTransactionsParams = {}) {
         .select(accountType !== 'all' ? '*, accounts!inner(type)' : '*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         // Excluir apenas o PAI das transações fixas (mantém as filhas)
-        .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null');
+        .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null')
+        // Excluir transações de Saldo Inicial
+        .neq('description', 'Saldo Inicial');
 
       // Apply filters
       if (search) {
@@ -241,7 +246,7 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
   // Query for paginated data with filters
   const query = useQuery({
-    queryKey: [...queryKeys.transactions(), page, pageSize, search, type, accountId, categoryId, status, accountType, dateFrom, dateTo, sortBy, sortOrder, isOnline],
+    queryKey: [...queryKeys.transactions(), page, pageSize, search, type, accountId, categoryId, status, accountType, isFixed, isProvision, dateFrom, dateTo, sortBy, sortOrder, isOnline],
     queryFn: async () => {
       if (!user) return [];
 
@@ -313,7 +318,9 @@ export function useTransactions(params: UseTransactionsParams = {}) {
         `)
         .eq('user_id', user.id)
         // Excluir apenas o PAI das transações fixas (mantém as filhas)
-        .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null');
+        .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null')
+        // Excluir transações de Saldo Inicial
+        .neq('description', 'Saldo Inicial');
 
       // Apply filters
       if (search) {

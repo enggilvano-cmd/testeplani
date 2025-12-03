@@ -299,6 +299,8 @@ CREATE OR REPLACE FUNCTION public.get_transactions_totals(
   p_account_id TEXT DEFAULT 'all',
   p_category_id TEXT DEFAULT 'all',
   p_account_type TEXT DEFAULT 'all',
+  p_is_fixed BOOLEAN DEFAULT NULL,
+  p_is_provision BOOLEAN DEFAULT NULL,
   p_date_from DATE DEFAULT NULL,
   p_date_to DATE DEFAULT NULL,
   p_search TEXT DEFAULT NULL
@@ -329,6 +331,9 @@ BEGIN
       AND (t.parent_transaction_id IS NOT NULL OR t.is_fixed IS NOT TRUE OR t.is_fixed IS NULL)
       -- NOVA REGRA: Excluir provisões estouradas (saldo positivo)
       AND NOT (t.is_provision IS TRUE AND t.amount > 0)
+      -- Filtros de is_fixed e is_provision
+      AND (p_is_fixed IS NULL OR t.is_fixed = p_is_fixed)
+      AND (p_is_provision IS NULL OR t.is_provision = p_is_provision)
       -- Filtros normais
       AND (p_type = 'all' OR t.type::text = p_type)
       AND (p_status = 'all' OR t.status::text = p_status)

@@ -341,6 +341,16 @@ export function useTransactionMutations() {
         }
 
         if (originalTransaction) {
+          // Prevent deleting "Saldo Inicial"
+          if (originalTransaction.description === 'Saldo Inicial') {
+            toast({
+              title: 'Ação não permitida',
+              description: 'O saldo inicial não pode ser excluído. Edite a conta para alterar o saldo inicial.',
+              variant: 'destructive',
+            });
+            return;
+          }
+
            // 1. Update Accounts (Revert balance)
            if (previousAccounts) {
             queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {

@@ -21,14 +21,84 @@ export function useAccountHandlers() {
   const handleEditAccount = useCallback(async (updatedAccount: Partial<Account> & { id: string }) => {
     if (!user) return;
     try {
-      const { error } = await supabase
+      // 1. Atualizar a conta com as novas informações
+      const { error: updateError } = await supabase
         .from('accounts')
         .update(updatedAccount)
         .eq('id', updatedAccount.id)
         .eq('user_id', user.id);
-      if (error) throw error;
-      
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      if (updateError) throw updateError;
+
+      // 2. Se o saldo inicial foi alterado, garantir que o saldo total seja recalculado
+      if (updatedAccount.initial_balance !== undefined) {
+        // Buscar a transação de "Saldo Inicial" se existir
+        const { data: initialTxs, error: fetchError } = await supabase
+          .from('transactions')
+          .select('id, amount, type')
+          .eq('account_id', updatedAccount.id)
+          .eq('description', 'Saldo Inicial')
+          .limit(1);
+
+        if (fetchError) {
+          logger.error('Error fetching initial balance transaction', fetchError);
+        }
+
+        const newInitialBalance = updatedAccount.initial_balance;
+
+        if (initialTxs && initialTxs.length > 0) {
+          // Atualizar a transação existente
+          if (newInitialBalance === 0) {
+            // Se o novo saldo é zero, deletar a transação
+            const { error: deleteError } = await supabase
+              .from('transactions')
+              .delete()
+              .eq('id', initialTxs[0].id);
+            if (deleteError) logger.error('Error deleting zero initial balance transaction', deleteError);
+          } else {
+            // Atualizar a transação com o novo valor
+            // O amount já deve conter o sinal (positivo ou negativo)
+            const { error: updateTxError } = await supabase
+              .from('transactions')
+              .update({
+                amount: newInitialBalance,
+                type: newInitialBalance >= 0 ? 'income' : 'expense',
+              })
+              .eq('id', initialTxs[0].id);
+            if (updateTxError) logger.error('Error updating initial balance transaction', updateTxError);
+          }
+        } else if (newInitialBalance !== 0) {
+          // Criar uma nova transação de "Saldo Inicial" se não existir e o saldo não for zero
+          const { error: createError } = await supabase
+            .from('transactions')
+            .insert({
+              user_id: user.id,
+              description: 'Saldo Inicial',
+              amount: newInitialBalance, // Armazenar com sinal
+              date: new Date().toISOString().split('T')[0],
+              type: newInitialBalance >= 0 ? 'income' : 'expense',
+              account_id: updatedAccount.id,
+              status: 'completed',
+              category_id: null,
+            });
+          if (createError) logger.error('Error creating initial balance transaction', createError);
+        }
+      }
+
+      // 3. Chamar a função de recálculo para garantir que o saldo final está correto
+      const { error: recalcError } = await supabase.rpc('recalculate_account_balance', {
+        p_account_id: updatedAccount.id
+      });
+
+      if (recalcError) {
+        logger.error('Error recalculating account balance', recalcError);
+      }
+
+      // 4. Aguardar um pequeno delay para garantir que o banco de dados processou tudo
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 5. Invalidar o cache APÓS todas as operações
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
       
       toast({
         title: 'Sucesso',
@@ -184,11 +254,47 @@ export function useAccountHandlers() {
           user_id: user.id,
         }));
 
-        const { error } = await supabase
+        const { data: createdAccounts, error } = await supabase
           .from('accounts')
-          .insert(accountsToAdd);
+          .insert(accountsToAdd)
+          .select();
         
         if (error) throw error;
+
+        // 4. Criar transações de Saldo Inicial para contas com saldo != 0
+        if (createdAccounts && createdAccounts.length > 0) {
+            const initialBalanceTransactions = createdAccounts
+                .filter(acc => acc.balance !== 0)
+                .map(acc => {
+                    const isIncome = acc.balance > 0;
+                    const amount = Math.abs(acc.balance);
+                    return {
+                        user_id: user.id,
+                        description: 'Saldo Inicial',
+                        amount: isIncome ? amount : -amount,
+                        date: new Date().toISOString().split('T')[0],
+                        type: isIncome ? 'income' : 'expense',
+                        account_id: acc.id,
+                        status: 'completed',
+                        category_id: null
+                    };
+                });
+            
+            if (initialBalanceTransactions.length > 0) {
+                const { error: txError } = await supabase
+                    .from('transactions')
+                    .insert(initialBalanceTransactions);
+                
+                if (txError) {
+                    logger.error('Failed to create initial balance transactions for imported accounts', txError);
+                    toast({
+                        title: 'Aviso',
+                        description: 'Contas importadas, mas houve erro ao registrar o histórico de saldo inicial.',
+                        variant: 'warning'
+                    });
+                }
+            }
+        }
         
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
         toast({

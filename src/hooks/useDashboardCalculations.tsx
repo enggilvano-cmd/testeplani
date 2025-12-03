@@ -97,6 +97,9 @@ export function useDashboardCalculations(
               // Excluir apenas o PAI das transações fixas (mantém as filhas)
               if (t.is_fixed && !t.parent_transaction_id) return false;
 
+              // Excluir transações de Saldo Inicial
+              if (t.description === 'Saldo Inicial') return false;
+
               // Excluir provisões estouradas (saldo positivo) pois o valor real já está nos lançamentos
               if (t.is_provision && t.amount > 0) return false;
               
@@ -242,6 +245,8 @@ export function useDashboardCalculations(
           .is('linked_transaction_id', null)
           // Excluir apenas o PAI das transações fixas (mantém as filhas)
           .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null')
+          // Excluir transações de Saldo Inicial
+          .neq('description', 'Saldo Inicial')
           .gte('date', dateRange.dateFrom || '1900-01-01')
           .lte('date', dateRange.dateTo || '2100-12-31');
 
@@ -260,6 +265,8 @@ export function useDashboardCalculations(
           .is('linked_transaction_id', null)
           // Excluir apenas o PAI das transações fixas (mantém as filhas)
           .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null')
+          // Excluir transações de Saldo Inicial
+          .neq('description', 'Saldo Inicial')
           .gte('date', dateRange.dateFrom || '1900-01-01')
           .lte('date', dateRange.dateTo || '2100-12-31');
 

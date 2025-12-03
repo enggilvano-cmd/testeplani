@@ -26,6 +26,7 @@ export function useOfflineAccountMutations() {
         name: accountData.name,
         type: accountData.type,
         balance: accountData.balance || 0,
+        initial_balance: accountData.balance || 0,
         color: accountData.color || '#6b7280',
         limit_amount: accountData.limit_amount,
         due_date: accountData.due_date,
@@ -40,10 +41,59 @@ export function useOfflineAccountMutations() {
         data: { ...accountData, id: tempId }, // Include temp ID for mapping
       });
 
-      // 2. Update local DB (Optimistic UI)
+      // 2. Queue operation (Transaction) if balance != 0
+      if (accountData.balance && accountData.balance !== 0) {
+         const isIncome = accountData.balance > 0;
+         const amount = Math.abs(accountData.balance);
+         
+         await offlineQueue.enqueue({
+            type: 'transaction',
+            data: {
+                description: 'Saldo Inicial',
+                amount: amount,
+                date: new Date().toISOString().split('T')[0],
+                type: isIncome ? 'income' : 'expense',
+                account_id: tempId,
+                status: 'completed',
+                category_id: null
+            }
+         });
+      }
+
+      // 3. Update local DB (Optimistic UI)
       await offlineDatabase.saveAccounts([newAccount]);
 
-      // 3. Update React Query Cache
+      if (accountData.balance && accountData.balance !== 0) {
+          const isIncome = accountData.balance > 0;
+          const amount = Math.abs(accountData.balance);
+          const txTempId = `temp-tx-${Date.now()}`;
+          
+          const optimisticTx = {
+              id: txTempId,
+              user_id: user?.id || 'offline-user',
+              description: 'Saldo Inicial',
+              amount: isIncome ? amount : -amount,
+              date: new Date().toISOString().split('T')[0],
+              type: isIncome ? 'income' : 'expense',
+              category_id: null,
+              account_id: tempId,
+              status: 'completed',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+          };
+          
+          await offlineDatabase.saveTransactions([optimisticTx as any]);
+          
+          queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+              if (!oldData) return [optimisticTx];
+              if (Array.isArray(oldData)) {
+                  return [optimisticTx, ...oldData];
+              }
+              return oldData;
+          });
+      }
+
+      // 4. Update React Query Cache (Accounts)
       queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
         return [newAccount, ...(old || [])];
       });
@@ -79,20 +129,75 @@ export function useOfflineAccountMutations() {
       // Online: usar lógica normal
       if (!user) return;
       try {
-        const { error } = await supabase
-          .from('accounts')
-          .insert({
-            name: accountData.name,
-            type: accountData.type,
-            balance: accountData.balance || 0,
-            color: accountData.color || '#6b7280',
-            limit_amount: accountData.limit_amount,
-            due_date: accountData.due_date,
-            closing_date: accountData.closing_date,
-            user_id: user.id,
-          });
+        // 1. Insert Account
+        let newAccount;
+        try {
+          const { data, error } = await supabase
+            .from('accounts')
+            .insert({
+              name: accountData.name,
+              type: accountData.type,
+              balance: accountData.balance || 0,
+              initial_balance: accountData.balance || 0,
+              color: accountData.color || '#6b7280',
+              limit_amount: accountData.limit_amount,
+              due_date: accountData.due_date,
+              closing_date: accountData.closing_date,
+              user_id: user.id,
+            })
+            .select()
+            .single();
+            
+          if (error) throw error;
+          newAccount = data;
+        } catch (insertError: any) {
+          // Fallback: If initial_balance column doesn't exist yet, try inserting without it
+          if (insertError.message?.includes('initial_balance') || insertError.code === '42703') {
+             logger.warn('Column initial_balance missing, falling back to legacy insert');
+             const { data, error } = await supabase
+              .from('accounts')
+              .insert({
+                name: accountData.name,
+                type: accountData.type,
+                balance: accountData.balance || 0,
+                color: accountData.color || '#6b7280',
+                limit_amount: accountData.limit_amount,
+                due_date: accountData.due_date,
+                closing_date: accountData.closing_date,
+                user_id: user.id,
+              })
+              .select()
+              .single();
+              
+             if (error) throw error;
+             newAccount = data;
+          } else {
+            throw insertError;
+          }
+        }
 
-        if (error) throw error;
+        // 2. Create Initial Balance Transaction if needed
+        if (accountData.balance && accountData.balance !== 0) {
+           const isIncome = accountData.balance > 0;
+           const amount = Math.abs(accountData.balance);
+           
+           const { error: txError } = await supabase.rpc('atomic_create_transaction', {
+             p_user_id: user.id,
+             p_description: 'Saldo Inicial',
+             p_amount: amount,
+             p_date: new Date().toISOString().split('T')[0],
+             p_type: isIncome ? 'income' : 'expense',
+             p_category_id: null,
+             p_account_id: newAccount.id,
+             p_status: 'completed'
+           });
+             
+           if (txError) {
+              logger.error('Failed to create initial balance transaction', txError);
+              await supabase.from('accounts').delete().eq('id', newAccount.id);
+              throw new Error('Falha ao criar transação de saldo inicial. Tente novamente.');
+           }
+        }
 
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
         toast({
@@ -134,6 +239,86 @@ export function useOfflineAccountMutations() {
         }
       });
 
+      // Check if balance is being updated
+      const newInitialBalance = accountData.initial_balance !== undefined ? accountData.initial_balance : accountData.balance;
+
+      if (newInitialBalance !== undefined) {
+          // Find the "Saldo Inicial" transaction for this account
+          const transactions = await offlineDatabase.getTransactions(user?.id || '');
+          const initialTx = transactions.find(t => t.account_id === accountId && t.description === 'Saldo Inicial');
+          
+          const isIncome = newInitialBalance > 0;
+          const amount = Math.abs(newInitialBalance);
+          const txUpdates = {
+              amount: amount,
+              type: isIncome ? 'income' : 'expense',
+          };
+
+          if (initialTx) {
+              // Queue update for existing transaction
+              await offlineQueue.enqueue({
+                  type: 'edit',
+                  data: {
+                      id: initialTx.id,
+                      updates: txUpdates
+                  }
+              });
+              
+              // Update local DB for transaction
+              const updatedTx = { ...initialTx, ...txUpdates, updated_at: new Date().toISOString() };
+              await offlineDatabase.saveTransactions([updatedTx]);
+              
+              // Update React Query Cache for transactions
+              queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+                  if (!oldData) return oldData;
+                  if (Array.isArray(oldData)) {
+                      return oldData.map((t: any) => t.id === initialTx.id ? updatedTx : t);
+                  }
+                  return oldData;
+              });
+
+          } else if (newInitialBalance !== 0) {
+              // Create new transaction if it doesn't exist
+              const txTempId = `temp-tx-${Date.now()}`;
+              const newTx = {
+                  id: txTempId,
+                  user_id: user?.id || 'offline-user',
+                  description: 'Saldo Inicial',
+                  amount: isIncome ? amount : -amount,
+                  date: new Date().toISOString().split('T')[0],
+                  type: isIncome ? 'income' : 'expense',
+                  category_id: null,
+                  account_id: accountId,
+                  status: 'completed',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+              };
+
+              await offlineQueue.enqueue({
+                  type: 'transaction',
+                  data: {
+                      description: 'Saldo Inicial',
+                      amount: amount,
+                      date: new Date().toISOString().split('T')[0],
+                      type: isIncome ? 'income' : 'expense',
+                      account_id: accountId,
+                      status: 'completed',
+                      category_id: null
+                  }
+              });
+
+              await offlineDatabase.saveTransactions([newTx as any]);
+              
+              queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
+                  if (!oldData) return [newTx];
+                  if (Array.isArray(oldData)) {
+                      return [newTx, ...oldData];
+                  }
+                  return oldData;
+              });
+          }
+      }
+
       // 2. Update local DB (Optimistic UI)
       const existingAccounts = await offlineDatabase.getAccounts(user?.id || '');
       const accountToUpdate = existingAccounts.find(a => a.id === accountId);
@@ -171,6 +356,7 @@ export function useOfflineAccountMutations() {
     name?: string;
     type?: 'checking' | 'savings' | 'credit' | 'investment';
     balance?: number;
+    initial_balance?: number;
     color?: string;
     limit_amount?: number;
     due_date?: number;
@@ -180,15 +366,95 @@ export function useOfflineAccountMutations() {
       // Online: usar lógica normal
       if (!user) return;
       try {
-        const { error } = await supabase
-          .from('accounts')
-          .update(accountData)
-          .eq('id', accountId)
-          .eq('user_id', user.id);
+        // Separate balance update from other updates
+        const { balance, initial_balance, ...otherUpdates } = accountData;
+        
+        // Use initial_balance if provided, otherwise fallback to balance (legacy)
+        const newInitialBalance = initial_balance !== undefined ? initial_balance : balance;
 
-        if (error) throw error;
+        // 1. Update Account properties
+        const updatesToSave: any = { ...otherUpdates };
+        if (newInitialBalance !== undefined) {
+            updatesToSave.initial_balance = newInitialBalance;
+        }
+
+        if (Object.keys(updatesToSave).length > 0) {
+            try {
+              const { error } = await supabase
+                .from('accounts')
+                .update(updatesToSave)
+                .eq('id', accountId)
+                .eq('user_id', user.id);
+
+              if (error) throw error;
+            } catch (updateError: any) {
+               // Fallback: If initial_balance column doesn't exist yet, try updating without it
+               if ((updateError.message?.includes('initial_balance') || updateError.code === '42703') && updatesToSave.initial_balance !== undefined) {
+                  logger.warn('Column initial_balance missing, falling back to legacy update');
+                  delete updatesToSave.initial_balance;
+                  
+                  if (Object.keys(updatesToSave).length > 0) {
+                    const { error } = await supabase
+                      .from('accounts')
+                      .update(updatesToSave)
+                      .eq('id', accountId)
+                      .eq('user_id', user.id);
+                      
+                    if (error) throw error;
+                  }
+               } else {
+                 throw updateError;
+               }
+            }
+        }
+
+        // 2. Handle Balance Update via Transaction (Saldo Inicial)
+        if (newInitialBalance !== undefined) {
+            const { data: txs } = await supabase
+                .from('transactions')
+                .select('id')
+                .eq('account_id', accountId)
+                .eq('description', 'Saldo Inicial')
+                .limit(1);
+            
+            const isIncome = newInitialBalance > 0;
+            const amount = Math.abs(newInitialBalance);
+            const txData = {
+                amount: amount,
+                type: isIncome ? 'income' : 'expense',
+            };
+
+            if (txs && txs.length > 0) {
+                const { error: txError } = await supabase
+                    .from('transactions')
+                    .update(txData)
+                    .eq('id', txs[0].id);
+                if (txError) logger.error('Failed to update initial balance transaction', txError);
+            } else if (newInitialBalance !== 0) {
+                const { error: txError } = await supabase.rpc('atomic_create_transaction', {
+                    p_user_id: user.id,
+                    p_description: 'Saldo Inicial',
+                    p_amount: amount,
+                    p_date: new Date().toISOString().split('T')[0],
+                    p_type: isIncome ? 'income' : 'expense',
+                    p_category_id: null,
+                    p_account_id: accountId,
+                    p_status: 'completed'
+                });
+
+                if (txError) {
+                    logger.error('Failed to create initial balance transaction', txError);
+                    toast({
+                        title: 'Aviso',
+                        description: 'Saldo atualizado, mas houve erro ao registrar a transação de histórico.',
+                        variant: 'warning'
+                    });
+                }
+            }
+        }
 
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+        queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
         toast({
           title: 'Sucesso',
           description: 'Conta atualizada com sucesso',
@@ -321,11 +587,42 @@ export function useOfflineAccountMutations() {
           user_id: user.id,
         }));
 
-        const { error } = await supabase
+        const { data: createdAccounts, error } = await supabase
           .from('accounts')
-          .insert(accountsToAdd);
+          .insert(accountsToAdd)
+          .select();
 
         if (error) throw error;
+
+        // Create Initial Balance Transactions for imported accounts
+        if (createdAccounts && createdAccounts.length > 0) {
+            const initialBalanceTransactions = createdAccounts
+                .filter(acc => acc.balance !== 0)
+                .map(acc => {
+                    const isIncome = acc.balance > 0;
+                    const amount = Math.abs(acc.balance);
+                    return {
+                        user_id: user.id,
+                        description: 'Saldo Inicial',
+                        amount: isIncome ? amount : -amount,
+                        date: new Date().toISOString().split('T')[0],
+                        type: isIncome ? 'income' : 'expense',
+                        account_id: acc.id,
+                        status: 'completed',
+                        category_id: null
+                    };
+                });
+            
+            if (initialBalanceTransactions.length > 0) {
+                const { error: txError } = await supabase
+                    .from('transactions')
+                    .insert(initialBalanceTransactions);
+                
+                if (txError) {
+                    logger.error('Failed to create initial balance transactions for imported accounts', txError);
+                }
+            }
+        }
 
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
         toast({
