@@ -450,7 +450,7 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate, dashbo
           
           {/* Mobile Header Buttons */}
           {isMobile && pageHeaderButtons && (
-            <div className="fixed top-14 left-0 right-0 z-40 flex items-center justify-center gap-1 px-2 py-0.5 border-b">
+            <div className="fixed top-14 left-0 right-0 z-40 flex items-center justify-center gap-1 px-2 py-1 border-b h-[58px]">
               <div className="flex items-center gap-1 [&>button]:h-8 [&>button]:text-xs [&>button]:px-2">
                 {pageHeaderButtons}
               </div>
@@ -460,7 +460,7 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate, dashbo
           <div className={cn(
             "w-full h-full transition-all duration-300",
             isMobile 
-              ? "px-3 py-1" 
+              ? "px-3 py-1 pt-[72px]" 
               : "pt-32 pb-5 md:pt-32 md:pb-4 lg:pt-32 lg:pb-12"
           )}
           style={!isMobile ? {

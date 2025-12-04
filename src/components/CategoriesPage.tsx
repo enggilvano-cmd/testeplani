@@ -390,7 +390,7 @@ export function CategoriesPage({
 
   if (loading) {
     return (
-      <div className="spacing-responsive-md fade-in pb-6 sm:pb-8 pt-32">
+      <div className="spacing-responsive-md fade-in pb-6 sm:pb-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <div className="h-24 bg-muted rounded-xl animate-pulse"></div>
           <div className="h-24 bg-muted rounded-xl animate-pulse"></div>
