@@ -423,6 +423,24 @@
     @apply space-y-4 sm:space-y-6 md:space-y-8;
   }
 
+  .financial-card-compact-top {
+    margin-top: -60px;
+  }
+
+  .personal-info-card-compact-top {
+    margin-top: -60px;
+  }
+
+  @media (min-width: 768px) {
+    .financial-card-compact-top {
+      margin-top: 0;
+    }
+
+    .personal-info-card-compact-top {
+      margin-top: 0;
+    }
+  }
+
   /* Apple-style Animations - Smooth & Natural */
   .apple-entrance {
     animation: appleEntrance 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);

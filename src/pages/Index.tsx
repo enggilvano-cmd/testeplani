@@ -654,8 +654,29 @@ const PlaniFlowApp = () => {
               setAddTransactionModalOpen(true);
             }}
             onExport={() => {
-              // Implementar export
-              console.log("Export transactions");
+              const handleExport = async () => {
+                try {
+                  const { exportTransactionsToExcel } = await import('@/lib/exportUtils');
+                  const exportData = filteredTransactions.map(t => ({
+                    ...t,
+                    date: typeof t.date === 'string' ? t.date : t.date.toISOString(),
+                  })) as Array<{ id: string; description: string; amount: number; date: string; type: 'income' | 'expense' | 'transfer'; status: 'pending' | 'completed'; account_id: string; category_id?: string | null; to_account_id?: string | null; installments?: number | null; current_installment?: number | null; invoice_month?: string | null; is_recurring?: boolean | null; is_fixed?: boolean | null; created_at?: string }>;
+                  await exportTransactionsToExcel(exportData, accounts, categories);
+                  
+                  toast({
+                    title: "Sucesso",
+                    description: `${filteredTransactions.length} transação${filteredTransactions.length !== 1 ? 'ões' : ''} exportada${filteredTransactions.length !== 1 ? 's' : ''} com sucesso`,
+                  });
+                } catch (error) {
+                  logger.error('Erro ao exportar:', error);
+                  toast({
+                    title: "Erro",
+                    description: "Erro ao exportar transações",
+                    variant: "destructive",
+                  });
+                }
+              };
+              handleExport();
             }}
             onImport={() => setImportTransactionsModalOpen(true)}
             isHeaderVersion={true}
@@ -743,6 +764,8 @@ const PlaniFlowApp = () => {
         <ImportTransactionsModal
           open={importTransactionsModalOpen}
           onOpenChange={setImportTransactionsModalOpen}
+          accounts={accounts}
+          transactions={allTransactions || []}
           onImportTransactions={handleImportTransactions}
         />
       </FormErrorBoundary>

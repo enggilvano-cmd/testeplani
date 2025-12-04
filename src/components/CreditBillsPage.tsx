@@ -315,12 +315,12 @@ export function CreditBillsPage({ onPayCreditCard, onReversePayment }: CreditBil
   }, [billDetails, selectedMonthDate]);
 
   return (
-    <div className="spacing-responsive-lg fade-in pb-6 sm:pb-8">
+    <div className="spacing-responsive-md fade-in pb-6 sm:pb-8">
 
       {/* CARDS DE TOTAIS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {/* Card Fatura Atual */}
-        <Card className="financial-card">
+        <Card className="financial-card financial-card-compact-top">
           <CardContent className="p-4">
             <div className="flex flex-col items-center gap-2 text-center">
               <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">

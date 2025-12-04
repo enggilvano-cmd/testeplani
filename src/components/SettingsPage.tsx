@@ -287,7 +287,7 @@ export function SettingsPage({ settings, onUpdateSettings, onClearAllData }: Set
   };
 
   return (
-    <div className="space-y-6 fade-in pb-6 sm:pb-8 max-w-[1400px] mx-auto spacing-responsive-md">
+    <div className="space-y-6 fade-in pb-6 sm:pb-8 max-w-[1400px] mx-auto spacing-responsive-md -mt-12 lg:mt-0">
       {/* Seção: Preferências */}
       <div>
         <h2 className="text-headline font-semibold mb-4 flex items-center gap-2">

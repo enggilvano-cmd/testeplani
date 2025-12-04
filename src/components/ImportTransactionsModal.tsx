@@ -68,6 +68,8 @@ interface ImportedTransaction {
   resolution: 'skip' | 'add' | 'replace'; // Ação para duplicatas
   id?: string;
   parentTransactionId?: string;
+  linkedTransactionId?: string; // Campo adicionado para vincular pares de transferência
+  linkedTransactionRef?: string; // Referência temporária do arquivo Excel (ID Vinculado)
   linkedTransactionId?: string;
 }
 
@@ -107,7 +109,8 @@ export function ImportTransactionsModal({
     installments: ['Parcelas', 'Installments', 'Cuotas'],
     invoiceMonth: ['Mês Fatura', 'Invoice Month', 'Mes Factura'],
     isFixed: ['Fixa', 'Fixed', 'Fija'],
-    isProvision: ['Provisão', 'Provision', 'Provisión']
+    isProvision: ['Provisão', 'Provision', 'Provisión'],
+    linkedTransactionRef: ['ID Vinculado', 'Linked ID', 'ID Vinculado']
   } as const;
 
   const pick = (row: Record<string, unknown>, keys: readonly string[]) => {
@@ -295,6 +298,9 @@ export function ImportTransactionsModal({
     const isProvisionStr = String(pick(row, HEADERS.isProvision) || '').toLowerCase();
     const isProvision = isProvisionStr === 'sim' || isProvisionStr === 'yes' || isProvisionStr === 'sí';
     
+    // Capturar ID Vinculado (para vincular pares de transferência)
+    const linkedTransactionRef = String(pick(row, HEADERS.linkedTransactionRef) || '').trim();
+
     // Normalização de data para evitar diferenças de fuso horário
     const normalizeToUTCDate = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0));
 
@@ -364,6 +370,7 @@ export function ImportTransactionsModal({
       isDuplicate,
       existingTransactionId,
       resolution: isDuplicate ? 'skip' : 'add',
+      linkedTransactionRef: linkedTransactionRef || undefined,
     };
   };
 
@@ -546,66 +553,115 @@ export function ImportTransactionsModal({
   const downloadTemplate = async () => {
     const XLSX = await loadXLSX();
     
+    const checkingAccount = accounts.find(acc => acc.type === 'checking')?.name || 'Conta Corrente';
+    const savingsAccount = accounts.find(acc => acc.type === 'savings')?.name || 'Poupança';
+    const creditAccount = accounts.find(acc => acc.type === 'credit')?.name || 'Cartão de Crédito';
+    
     const templateData = [
       {
         'Data': '15/03/2024',
         'Descrição': 'Salário',
         'Categoria': 'Salário',
         'Tipo': 'Receita',
-        'Conta': accounts[0]?.name || 'Conta Corrente',
+        'Conta': checkingAccount,
+        'Conta Destino': '',
         'Valor': 5000.00,
         'Status': 'Concluída',
         'Parcelas': '',
         'Mês Fatura': '',
-        'Fixa': 'Não'
+        'Fixa': 'Não',
+        'Provisão': 'Não',
+        'ID Vinculado': ''
       },
       {
         'Data': '16/03/2024',
         'Descrição': 'Supermercado',
         'Categoria': 'Alimentação',
         'Tipo': 'Despesa',
-        'Conta': accounts[0]?.name || 'Conta Corrente',
+        'Conta': checkingAccount,
+        'Conta Destino': '',
         'Valor': 150.50,
         'Status': 'Concluída',
         'Parcelas': '',
         'Mês Fatura': '',
-        'Fixa': 'Não'
+        'Fixa': 'Não',
+        'Provisão': 'Não',
+        'ID Vinculado': ''
       },
       {
         'Data': '17/03/2024',
-        'Descrição': 'Notebook',
+        'Descrição': 'Transferência para Poupança',
+        'Categoria': 'Transferência',
+        'Tipo': 'Transferência',
+        'Conta': checkingAccount,
+        'Conta Destino': savingsAccount,
+        'Valor': 1000.00,
+        'Status': 'Concluída',
+        'Parcelas': '',
+        'Mês Fatura': '',
+        'Fixa': 'Não',
+        'Provisão': 'Não',
+        'ID Vinculado': 'transferencia-ref-1'
+      },
+      {
+        'Data': '17/03/2024',
+        'Descrição': 'Transferência de Conta Corrente',
+        'Categoria': 'Transferência',
+        'Tipo': 'Receita',
+        'Conta': savingsAccount,
+        'Conta Destino': '',
+        'Valor': 1000.00,
+        'Status': 'Concluída',
+        'Parcelas': '',
+        'Mês Fatura': '',
+        'Fixa': 'Não',
+        'Provisão': 'Não',
+        'ID Vinculado': 'transferencia-ref-1'
+      },
+      {
+        'Data': '18/03/2024',
+        'Descrição': 'Notebook - Parcela 1',
         'Categoria': 'Eletrônicos',
         'Tipo': 'Despesa',
-        'Conta': accounts.find(acc => acc.type === 'credit')?.name || 'Cartão de Crédito',
+        'Conta': creditAccount,
+        'Conta Destino': '',
         'Valor': 400.00,
         'Status': 'Pendente',
         'Parcelas': '1/3',
         'Mês Fatura': '2024-03',
-        'Fixa': 'Não'
+        'Fixa': 'Não',
+        'Provisão': 'Não',
+        'ID Vinculado': ''
       },
       {
-        'Data': '17/03/2024',
-        'Descrição': 'Notebook',
+        'Data': '18/03/2024',
+        'Descrição': 'Notebook - Parcela 2',
         'Categoria': 'Eletrônicos',
         'Tipo': 'Despesa',
-        'Conta': accounts.find(acc => acc.type === 'credit')?.name || 'Cartão de Crédito',
+        'Conta': creditAccount,
+        'Conta Destino': '',
         'Valor': 400.00,
         'Status': 'Pendente',
         'Parcelas': '2/3',
         'Mês Fatura': '2024-04',
-        'Fixa': 'Não'
+        'Fixa': 'Não',
+        'Provisão': 'Não',
+        'ID Vinculado': ''
       },
       {
-        'Data': '17/03/2024',
-        'Descrição': 'Notebook',
+        'Data': '18/03/2024',
+        'Descrição': 'Notebook - Parcela 3',
         'Categoria': 'Eletrônicos',
         'Tipo': 'Despesa',
-        'Conta': accounts.find(acc => acc.type === 'credit')?.name || 'Cartão de Crédito',
+        'Conta': creditAccount,
+        'Conta Destino': '',
         'Valor': 400.00,
         'Status': 'Pendente',
         'Parcelas': '3/3',
         'Mês Fatura': '2024-05',
-        'Fixa': 'Não'
+        'Fixa': 'Não',
+        'Provisão': 'Não',
+        'ID Vinculado': ''
       }
     ];
 
@@ -615,14 +671,19 @@ export function ImportTransactionsModal({
 
     // Configurar largura das colunas
     const colWidths = [
-      { wch: 12 }, // Data
-      { wch: 30 }, // Descrição
-      { wch: 20 }, // Categoria
-      { wch: 15 }, // Tipo
-      { wch: 25 }, // Conta
-      { wch: 15 }, // Valor
-      { wch: 12 }, // Status
-      { wch: 12 }  // Parcelas
+      { wch: 12 },  // Data
+      { wch: 30 },  // Descrição
+      { wch: 20 },  // Categoria
+      { wch: 15 },  // Tipo
+      { wch: 25 },  // Conta
+      { wch: 25 },  // Conta Destino
+      { wch: 15 },  // Valor
+      { wch: 12 },  // Status
+      { wch: 12 },  // Parcelas
+      { wch: 12 },  // Mês Fatura
+      { wch: 12 },  // Fixa
+      { wch: 12 },  // Provisão
+      { wch: 36 }   // ID Vinculado
     ];
     ws['!cols'] = colWidths;
 

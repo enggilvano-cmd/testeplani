@@ -252,7 +252,7 @@ export function UserProfile() {
         {/* Main Content Area - Full width on mobile, 2/3 on desktop */}
         <div className="space-y-4 sm:space-y-6 lg:col-span-2">
           {/* Personal Info Card */}
-          <Card className="financial-card">
+          <Card className="financial-card personal-info-card-compact-top">
             <CardHeader className="space-y-1">
               <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                 <User className="h-4 w-4 sm:h-5 sm:w-5" />
