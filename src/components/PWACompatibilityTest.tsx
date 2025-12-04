@@ -198,14 +198,15 @@ export function PWACompatibilityTest() {
         });
 
         // Log results
-        console.log('=== PWA COMPATIBILITY REPORT ===');
-        console.log('HTTPS:', isHttps);
-        console.log('Manifest:', manifestValid);
-        console.log('Service Worker:', serviceWorkerActive);
-        console.log('Icons:', iconsValid);
-        console.log('Manifest data:', manifest);
+        logger.debug('PWA COMPATIBILITY REPORT', {
+          https: isHttps,
+          manifest: manifestValid,
+          serviceWorker: serviceWorkerActive,
+          icons: iconsValid,
+          manifestData: manifest
+        });
       } catch (e) {
-        console.error('PWA test error:', e);
+        logger.error('PWA test error:', e);
       }
     };
 

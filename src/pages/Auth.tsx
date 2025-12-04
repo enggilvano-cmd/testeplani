@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { logger } from '@/lib/logger';
 import { Lock, User, Mail, Eye, EyeOff, BarChart3, Phone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { TwoFactorVerify } from '@/components/TwoFactorVerify';
@@ -56,7 +57,7 @@ export default function Auth() {
           setTrialDays(tableData.setting_value);
         }
       } catch (error) {
-        console.error("Error fetching trial days:", error);
+        logger.error("Error fetching trial days:", error);
       }
     };
     fetchTrialDays();

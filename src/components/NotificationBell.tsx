@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, X, AlertCircle, Info, BellRing, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { formatNotificationTime } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { cleanupPushNotifications, getPushNotificationResourceStats } from '@/lib/pushNotifications';
 
 export function NotificationBell() {
   const { 
@@ -28,6 +29,18 @@ export function NotificationBell() {
     enablePushNotifications,
     disablePushNotifications,
   } = useNotifications();
+  
+  // Add cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      // Log resource usage for debugging
+      const stats = getPushNotificationResourceStats();
+      if (stats.activeContexts > 0) {
+        console.debug('NotificationBell unmounting, cleaning push resources:', stats);
+        cleanupPushNotifications();
+      }
+    };
+  }, []);
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 

@@ -14,6 +14,62 @@ export interface PushSubscriptionData {
   };
 }
 
+// Global registry to track active timeouts and event listeners for cleanup
+const activeResources = new Map<string, { 
+  timeouts: Set<NodeJS.Timeout>, 
+  eventListeners: Set<{ target: EventTarget, event: string, handler: EventListener }> 
+}>();
+
+/**
+ * Register a timeout for cleanup tracking
+ */
+function registerTimeout(contextId: string, timeoutId: NodeJS.Timeout): void {
+  if (!activeResources.has(contextId)) {
+    activeResources.set(contextId, { timeouts: new Set(), eventListeners: new Set() });
+  }
+  activeResources.get(contextId)!.timeouts.add(timeoutId);
+}
+
+/**
+ * Register an event listener for cleanup tracking
+ */
+function registerEventListener(
+  contextId: string, 
+  target: EventTarget, 
+  event: string, 
+  handler: EventListener
+): void {
+  if (!activeResources.has(contextId)) {
+    activeResources.set(contextId, { timeouts: new Set(), eventListeners: new Set() });
+  }
+  activeResources.get(contextId)!.eventListeners.add({ target, event, handler });
+}
+
+/**
+ * Clean up all resources for a given context
+ */
+function cleanupResources(contextId: string): void {
+  const resources = activeResources.get(contextId);
+  if (!resources) return;
+
+  // Clear all timeouts
+  resources.timeouts.forEach(timeoutId => clearTimeout(timeoutId));
+  resources.timeouts.clear();
+
+  // Remove all event listeners
+  resources.eventListeners.forEach(({ target, event, handler }) => {
+    try {
+      target.removeEventListener(event, handler);
+    } catch (error) {
+      logger.warn('Failed to remove event listener:', error);
+    }
+  });
+  resources.eventListeners.clear();
+
+  // Remove from registry
+  activeResources.delete(contextId);
+}
+
 /**
  * Check if push notifications are supported
  */
@@ -59,7 +115,10 @@ async function waitForActivation(registration: ServiceWorkerRegistration): Promi
     if (registration.active) return;
     await Promise.race([
       navigator.serviceWorker.ready,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout waiting for ready')), 5000))
+      new Promise<never>((_, reject) => {
+        const timeoutId = setTimeout(() => reject(new Error('Timeout waiting for ready')), 5000);
+        registerTimeout('sw-activation', timeoutId);
+      })
     ]);
     return;
   }
@@ -69,25 +128,32 @@ async function waitForActivation(registration: ServiceWorkerRegistration): Promi
      sw.postMessage({ type: 'SKIP_WAITING' });
   }
 
+  const contextId = `sw-activation-${Date.now()}`;
+
   await new Promise<void>((resolve, reject) => {
     // 30s timeout for activation attempt
     const timeoutId = setTimeout(() => {
+      cleanupResources(contextId);
       reject(new Error('Timeout waiting for activation'));
     }, 30000);
+    
+    registerTimeout(contextId, timeoutId);
 
     const stateChangeHandler = () => {
       if (sw.state === 'activated') {
-        clearTimeout(timeoutId);
-        sw.removeEventListener('statechange', stateChangeHandler);
+        cleanupResources(contextId);
         resolve();
+      } else if (sw.state === 'redundant') {
+        cleanupResources(contextId);
+        reject(new Error('Service worker became redundant'));
       }
     };
 
+    registerEventListener(contextId, sw, 'statechange', stateChangeHandler);
     sw.addEventListener('statechange', stateChangeHandler);
     
     if (sw.state === 'activated') {
-      clearTimeout(timeoutId);
-      sw.removeEventListener('statechange', stateChangeHandler);
+      cleanupResources(contextId);
       resolve();
     }
   });
@@ -356,4 +422,67 @@ export async function sendTestPushNotification(userId: string): Promise<boolean>
     logger.error('Error sending test push notification:', error);
     return false;
   }
+}
+
+/**
+ * Clean up all push notification resources
+ * Call this when the application is being unmounted or during cleanup
+ */
+export function cleanupPushNotifications(): void {
+  logger.info('Cleaning up push notification resources');
+  
+  // Clean up all active resources
+  activeResources.forEach((_, contextId) => {
+    cleanupResources(contextId);
+  });
+  
+  logger.info('Push notification cleanup completed');
+}
+
+/**
+ * Get current resource usage statistics (for debugging)
+ */
+export function getPushNotificationResourceStats(): {
+  activeContexts: number;
+  totalTimeouts: number;
+  totalEventListeners: number;
+} {
+  let totalTimeouts = 0;
+  let totalEventListeners = 0;
+  
+  activeResources.forEach(resources => {
+    totalTimeouts += resources.timeouts.size;
+    totalEventListeners += resources.eventListeners.size;
+  });
+  
+  return {
+    activeContexts: activeResources.size,
+    totalTimeouts,
+    totalEventListeners,
+  };
+}
+
+// Auto-cleanup on page unload to prevent memory leaks
+if (typeof window !== 'undefined') {
+  const handleBeforeUnload = () => {
+    cleanupPushNotifications();
+  };
+  
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  
+  // Also cleanup on visibility change (when tab becomes hidden)
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      // Only cleanup old resources, not all
+      activeResources.forEach((resources, contextId) => {
+        // Clean up resources older than 5 minutes
+        const timestamp = parseInt(contextId.split('-').pop() || '0');
+        if (Date.now() - timestamp > 300000) { // 5 minutes
+          cleanupResources(contextId);
+        }
+      });
+    }
+  };
+  
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 }

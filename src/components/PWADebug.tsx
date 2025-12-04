@@ -87,16 +87,17 @@ export function PWADebug() {
       });
 
       // Log to console
-      console.log('=== PWA DEBUG ===');
-      console.log('HTTPS enabled:', isHttps);
-      console.log('Manifest found:', manifestFound);
-      console.log('Service Worker active:', serviceWorkerActive);
-      console.log('Icons 192px found:', iconsPng192Found);
-      console.log('Icons 512px found:', iconsPng512Found);
-      console.log('Mobile capable meta tag:', mobileCapableTag);
-      console.log('Theme color meta tag:', themeColorTag);
-      console.log('Install prompt supported:', installPromptSupported);
-      console.log('App installed:', isInstalled);
+      logger.debug('PWA DEBUG', {
+        https: isHttps,
+        manifest: manifestFound,
+        serviceWorker: serviceWorkerActive,
+        icons192: iconsPng192Found,
+        icons512: iconsPng512Found,
+        mobileCapable: mobileCapableTag,
+        themeColor: themeColorTag,
+        installPrompt: installPromptSupported,
+        installed: isInstalled
+      });
     };
 
     checkPWA();

@@ -7,6 +7,7 @@ import { initWebVitals } from './lib/webVitals'
 import { offlineDatabase } from './lib/offlineDatabase'
 import { offlineSync } from './lib/offlineSync'
 import { SplashScreen } from './components/SplashScreen'
+import { logger } from './lib/logger'
 
 // Initialize Sentry before rendering
 initSentry();
@@ -17,7 +18,7 @@ initWebVitals();
 // Initialize offline database and initial sync
 offlineDatabase.init().then(() => {
   offlineSync.syncDataFromServer().catch(err => {
-    console.warn('Initial sync failed, will retry when online:', err);
+    logger.warn('Initial sync failed, will retry when online:', err);
   });
 });
 

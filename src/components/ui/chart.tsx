@@ -2,6 +2,7 @@ import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
 import { cn } from "@/lib/utils"
+import { logger } from "@/lib/logger"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
@@ -88,7 +89,7 @@ const sanitizeColorValue = (value: string): string => {
   const isValid = safePatterns.some(pattern => pattern.test(trimmed));
   
   if (!isValid) {
-    console.warn('[Chart] Invalid color value detected:', value);
+    logger.warn('[Chart] Invalid color value detected:', value);
     return '';
   }
   

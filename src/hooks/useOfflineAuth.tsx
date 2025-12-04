@@ -20,7 +20,7 @@ export function useOfflineAuth() {
       const stored = localStorage.getItem(USER_CACHE_KEY);
       return stored ? JSON.parse(stored) : null;
     } catch (e) {
-      console.error('Erro ao ler cache de usuário:', e);
+      logger.error('Erro ao ler cache de usuário:', e);
       return null;
     }
   });

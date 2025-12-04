@@ -10,15 +10,57 @@ import { queryClient, queryKeys } from './queryClient';
 const MAX_RETRIES = 5;
 const SYNC_MONTHS = 12; // Aligned with useTransactions.tsx (1 year history)
 const TEMP_ID_PREFIX = 'temp-'; // Normalization of temporary ID prefix
+const SYNC_TIMEOUT = 300000; // 5 minutes timeout per sync operation
+const OPERATION_LOCK_TIMEOUT = 60000; // 1 minute timeout per individual operation
 
 class OfflineSyncManager {
   private isSyncing = false;
+  private syncPromise: Promise<void> | null = null;
+  private operationLocks = new Map<string, { timestamp: number; promise: Promise<void> }>();
+  private abortController: AbortController | null = null;
 
   async syncAll(): Promise<void> {
-    if (this.isSyncing || !navigator.onLine) return;
+    if (!navigator.onLine) return;
+    
+    // If already syncing, wait for current sync to complete
+    if (this.isSyncing && this.syncPromise) {
+      logger.info('Sync already in progress, waiting...');
+      try {
+        await this.syncPromise;
+      } catch (error) {
+        logger.warn('Previous sync failed, proceeding with new sync');
+      }
+      return;
+    }
+
+    if (this.isSyncing) return;
 
     this.isSyncing = true;
+    this.abortController = new AbortController();
     logger.info('Starting offline sync...');
+    
+    // Cleanup stale locks before starting
+    this.cleanupStaleLocks();
+
+    this.syncPromise = this.performSync();
+    
+    try {
+      await this.syncPromise;
+    } finally {
+      this.syncPromise = null;
+      this.isSyncing = false;
+      this.abortController = null;
+    }
+  }
+
+  private async performSync(): Promise<void> {
+
+    const syncTimeout = setTimeout(() => {
+      if (this.abortController) {
+        this.abortController.abort();
+        logger.warn('Sync operation timed out and was aborted');
+      }
+    }, SYNC_TIMEOUT);
 
     try {
       // 1. Processar Fila de Operações Pendentes
@@ -26,6 +68,8 @@ class OfflineSyncManager {
       
       if (operations.length > 0) {
         logger.info(`Syncing ${operations.length} queued operations`);
+        
+        // Sort by timestamp to maintain ordering
         operations.sort((a, b) => a.timestamp - b.timestamp);
 
         let successCount = 0;
@@ -33,14 +77,25 @@ class OfflineSyncManager {
         const tempIdMap = new Map<string, string>(); // Map<TempID, RealID>
 
         for (const operation of operations) {
+          // Check for abortion
+          if (this.abortController?.signal.aborted) {
+            logger.info('Sync aborted, stopping operation processing');
+            break;
+          }
+
           // Skip operations that have already failed permanently
           if (operation.status === 'failed') continue;
 
           try {
-            await this.syncOperation(operation, tempIdMap);
+            await this.syncOperationWithLock(operation, tempIdMap);
             await offlineQueue.dequeue(operation.id);
             successCount++;
           } catch (error: unknown) {
+            if (this.abortController?.signal.aborted) {
+              logger.info('Operation aborted during sync');
+              break;
+            }
+
             const { message } = handleError(error);
             logger.error(`Failed to sync operation ${operation.id}: ${message}`);
             failCount++;
@@ -61,12 +116,18 @@ class OfflineSyncManager {
       }
 
       // 2. Baixar Dados Atualizados do Servidor (Sync Down)
-      await this.syncDataFromServer();
+      if (!this.abortController?.signal.aborted) {
+        await this.syncDataFromServer();
+      }
       
-    } catch (e) {
-      logger.error('Critical sync error:', e);
+    } catch (error: unknown) {
+      if (this.abortController?.signal.aborted) {
+        logger.info('Sync was aborted');
+      } else {
+        logger.error('Critical sync error:', error);
+      }
     } finally {
-      this.isSyncing = false;
+      clearTimeout(syncTimeout);
     }
   }
 
@@ -170,6 +231,173 @@ class OfflineSyncManager {
     }
   }
 
+  /**
+   * Clean up stale operation locks (older than timeout)
+   */
+  private cleanupStaleLocks(): void {
+    const now = Date.now();
+    for (const [operationId, lock] of this.operationLocks.entries()) {
+      if (now - lock.timestamp > OPERATION_LOCK_TIMEOUT) {
+        logger.warn(`Cleaning up stale lock for operation: ${operationId}`);
+        this.operationLocks.delete(operationId);
+      }
+    }
+  }
+
+  /**
+   * Sync operation with individual lock to prevent duplicate processing
+   */
+  private async syncOperationWithLock(operation: QueuedOperation, tempIdMap: Map<string, string>): Promise<void> {
+    const lockKey = `${operation.type}-${operation.id}`;
+    
+    // Check if this operation is already being processed
+    const existingLock = this.operationLocks.get(lockKey);
+    if (existingLock) {
+      logger.info(`Operation ${lockKey} already in progress, waiting...`);
+      try {
+        await existingLock.promise;
+        return;
+      } catch (error) {
+        logger.warn(`Previous operation ${lockKey} failed, retrying`);
+        this.operationLocks.delete(lockKey);
+      }
+    }
+
+    // Create operation timeout
+    const operationTimeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Operation timeout')), OPERATION_LOCK_TIMEOUT);
+    });
+
+    // Create the sync promise
+    const syncPromise = Promise.race([
+      this.syncOperation(operation, tempIdMap),
+      operationTimeout
+    ]);
+
+    // Register the lock
+    this.operationLocks.set(lockKey, {
+      timestamp: Date.now(),
+      promise: syncPromise
+    });
+
+    try {
+      await syncPromise;
+    } finally {
+      this.operationLocks.delete(lockKey);
+    }
+  }
+
+  /**
+   * Detect potential conflicts before syncing an operation
+   */
+  private async detectConflicts(operation: QueuedOperation, payload: any): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      switch (operation.type) {
+        case 'edit':
+        case 'delete':
+          // Check if the record still exists and hasn't been modified by another client
+          if (payload.id || payload.transaction_id || payload.p_transaction_id) {
+            const targetId = payload.id || payload.transaction_id || payload.p_transaction_id;
+            
+            // Skip temp IDs
+            if (typeof targetId === 'string' && targetId.startsWith(TEMP_ID_PREFIX)) {
+              break;
+            }
+
+            const { data: existingRecord, error } = await supabase
+              .from('transactions')
+              .select('updated_at, description, amount')
+              .eq('id', targetId)
+              .eq('user_id', user.id)
+              .single();
+
+            if (error?.code === 'PGRST116') {
+              // Record doesn't exist - convert delete to no-op, edit to warning
+              if (operation.type === 'delete') {
+                logger.info(`Record ${targetId} already deleted, skipping delete operation`);
+                return; // No-op for deletes
+              } else {
+                logger.warn(`Record ${targetId} not found for edit operation`);
+                throw new Error(`Record not found: ${targetId}`);
+              }
+            }
+
+            if (error) throw error;
+
+            // For edits, check if server record is significantly different
+            if (operation.type === 'edit' && existingRecord && payload.original_values) {
+              const conflicts = this.detectDataConflicts(existingRecord, payload.original_values);
+              if (conflicts.length > 0) {
+                logger.warn(`Conflicts detected for ${targetId}:`, conflicts);
+                // Apply last-write-wins strategy with user notification
+                toast.warning(`Conflito detectado em ${payload.updates?.description || 'transação'}. Aplicando última alteração.`);
+              }
+            }
+          }
+          break;
+
+        case 'add_account':
+          // Check for duplicate account names
+          if (payload.name) {
+            const { data: existingAccount } = await supabase
+              .from('accounts')
+              .select('id, name')
+              .eq('user_id', user.id)
+              .eq('name', payload.name)
+              .single();
+
+            if (existingAccount) {
+              throw new Error(`Conta "${payload.name}" já existe`);
+            }
+          }
+          break;
+
+        case 'add_category':
+          // Check for duplicate category names
+          if (payload.name) {
+            const { data: existingCategory } = await supabase
+              .from('categories')
+              .select('id, name')
+              .eq('user_id', user.id)
+              .eq('name', payload.name)
+              .single();
+
+            if (existingCategory) {
+              throw new Error(`Categoria "${payload.name}" já existe`);
+            }
+          }
+          break;
+      }
+    } catch (error: unknown) {
+      // Only re-throw non-404 errors
+      const message = getErrorMessage(error);
+      if (!message.includes('not found') && !message.includes('PGRST116')) {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Detect data conflicts between local and server versions
+   */
+  private detectDataConflicts(serverRecord: any, originalLocalValues: any): string[] {
+    const conflicts: string[] = [];
+
+    // Check key fields for modifications
+    const fieldsToCheck = ['description', 'amount', 'category_id', 'account_id', 'date'];
+    
+    for (const field of fieldsToCheck) {
+      if (serverRecord[field] !== originalLocalValues[field]) {
+        conflicts.push(`${field}: server="${serverRecord[field]}" vs original="${originalLocalValues[field]}"`);
+      }
+    }
+
+    return conflicts;
+  }
+
   private async syncOperation(operation: QueuedOperation, tempIdMap: Map<string, string>): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -182,6 +410,10 @@ class OfflineSyncManager {
     
     // Helper para identificar ID temporário
     const isTempId = (id: any) => typeof id === 'string' && id.startsWith(TEMP_ID_PREFIX);
+
+    // === CONFLICT DETECTION ===
+    // Check for potential conflicts before processing
+    await this.detectConflicts(operation, payload);
 
     // === DEPENDENCY RESOLUTION ===
     // Resolve IDs using the map (replace temp IDs with real IDs from previous operations in this batch)
@@ -577,6 +809,53 @@ class OfflineSyncManager {
 
       default:
         logger.warn(`Operation type ${operation.type} not fully implemented in sync.`);
+    }
+  }
+
+  /**
+   * Clean up all sync resources and abort any ongoing operations
+   */
+  public cleanup(): void {
+    logger.info('Cleaning up offline sync manager resources');
+    
+    // Abort any ongoing sync
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+
+    // Clear all operation locks
+    this.operationLocks.clear();
+    
+    // Reset sync state
+    this.isSyncing = false;
+    this.syncPromise = null;
+
+    logger.info('Offline sync manager cleanup completed');
+  }
+
+  /**
+   * Get current sync status and statistics
+   */
+  public getStatus(): {
+    isSyncing: boolean;
+    activeLocks: number;
+    hasAbortController: boolean;
+  } {
+    return {
+      isSyncing: this.isSyncing,
+      activeLocks: this.operationLocks.size,
+      hasAbortController: this.abortController !== null,
+    };
+  }
+
+  /**
+   * Force abort current sync operation
+   */
+  public abortSync(): void {
+    if (this.abortController) {
+      logger.warn('Force aborting sync operation');
+      this.abortController.abort();
     }
   }
 }

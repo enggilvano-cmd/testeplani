@@ -85,7 +85,7 @@ export class TabSynchronizer {
         try {
           callback(data);
         } catch (error) {
-          console.error(`Error in listener for event "${eventType}":`, error);
+          logger.error(`Error in listener for event "${eventType}":`, error);
         }
       });
     }
