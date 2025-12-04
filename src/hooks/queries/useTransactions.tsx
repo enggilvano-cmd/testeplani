@@ -9,6 +9,7 @@ import { addTransactionSchema, editTransactionSchema } from '@/lib/validationSch
 import { z } from 'zod';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineDatabase } from '@/lib/offlineDatabase';
+import { performanceMonitor, trackCachePerformance } from '@/lib/performanceMonitor';
 
 interface UseTransactionsParams {
   page?: number;
@@ -176,7 +177,7 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
       let query = supabase
         .from('transactions')
-        .select(accountType !== 'all' ? '*, accounts!inner(type)' : '*', { count: 'exact', head: true })
+        .select(accountType !== 'all' ? 'id, accounts!inner(type)' : 'id', { count: 'exact', head: true })
         .eq('user_id', user.id)
         // Excluir apenas o PAI das transações fixas (mantém as filhas)
         .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null')
@@ -233,15 +234,15 @@ export function useTransactions(params: UseTransactionsParams = {}) {
       if (error) throw error;
       return count || 0;
     },
-    enabled: !!user && enabled,
-    // Otimização: staleTime de 30s evita refetches desnecessários
-    staleTime: 30 * 1000, // 30 segundos
-    gcTime: 2.5 * 60 * 1000,
-    // Keep previous data while fetching new data
+    enabled: !!user,
+    // Count caching: longer for count queries as they change less frequently
+    staleTime: search || type !== 'all' || accountId !== 'all' ? 15000 : 60000, // 15s for filtered, 1min for unfiltered
+    gcTime: 300000, // 5 minutes
+    // Use previous data while fetching new count
     placeholderData: (previousData) => previousData,
-    // Refetch only when data is stale (não forçar sempre)
-    refetchOnMount: true, // Default: refetch se stale
-    refetchOnWindowFocus: true,
+    // Network optimizations
+    refetchOnWindowFocus: false, // Count doesn't need frequent updates
+    refetchOnMount: true,
   });
 
   // Query for paginated data with filters
@@ -251,7 +252,19 @@ export function useTransactions(params: UseTransactionsParams = {}) {
       if (!user) return [];
 
       if (!isOnline) {
-        const allTransactions = await offlineDatabase.getTransactions(user.id, 12);
+        // Use optimized offline database with performance tracking
+        const startTime = performance.now();
+        const allTransactions = await offlineDatabase.getTransactions(
+          user.id, 
+          12,
+          {
+            limit: pageSize || undefined,
+            offset: pageSize ? page * pageSize : 0,
+            sortBy: sortBy,
+            sortOrder: sortOrder
+          }
+        );
+        performanceMonitor.trackQuery('offline-transactions', startTime);
         let filtered = await filterTransactionsInMemory(allTransactions);
 
         // Sort

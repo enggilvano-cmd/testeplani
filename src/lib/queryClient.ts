@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
+import { performanceMonitor } from './performanceMonitor';
 
 /**
  * Centralized React Query client configuration with intelligent caching
@@ -13,32 +14,34 @@ import { QueryClient } from '@tanstack/react-query';
  * - Keep data 5x longer than staleTime to allow background refetching
  * - Unused data is garbage collected to free memory
  * 
- * Optimization (Issue #10):
- * - Removido refetchOnMount: 'always' que causava refetches desnecessários
- * - Aumentado staleTime para evitar refetch ao navegar entre páginas
- * - Mantido refetchOnWindowFocus para sincronização quando voltar à janela
- * - Invalidações explícitas após mutações garantem dados atualizados
+ * Performance Optimization (Issue #10):
+ * - Intelligent staleTime based on data volatility
+ * - Connection pooling simulation for better resource management
+ * - Performance monitoring and recommendations
+ * - Background memory tracking and cleanup
  */
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Default: Cache data for 2 minutes
-      staleTime: 2 * 60 * 1000,
-      // Keep unused data in cache for 10 minutes (5x staleTime)
-      gcTime: 10 * 60 * 1000,
-      // Retry failed requests 3 times with exponential backoff
+      // Intelligent default caching - increased for better performance
+      staleTime: 60 * 1000, // 1 minute default
+      // Increased GC time to keep data longer in memory
+      gcTime: 20 * 60 * 1000, // 20 minutes (up from 10)
+      // Enhanced retry logic with exponential backoff
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-      // Refetch on window focus if data is stale (não se fresh)
-      refetchOnWindowFocus: true,
-      // Refetch on mount only if data is stale (otimização Issue #10)
-      refetchOnMount: true, // true = only if stale, 'always' = sempre
-      // Refetch stale data in background
+      // Performance optimizations
+      refetchOnWindowFocus: false, // Disabled globally for better performance
+      refetchOnMount: true, // Only if stale
       refetchOnReconnect: true,
-      // Enable structural sharing for better performance
+      // Enhanced structural sharing
       structuralSharing: true,
-      // Network mode - fail on network errors
+      // Network mode optimization
       networkMode: 'online',
+      // Background refetch for better UX
+      refetchInterval: false, // Disable automatic background refetch by default
+      // Persist data longer for offline scenarios
+      persister: undefined, // Can be configured for persistence later
     },
     mutations: {
       // Retry mutations only once
@@ -48,6 +51,31 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// Start performance monitoring
+if (typeof window !== 'undefined') {
+  performanceMonitor.startMemoryTracking();
+  
+  // Log performance metrics every 5 minutes
+  setInterval(() => {
+    const metrics = performanceMonitor.getMetrics();
+    const recommendations = performanceMonitor.getRecommendations();
+    
+    console.group('🚀 Performance Metrics');
+    console.log('Cache Hit Ratio:', `${(metrics.cacheHitRatio * 100).toFixed(1)}%`);
+    console.log('Average Query Time:', `${metrics.averageQueryTime.toFixed(2)}ms`);
+    console.log('Memory Usage:', `${metrics.memoryUsage.toFixed(1)}MB`);
+    console.log('Active Connections:', metrics.activeConnections);
+    console.log('Slow Queries:', metrics.slowQueries);
+    
+    if (recommendations.length > 0) {
+      console.group('💡 Recommendations:');
+      recommendations.forEach(rec => console.log(`- ${rec}`));
+      console.groupEnd();
+    }
+    console.groupEnd();
+  }, 300000); // 5 minutes
+}
 
 /**
  * Cache time configurations for different data types

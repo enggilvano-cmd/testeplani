@@ -251,27 +251,195 @@ class OfflineDatabase {
     });
   }
 
-  async getTransactions(userId: string, monthsBack: number = 3): Promise<Transaction[]> {
+  /**
+   * Optimized transaction retrieval with lazy loading and virtual indexing
+   */
+  async getTransactions(userId: string, monthsBack: number = 3, options: {
+    limit?: number;
+    offset?: number;
+    sortBy?: 'date' | 'amount';
+    sortOrder?: 'asc' | 'desc';
+    useVirtualIndex?: boolean;
+  } = {}): Promise<Transaction[]> {
     if (!this.db) await this.init();
+    
+    const { limit, offset = 0, sortBy = 'date', sortOrder = 'desc', useVirtualIndex = true } = options;
+    
     return new Promise((resolve, reject) => {
       const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readonly');
       const store = tx.objectStore(STORES.TRANSACTIONS);
       const index = store.index('user_id');
-      const request = index.getAll(userId);
-
-      request.onsuccess = () => {
-        const allTransactions = request.result || [];
+      
+      // Use cursor for better performance on large datasets
+      if (useVirtualIndex && (limit || offset > 0)) {
+        const results: Transaction[] = [];
+        let skipped = 0;
+        let collected = 0;
         const cutoffDate = new Date();
         cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+        const cutoffTime = cutoffDate.getTime();
         
-        const filtered = allTransactions.filter(txData => {
-          const txDate = new Date(txData.date);
-          return txDate >= cutoffDate;
-        });
+        const request = index.openCursor(IDBKeyRange.only(userId));
+        
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) {
+            // Sort results in memory (more efficient than sorting entire dataset)
+            results.sort((a, b) => {
+              const aValue = sortBy === 'date' ? new Date(a.date).getTime() : a.amount;
+              const bValue = sortBy === 'date' ? new Date(b.date).getTime() : b.amount;
+              return sortOrder === 'desc' ? (bValue - aValue) : (aValue - bValue);
+            });
+            resolve(results);
+            return;
+          }
+          
+          const txData = cursor.value as Transaction;
+          const txDate = new Date(txData.date).getTime();
+          
+          // Filter by date range
+          if (txDate >= cutoffTime) {
+            // Skip offset records
+            if (offset && skipped < offset) {
+              skipped++;
+            } else if (!limit || collected < limit) {
+              results.push(txData);
+              collected++;
+            } else {
+              // We have enough records
+              results.sort((a, b) => {
+                const aValue = sortBy === 'date' ? new Date(a.date).getTime() : a.amount;
+                const bValue = sortBy === 'date' ? new Date(b.date).getTime() : b.amount;
+                return sortOrder === 'desc' ? (bValue - aValue) : (aValue - bValue);
+              });
+              resolve(results);
+              return;
+            }
+          }
+          
+          cursor.continue();
+        };
+        
+        request.onerror = () => reject(request.error);
+      } else {
+        // Fallback to original method for small datasets
+        const request = index.getAll(userId);
+        
+        request.onsuccess = () => {
+          const allTransactions = request.result || [];
+          const cutoffDate = new Date();
+          cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+          
+          const filtered = allTransactions.filter(txData => {
+            const txDate = new Date(txData.date);
+            return txDate >= cutoffDate;
+          });
 
-        filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        resolve(filtered);
+          filtered.sort((a, b) => {
+            const aValue = sortBy === 'date' ? new Date(a.date).getTime() : a.amount;
+            const bValue = sortBy === 'date' ? new Date(b.date).getTime() : b.amount;
+            return sortOrder === 'desc' ? (bValue - aValue) : (aValue - bValue);
+          });
+          
+          // Apply pagination if specified
+          const result = limit ? filtered.slice(offset, offset + limit) : filtered.slice(offset);
+          resolve(result);
+        };
+        
+        request.onerror = () => reject(request.error);
+      }
+    });
+  }
+
+  /**
+   * Batch operations for better performance on large datasets
+   */
+  async batchTransactions(operations: Array<{
+    type: 'add' | 'update' | 'delete';
+    data: Transaction | string; // string for delete (id)
+  }>): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readwrite');
+      const store = tx.objectStore(STORES.TRANSACTIONS);
+      
+      let completed = 0;
+      const total = operations.length;
+      
+      const processNext = () => {
+        if (completed >= total) {
+          resolve();
+          return;
+        }
+        
+        const operation = operations[completed];
+        let request: IDBRequest;
+        
+        switch (operation.type) {
+          case 'add':
+          case 'update':
+            request = store.put(operation.data as Transaction);
+            break;
+          case 'delete':
+            request = store.delete(operation.data as string);
+            break;
+          default:
+            completed++;
+            processNext();
+            return;
+        }
+        
+        request.onsuccess = () => {
+          completed++;
+          processNext();
+        };
+        
+        request.onerror = () => reject(request.error);
       };
+      
+      // Start batch processing
+      processNext();
+      
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /**
+   * Get transactions count efficiently without loading all data
+   */
+  async getTransactionsCount(userId: string, monthsBack: number = 3): Promise<number> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([STORES.TRANSACTIONS], 'readonly');
+      const store = tx.objectStore(STORES.TRANSACTIONS);
+      const index = store.index('user_id');
+      
+      let count = 0;
+      const cutoffDate = new Date();
+      cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+      const cutoffTime = cutoffDate.getTime();
+      
+      const request = index.openCursor(IDBKeyRange.only(userId));
+      
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve(count);
+          return;
+        }
+        
+        const txData = cursor.value as Transaction;
+        const txDate = new Date(txData.date).getTime();
+        
+        if (txDate >= cutoffTime) {
+          count++;
+        }
+        
+        cursor.continue();
+      };
+      
       request.onerror = () => reject(request.error);
     });
   }

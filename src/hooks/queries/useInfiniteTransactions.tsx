@@ -192,14 +192,24 @@ export function useInfiniteTransactions(params: UseInfiniteTransactionsParams = 
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: 0,
     enabled: !!user && enabled,
-    // Otimização: staleTime de 30s evita refetches desnecessários ao navegar
-    staleTime: 30 * 1000, // 30 segundos
-    gcTime: 2.5 * 60 * 1000,
-    // Keep previous data while fetching new data
+    // Advanced caching for infinite scroll
+    staleTime: (() => {
+      // Dynamic stale time based on filters
+      if (search) return 10000; // 10s for search (user might scroll and modify)
+      if (type !== 'all' || accountId !== 'all') return 30000; // 30s for filtered
+      return 120000; // 2min for unfiltered data
+    })(),
+    gcTime: 600000, // 10 minutes - keep pages longer for infinite scroll
     placeholderData: (previousData) => previousData,
-    // Refetch only when data is stale (não forçar sempre)
-    refetchOnMount: true, // Default: refetch se stale
-    refetchOnWindowFocus: true,
+    // Infinite scroll optimizations
+    refetchOnMount: true,
+    refetchOnWindowFocus: false, // Don't refetch on focus for infinite scroll
+    // Enable background refetch for better UX
+    refetchOnReconnect: true,
+    // Performance
+    structuralSharing: true,
+    // Optimize for infinite scroll patterns
+    maxPages: 10, // Limit memory usage
   });
 
   // Separate count query
