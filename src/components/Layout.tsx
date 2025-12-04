@@ -384,68 +384,57 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate, dashbo
             "flex-1 w-full overflow-x-hidden overflow-y-auto",
             "safe-bottom"
           )}>
-          {/* Desktop Header Background - Fixed Bar with dynamic padding */}
+          {/* Desktop Header - Fixed bar with same style as mobile */}
           {!isMobile && (
-            <div className={cn(
-              "fixed top-0 -z-10 h-32 transition-all duration-300",
-              open
-                ? "left-56 lg:left-64 xl:left-72"
-                : "left-[72px]"
-            )} style={{right: 0}} />
-          )}
-          
-          {/* Desktop Logo Header with dynamic padding - Using same wrapper as content */}
-          {!isMobile && (
-            <div className={cn(
-              "fixed top-0 z-10 h-32 transition-all duration-300",
-              open
-                ? "left-56 lg:left-64 xl:left-72"
-                : "left-[72px]"
-            )} style={{right: '40px'}}>
-              <div className="h-full w-full flex items-center justify-center pt-3 pb-2 relative z-20">
-                {/* Background container for buttons and logo - centered */}
-                
-                <div className="h-20 financial-card flex items-center gap-8"
-                  style={{
-                    padding: '12px 16px'
-                  }}>
-                  <div className="flex items-center gap-4 h-full">
-                    {currentPage === 'dashboard' && dashboardHeaderCallbacks && (
-                      <DashboardHeader
-                        onTransfer={dashboardHeaderCallbacks.onTransfer}
-                        onAddExpense={dashboardHeaderCallbacks.onAddExpense}
-                        onAddIncome={dashboardHeaderCallbacks.onAddIncome}
-                        onAddCreditExpense={dashboardHeaderCallbacks.onAddCreditExpense}
-                        isHeaderVersion={true}
-                      />
-                    )}
-                    {currentPage !== 'dashboard' && pageHeaderButtons && (
-                      pageHeaderButtons
-                    )}
-                  </div>
+            <header className="fixed top-0 left-0 right-0 z-[60] h-14 bg-background/95 backdrop-blur-xl border-b border-border/50 shadow-sm transition-all duration-300">
+              <div className="flex items-center justify-center h-full px-4 transition-all duration-300"
+                style={{
+                  marginLeft: open ? 'var(--sidebar-width, 224px)' : '72px',
+                  width: open ? 'calc(100% - var(--sidebar-width, 224px))' : 'calc(100% - 72px)',
+                  position: 'relative'
+                }}>
+                {/* Center: All elements in one line - buttons, logo, notification */}
+                <div className="flex items-center gap-3">
+                  {/* Action buttons */}
+                  {currentPage === 'dashboard' && dashboardHeaderCallbacks && (
+                    <DashboardHeader
+                      onTransfer={dashboardHeaderCallbacks.onTransfer}
+                      onAddExpense={dashboardHeaderCallbacks.onAddExpense}
+                      onAddIncome={dashboardHeaderCallbacks.onAddIncome}
+                      onAddCreditExpense={dashboardHeaderCallbacks.onAddCreditExpense}
+                      isHeaderVersion={true}
+                    />
+                  )}
+                  {currentPage !== 'dashboard' && pageHeaderButtons && (
+                    <div className="flex items-center gap-1 [&>button]:h-8 [&>button]:text-xs [&>button]:px-2">
+                      {pageHeaderButtons}
+                    </div>
+                  )}
 
-                  <div className="flex items-center gap-3 cursor-pointer transition-all duration-200 hover:scale-105"
+                  {/* Divider */}
+                  <div className="w-px h-6 bg-border/30"></div>
+
+                  {/* Logo */}
+                  <div className="flex items-center gap-2 cursor-pointer transition-all duration-200 hover:scale-105"
                     onClick={() => handlePageChange('dashboard')}
                   >
-                    <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center shadow-lg">
-                      <BarChart3 className="h-6 w-6 text-yellow-400" />
+                    <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center shadow-lg flex-shrink-0">
+                      <BarChart3 className="h-4 w-4 text-yellow-400" />
                     </div>
                     <div>
-                      <h1 className="text-xl font-bold tracking-tight text-foreground">
+                      <h1 className="text-base font-bold tracking-tight text-foreground">
                         PlaniFlow
                       </h1>
-                      <p className="text-sm text-muted-foreground mt-1 font-medium">
-                        Gestão Financeira
-                      </p>
                     </div>
                   </div>
 
+                  {/* Notification */}
                   <div className="text-foreground">
                     <NotificationBell />
                   </div>
                 </div>
               </div>
-            </div>
+            </header>
           )}
           
           {/* Mobile Header Buttons */}
@@ -461,12 +450,8 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate, dashbo
             "w-full h-full transition-all duration-300",
             isMobile 
               ? "px-3 py-1 pt-[72px]" 
-              : "pt-32 pb-5 md:pt-32 md:pb-4 lg:pt-32 lg:pb-12"
+              : "px-[52px] py-[52px] pt-[72px]"
           )}
-          style={!isMobile ? {
-            paddingLeft: '48px',
-            paddingRight: '40px'
-          } : undefined}
           >
             <div className={cn(
               "mx-auto w-full",
