@@ -44,8 +44,6 @@ Deno.serve(async (req) => {
     const tomorrowEnd = new Date(tomorrow);
     tomorrowEnd.setHours(23, 59, 59, 999);
 
-    console.log('Checking for bills due on:', tomorrow.toISOString().split('T')[0]);
-
     // Find pending transactions due tomorrow
     const { data: pendingTransactions, error: transactionsError } = await supabase
       .from('transactions')
@@ -55,7 +53,6 @@ Deno.serve(async (req) => {
       .lte('date', tomorrowEnd.toISOString().split('T')[0]);
 
     if (transactionsError) {
-      console.error('Error fetching pending transactions:', transactionsError);
       throw transactionsError;
     }
 
@@ -66,15 +63,12 @@ Deno.serve(async (req) => {
       .eq('type', 'credit');
 
     if (accountsError) {
-      console.error('Error fetching accounts:', accountsError);
       throw accountsError;
     }
 
     // Filter accounts with due_date matching tomorrow's day
     const tomorrowDay = tomorrow.getDate();
     const creditBillsDueTomorrow = accounts?.filter(acc => acc.due_date === tomorrowDay) || [];
-
-    console.log(`Found ${pendingTransactions?.length || 0} pending transactions and ${creditBillsDueTomorrow.length} credit bills`);
 
     // Group notifications by user
     const userNotifications = new Map<string, NotificationPayload[]>();
@@ -114,8 +108,6 @@ Deno.serve(async (req) => {
 
     // Send notifications to each user
     for (const [userId, notifications] of userNotifications) {
-      console.log(`Sending ${notifications.length} notification(s) to user ${userId}`);
-
       // Get user's notification settings
       const { data: settings } = await supabase
         .from('notification_settings')
@@ -124,7 +116,6 @@ Deno.serve(async (req) => {
         .single();
 
       if (!settings?.notify_pending_transactions && !settings?.notify_credit_bills) {
-        console.log(`User ${userId} has notifications disabled, skipping`);
         continue;
       }
 
@@ -135,7 +126,6 @@ Deno.serve(async (req) => {
         .eq('user_id', userId);
 
       if (subsError || !subscriptions || subscriptions.length === 0) {
-        console.log(`No push subscriptions found for user ${userId}`);
         continue;
       }
 
@@ -161,20 +151,16 @@ Deno.serve(async (req) => {
             });
 
             if (pushError) {
-              console.error('Error sending push notification:', pushError);
               notificationsFailed++;
             } else {
               notificationsSent++;
             }
           } catch (error) {
-            console.error('Failed to send notification:', error);
             notificationsFailed++;
           }
         }
       }
     }
-
-    console.log(`Notifications sent: ${notificationsSent}, failed: ${notificationsFailed}`);
 
     return new Response(
       JSON.stringify({
@@ -191,7 +177,6 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error in send-bill-reminders:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

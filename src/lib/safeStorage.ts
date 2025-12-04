@@ -8,10 +8,24 @@ import { logger } from './logger';
  * - JSON.parse errors (dados corrompidos)
  * - localStorage indisponível (private browsing, etc.)
  * - Fallback para memória quando necessário
+ * - Limite de espaço com LRU eviction
  */
+
+// Configuração de limite de espaço
+const MAX_STORAGE_SIZE = 4 * 1024 * 1024; // 4MB limite (conservador para compatibilidade)
+const CRITICAL_THRESHOLD = MAX_STORAGE_SIZE * 0.9; // 90% = crítico
 
 // Fallback em memória quando localStorage não disponível
 const memoryStorage = new Map<string, string>();
+const accessTimestamps = new Map<string, number>(); // Para LRU eviction
+
+const recordAccessTimestamp = (key: string) => {
+  accessTimestamps.set(key, Date.now());
+};
+
+const removeAccessTimestamp = (key: string) => {
+  accessTimestamps.delete(key);
+};
 
 /**
  * Verifica se localStorage está disponível
@@ -44,9 +58,17 @@ export const safeStorage = {
   getItem(key: string): string | null {
     try {
       if (storageAvailable) {
-        return localStorage.getItem(key);
+        const value = localStorage.getItem(key);
+        if (value !== null) {
+          recordAccessTimestamp(key);
+        }
+        return value;
       }
-      return memoryStorage.get(key) || null;
+      const value = memoryStorage.get(key) || null;
+      if (value !== null) {
+        recordAccessTimestamp(key);
+      }
+      return value;
     } catch (error) {
       logger.error(`SafeStorage.getItem error for key "${key}":`, error);
       return null;
@@ -61,29 +83,49 @@ export const safeStorage = {
     try {
       if (storageAvailable) {
         localStorage.setItem(key, value);
+        accessTimestamps.set(key, Date.now());
       } else {
         memoryStorage.set(key, value);
+        accessTimestamps.set(key, Date.now());
       }
       return true;
     } catch (error) {
       // QuotaExceededError - storage cheio
       if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-        logger.error(`SafeStorage.setItem QuotaExceededError for key "${key}". Tentando limpar cache antigo...`);
+        logger.error(`SafeStorage.setItem QuotaExceededError for key "${key}". Aplicando LRU eviction...`);
         
-        // Tentar limpar itens antigos do cache
-        this.clearOldCacheItems();
+        // LRU eviction: remover itens menos usados
+        evictLRU();
         
         // Tentar novamente
         try {
           if (storageAvailable) {
             localStorage.setItem(key, value);
+            recordAccessTimestamp(key);
           } else {
             memoryStorage.set(key, value);
+            recordAccessTimestamp(key);
           }
           return true;
         } catch (retryError) {
-          logger.error(`SafeStorage.setItem falhou após limpar cache:`, retryError);
-          return false;
+          logger.error(`SafeStorage.setItem falhou após LRU eviction:`, retryError);
+          
+          // Última tentativa: limpar cache agressivamente
+          clearOldCacheItemsInternal();
+          
+          try {
+            if (storageAvailable) {
+              localStorage.setItem(key, value);
+              recordAccessTimestamp(key);
+            } else {
+              memoryStorage.set(key, value);
+              recordAccessTimestamp(key);
+            }
+            return true;
+          } catch (finalError) {
+            logger.error(`SafeStorage.setItem falhou permanentemente:`, finalError);
+            return false;
+          }
         }
       }
       
@@ -102,6 +144,7 @@ export const safeStorage = {
       } else {
         memoryStorage.delete(key);
       }
+      removeAccessTimestamp(key);
     } catch (error) {
       logger.error(`SafeStorage.removeItem error for key "${key}":`, error);
     }
@@ -117,6 +160,7 @@ export const safeStorage = {
       } else {
         memoryStorage.clear();
       }
+      accessTimestamps.clear();
     } catch (error) {
       logger.error('SafeStorage.clear error:', error);
     }
@@ -159,33 +203,7 @@ export const safeStorage = {
    * Usado quando QuotaExceededError ocorre
    */
   clearOldCacheItems(): void {
-    try {
-      if (!storageAvailable) return;
-
-      const keysToRemove: string[] = [];
-      
-      // Identificar itens de cache
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (
-          key.includes('cache') || 
-          key.includes('query-') ||
-          key.includes('temp-')
-        )) {
-          keysToRemove.push(key);
-        }
-      }
-
-      // Remover até 50% dos itens de cache
-      const itemsToRemove = Math.ceil(keysToRemove.length * 0.5);
-      for (let i = 0; i < itemsToRemove; i++) {
-        this.removeItem(keysToRemove[i]);
-      }
-
-      logger.info(`SafeStorage: Limpou ${itemsToRemove} itens de cache antigos`);
-    } catch (error) {
-      logger.error('SafeStorage.clearOldCacheItems error:', error);
-    }
+    clearOldCacheItemsInternal();
   },
 
   /**
@@ -233,6 +251,83 @@ export const safeStorage = {
     return used > typical5MB * 0.8;
   },
 };
+
+function clearOldCacheItemsInternal(): void {
+  try {
+    const keysToRemove: string[] = [];
+    
+    if (storageAvailable) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('cache') || key.includes('query-') || key.includes('temp-'))) {
+          keysToRemove.push(key);
+        }
+      }
+    } else {
+      for (const key of memoryStorage.keys()) {
+        if (key.includes('cache') || key.includes('query-') || key.includes('temp-')) {
+          keysToRemove.push(key);
+        }
+      }
+    }
+
+    const itemsToRemove = Math.min(keysToRemove.length, Math.ceil(keysToRemove.length * 0.5));
+    for (let i = 0; i < itemsToRemove; i++) {
+      const key = keysToRemove[i];
+      if (!key) continue;
+      if (storageAvailable) {
+        localStorage.removeItem(key);
+      } else {
+        memoryStorage.delete(key);
+      }
+      removeAccessTimestamp(key);
+    }
+
+    logger.info(`SafeStorage: Limpou ${itemsToRemove} itens de cache antigos`);
+  } catch (error) {
+    logger.error('SafeStorage.clearOldCacheItems error:', error);
+  }
+}
+
+function evictLRU(): void {
+  try {
+    const currentSize = safeStorage.getUsedSpace();
+    if (currentSize < CRITICAL_THRESHOLD) {
+      return;
+    }
+
+    const entries: Array<[string, number]> = [];
+    if (storageAvailable) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          entries.push([key, accessTimestamps.get(key) || 0]);
+        }
+      }
+    } else {
+      memoryStorage.forEach((_, key) => {
+        entries.push([key, accessTimestamps.get(key) || 0]);
+      });
+    }
+
+    entries.sort((a, b) => a[1] - b[1]);
+    const itemsToRemove = Math.min(entries.length, Math.ceil(entries.length * 0.3));
+    for (let i = 0; i < itemsToRemove; i++) {
+      const [key] = entries[i];
+      if (!key) continue;
+      if (storageAvailable) {
+        localStorage.removeItem(key);
+      } else {
+        memoryStorage.delete(key);
+      }
+      removeAccessTimestamp(key);
+    }
+
+    logger.info(`SafeStorage: LRU eviction removeu ${itemsToRemove} itens`);
+  } catch (error) {
+    logger.error('SafeStorage.evictLRU error:', error);
+  }
+}
 
 // Exportar como default também
 export default safeStorage;

@@ -65,6 +65,36 @@ const ChartContainer = React.forwardRef<
 })
 ChartContainer.displayName = "Chart"
 
+/**
+ * Sanitiza valores de cor para prevenir CSS injection
+ * Aceita: hex, rgb, hsl, named colors, CSS variables
+ */
+const sanitizeColorValue = (value: string): string => {
+  if (!value || typeof value !== 'string') return '';
+  
+  // Remove whitespace
+  const trimmed = value.trim();
+  
+  // Validar padrões seguros: hex, rgb, hsl, named colors, ou CSS variables
+  const safePatterns = [
+    /^#[0-9A-Fa-f]{3,8}$/, // hex colors
+    /^rgb\([0-9]{1,3},\s*[0-9]{1,3},\s*[0-9]{1,3}\)$/, // rgb
+    /^rgba\([0-9]{1,3},\s*[0-9]{1,3},\s*[0-9]{1,3},\s*[0-9.]+\)$/, // rgba
+    /^hsl\([0-9]{1,3},\s*[0-9]{1,3}%,\s*[0-9]{1,3}%\)$/, // hsl
+    /^var\(--[a-zA-Z0-9_-]+\)$/, // CSS variables
+    /^[a-z]+$/ // named colors (red, blue, etc)
+  ];
+  
+  const isValid = safePatterns.some(pattern => pattern.test(trimmed));
+  
+  if (!isValid) {
+    console.warn('[Chart] Invalid color value detected:', value);
+    return '';
+  }
+  
+  return trimmed;
+};
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([_, config]) => config.theme || config.color
@@ -74,25 +104,32 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+  // Sanitizar ID para prevenir CSS injection
+  const sanitizedId = id.replace(/[^a-zA-Z0-9_-]/g, '');
+
+  const cssContent = Object.entries(THEMES)
+    .map(
+      ([theme, prefix]) => `
+${prefix} [data-chart=${sanitizedId}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    const sanitized = sanitizeColorValue(color || '');
+    return sanitized ? `  --color-${key}: ${sanitized};` : null
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `
-          )
-          .join("\n"),
+    )
+    .join("\n");
+
+  return (
+    <style
+      dangerouslySetInnerHTML={{
+        __html: cssContent,
       }}
     />
   )

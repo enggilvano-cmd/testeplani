@@ -38,16 +38,7 @@ export function ProtectedRoute({
   // mostramos uma tela de carregamento específica para o perfil.
   // Isso evita a exibição da mensagem "Perfil não encontrado" durante o carregamento inicial.
   if (user && !profile) {
-    return (
-      <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
-        <Card className="financial-card p-4 sm:p-6">
-          <CardContent className="flex flex-col items-center space-y-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="text-muted-foreground">Carregando perfil do usuário...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return null;
   }
 
   // A verificação de perfil não encontrado foi movida para depois do carregamento.

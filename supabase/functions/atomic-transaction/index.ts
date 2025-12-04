@@ -8,6 +8,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/**
+ * Structured logging para edge functions
+ * Em produção, isso seria enviado para um serviço de logging centralizado (Sentry, DataDog, etc)
+ */
+function logEvent(level: 'info' | 'warn' | 'error', message: string, context?: Record<string, any>) {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    level,
+    function: 'atomic-transaction',
+    message,
+    context: context || {}
+  };
+  // Em desenvolvimento, logar no console
+  if (Deno.env.get('ENVIRONMENT') === 'development') {
+    console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](JSON.stringify(logEntry));
+  }
+  // Em produção, isso seria enviado para Sentry ou outro serviço
+  return logEntry;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -31,7 +52,7 @@ Deno.serve(async (req) => {
     } = await supabaseClient.auth.getUser();
 
     if (userError || !user) {
-      console.error('[atomic-transaction] ERROR: Auth failed:', userError);
+      logEvent('error', 'Auth failed', { userError });
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -41,18 +62,16 @@ Deno.serve(async (req) => {
     // Rate limiting - Moderado para criação de transações
     const rateLimitResponse = await rateLimiters.moderate.middleware(req, user.id);
     if (rateLimitResponse) {
-      console.warn('[atomic-transaction] WARN: Rate limit exceeded for user:', user.id);
+      logEvent('warn', 'Rate limit exceeded', { userId: user.id });
       return rateLimitResponse;
     }
 
     const body = await req.json();
 
-    console.log('[atomic-transaction] INFO: Creating transaction for user:', user.id);
-
     // Validação Zod
     const validation = validateWithZod(TransactionInputSchema, body.transaction);
     if (!validation.success) {
-      console.error('[atomic-transaction] ERROR: Validation failed:', validation.errors);
+      logEvent('error', 'Validation failed', { errors: validation.errors });
       return validationErrorResponse(validation.errors, corsHeaders);
     }
 
@@ -75,14 +94,14 @@ Deno.serve(async (req) => {
     );
 
     if (functionError) {
-      console.error('[atomic-transaction] ERROR: Function failed:', functionError);
+      logEvent('error', 'Function call failed', { functionError });
       throw functionError;
     }
 
     const record = result[0];
     
     if (!record.success) {
-      console.error('[atomic-transaction] ERROR:', record.error_message);
+      logEvent('error', 'Transaction creation failed', { errorMessage: record.error_message });
       return new Response(
         JSON.stringify({ 
           error: record.error_message,
@@ -92,7 +111,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('[atomic-transaction] INFO: Transaction created successfully:', record.transaction_id);
+    logEvent('info', 'Transaction created successfully', { transactionId: record.transaction_id, userId: user.id });
 
     return new Response(
       JSON.stringify({
@@ -107,7 +126,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[atomic-transaction] ERROR:', error);
+    logEvent('error', 'Unhandled exception', { error: error instanceof Error ? error.message : String(error) });
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

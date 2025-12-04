@@ -2,12 +2,14 @@ import { offlineQueue, QueuedOperation } from './offlineQueue';
 import { offlineDatabase } from './offlineDatabase';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from './logger';
+import { getErrorMessage, handleError } from './errorUtils';
 import type { Transaction, Account, Category } from '@/types';
 import { toast } from 'sonner';
 import { queryClient, queryKeys } from './queryClient';
 
 const MAX_RETRIES = 5;
 const SYNC_MONTHS = 12; // Aligned with useTransactions.tsx (1 year history)
+const TEMP_ID_PREFIX = 'temp-'; // Normalization of temporary ID prefix
 
 class OfflineSyncManager {
   private isSyncing = false;
@@ -38,17 +40,16 @@ class OfflineSyncManager {
             await this.syncOperation(operation, tempIdMap);
             await offlineQueue.dequeue(operation.id);
             successCount++;
-          } catch (error: any) {
-            logger.error(`Failed to sync operation ${operation.id}:`, error);
+          } catch (error: unknown) {
+            const { message } = handleError(error);
+            logger.error(`Failed to sync operation ${operation.id}: ${message}`);
             failCount++;
             
             if (operation.retries >= MAX_RETRIES) {
-              const errorMessage = error?.message || 'Unknown error';
               toast.error(`Falha permanente ao sincronizar: ${operation.type}. Verifique os logs.`);
               
               // CRITICAL FIX: Mark as failed instead of removing
-              // This prevents data loss. The user (or a future UI) can decide what to do.
-              await offlineQueue.markAsFailed(operation.id, errorMessage);
+              await offlineQueue.markAsFailed(operation.id, message);
             } else {
               await offlineQueue.updateRetries(operation.id, operation.retries + 1);
             }
@@ -180,7 +181,7 @@ class OfflineSyncManager {
     let payload = { ...operation.data };
     
     // Helper para identificar ID temporário
-    const isTempId = (id: any) => typeof id === 'string' && id.startsWith('temp-');
+    const isTempId = (id: any) => typeof id === 'string' && id.startsWith(TEMP_ID_PREFIX);
 
     // === DEPENDENCY RESOLUTION ===
     // Resolve IDs using the map (replace temp IDs with real IDs from previous operations in this batch)
@@ -449,10 +450,11 @@ class OfflineSyncManager {
                await supabase.from('transactions').update(updates).eq('id', transactionId);
             }
             successCount++;
-          } catch (err: any) {
-            logger.error(`Failed to import transaction "${transaction.description}":`, err);
+          } catch (err: unknown) {
+            const { message } = handleError(err);
+            logger.error(`Failed to import transaction "${transaction.description}": ${message}`);
             failCount++;
-            errors.push(err.message || 'Unknown error');
+            errors.push(message);
           }
         }
 

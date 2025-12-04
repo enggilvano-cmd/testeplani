@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
 import { setSentryUser } from '@/lib/sentry';
 import { getErrorMessage } from '@/types/errors';
+import { getTabSynchronizer } from '@/lib/tabSync';
 
 interface Profile {
   id: string;
@@ -307,6 +308,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Sincronizar logout entre abas
+  useEffect(() => {
+    try {
+      const sync = getTabSynchronizer();
+      
+      const unsubscribe = sync.subscribe('logout', async () => {
+        logger.info('Logout detected from another tab, signing out locally');
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setSentryUser(null);
+      });
+
+      return unsubscribe;
+    } catch (error) {
+      logger.warn('Failed to subscribe to logout events:', error);
+      return () => {};
+    }
+  }, []);
+
   const signIn = async (email: string, password: string) => {
     try {
       logger.debug('Attempting to sign in user:', email);
@@ -410,6 +431,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           title: "Logout realizado",
           description: "Até logo!",
         });
+
+        // Sincronizar logout com outras abas
+        try {
+          const sync = getTabSynchronizer();
+          sync.broadcast('logout', {});
+        } catch (syncError) {
+          logger.warn('Failed to broadcast logout to other tabs:', syncError);
+        }
       }
 
       return { error };
