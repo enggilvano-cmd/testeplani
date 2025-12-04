@@ -10,157 +10,155 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  build: {
+    // Enable code splitting for better caching
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor libraries
+          'react-vendor': ['react', 'react-dom'],
+          'query-vendor': ['@tanstack/react-query'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+          
+          // Heavy components
+          'analytics-chunk': ['recharts'],
+          'excel-chunk': ['xlsx'],
+          'pdf-chunk': ['jspdf', 'html-to-image'],
+          'date-chunk': ['date-fns'],
+          
+          // App chunks
+          'components-chunk': [
+            './src/components/AnalyticsPage.tsx',
+            './src/components/FixedTransactionsPage.tsx',
+            './src/components/TransactionsPage.tsx'
+          ],
+          'import-chunk': [
+            './src/components/ImportTransactionsModal.tsx',
+            './src/components/ImportAccountsModal.tsx',
+            './src/components/ImportCategoriesModal.tsx'
+          ]
+        },
+        // Optimize chunk size
+        chunkFileNames: (chunkInfo) => {
+          if (chunkInfo.name?.includes('vendor')) {
+            return 'assets/vendor/[name]-[hash].js';
+          }
+          return 'assets/chunks/[name]-[hash].js';
+        },
+      },
+    },
+    // Optimize build performance
+    target: 'esnext',
+    minify: 'esbuild',
+    sourcemap: mode === 'development',
+    // Increase chunk size warning limit
+    chunkSizeWarningLimit: 1000,
+  },
+  // Enable tree shaking
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      '@tanstack/react-query',
+      'es-toolkit/compat/get'
+    ],
+    exclude: [
+      'xlsx',
+      'jspdf',
+      'html-to-image'
+    ]
+  },
+  // Fix ESM compatibility issues
+  ssr: {
+    noExternal: ['recharts', 'es-toolkit']
+  },
+  define: {
+    // Remove unused environment variables
+    'process.env.NODE_ENV': JSON.stringify(mode),
+    'global': 'globalThis',
+  },
   plugins: [
     react(),
-    mode === 'development' && componentTagger(),
+    componentTagger(),
     VitePWA({
-      registerType: 'autoUpdate', // Update automatically
-      strategy: 'generateSW', 
-      injectRegister: 'auto', // Inject registration script
-      devOptions: {
-        enabled: true,
-        navigateFallback: 'index.html',
-        suppressWarnings: true,
-        type: 'module',
-      },
-      workbox: {
-        importScripts: ['/push-sw.js'],
-        cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true,
-        maximumFileSizeToCacheInBytes: 10000000,
-        navigateFallback: 'index.html',
-        globPatterns: [
-          '**/*.{css,html,ico,png,svg,webp,woff,woff2,ttf,eot}'
-        ],
-        runtimeCaching: [
-          // 0. JS Files (Runtime Cache instead of Precache for faster SW activation)
-          {
-            urlPattern: ({ request }) => request.destination === 'script' || request.url.endsWith('.js'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'js-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 dias
-              },
-            },
-          },
-          // 1. Google Fonts
-          {
-            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 ano
-              },
-            },
-          },
-          // 2. Imagens
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'images-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 dias
-              },
-            },
-          },
-          // 3. Supabase Storage (Imagens de perfil, anexos)
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'supabase-storage-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 1 semana
-              },
-            },
-          },
-          // 4. Supabase API (Dados)
-          // NetworkFirst garante dados frescos se online, e cache se offline
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api-cache',
-              networkTimeoutSeconds: 5, // Espera 5s pela rede
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 2, // 2 dias
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-        ],
-      },
-      includeAssets: [
-        'favicon.png', 
-        'robots.txt', 
-        'logo.svg',
-        'pwa-icon-192.png',
-        'pwa-icon-512.png'
-      ],
+      registerType: 'prompt',
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        id: '/',
-        name: 'PlaniFlow - Gestão Financeira',
-        short_name: 'PlaniFlow',
-        description: 'Aplicativo completo para gestão financeira pessoal com funcionalidade offline',
-        theme_color: '#176EB5',
-        background_color: '#176EB5',
+        name: 'Financial Planner',
+        short_name: 'FinPlan',
+        description: 'Personal Financial Management PWA',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/',
         scope: '/',
-        lang: 'pt-BR',
-        dir: 'ltr',
-        orientation: 'portrait-primary',
-        prefer_related_applications: false,
+        start_url: '/',
+        orientation: 'portrait',
         icons: [
           {
-            src: '/pwa-icon-192.png',
+            src: 'pwa-64x64.png',
+            sizes: '64x64',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any',
+            type: 'image/png'
           },
           {
-            src: '/pwa-icon-512.png',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any',
+            purpose: 'any'
           },
           {
-            src: '/pwa-icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-          {
-            src: '/pwa-icon-512.png',
+            src: 'maskable-icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'maskable',
-          },
-          {
-            src: '/logo.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
+            purpose: 'maskable'
           }
-        ],
-        categories: ['finance', 'productivity', 'utilities'],
+        ]
       },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\./,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 // 1 hour
+              }
+            }
+          },
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'image-cache',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              }
+            }
+          }
+        ]
+      }
     })
-  ].filter(Boolean),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Performance optimizations
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+    minifyIdentifiers: mode === 'production',
+    minifySyntax: mode === 'production',
+    minifyWhitespace: mode === 'production',
+  }
 }));

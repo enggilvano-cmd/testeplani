@@ -2,31 +2,51 @@ import { createRoot } from 'react-dom/client'
 import { useState } from 'react'
 import App from './App.tsx'
 import './index.css'
-import { initSentry } from './lib/sentry'
-import { initWebVitals } from './lib/webVitals'
-import { offlineDatabase } from './lib/offlineDatabase'
-import { offlineSync } from './lib/offlineSync'
+
+// Critical imports only - load others lazily
 import { SplashScreen } from './components/SplashScreen'
 import { logger } from './lib/logger'
 
-// Initialize Sentry before rendering
-initSentry();
+// Lazy load heavy modules to reduce initial bundle
+const initializeApp = async () => {
+  try {
+    // Lazy load Sentry only if needed
+    if (import.meta.env.PROD) {
+      const { initSentry } = await import('./lib/sentry');
+      initSentry();
+    }
 
-// Initialize Web Vitals monitoring
-initWebVitals();
+    // Lazy load Web Vitals
+    const { initWebVitals } = await import('./lib/webVitals');
+    initWebVitals();
 
-// Initialize offline database and initial sync
-offlineDatabase.init().then(() => {
-  offlineSync.syncDataFromServer().catch(err => {
-    logger.warn('Initial sync failed, will retry when online:', err);
-  });
-});
+    // Lazy load offline database
+    const { offlineDatabase } = await import('./lib/offlineDatabase');
+    await offlineDatabase.init();
+    
+    // Background sync - don't block app start
+    const { offlineSync } = await import('./lib/offlineSync');
+    offlineSync.syncDataFromServer().catch(err => {
+      logger.warn('Initial sync failed, will retry when online:', err);
+    });
+  } catch (error) {
+    logger.error('Failed to initialize app modules:', error);
+  }
+};
 
 function Root() {
   const [showSplash, setShowSplash] = useState(true);
 
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+    return (
+      <SplashScreen 
+        onComplete={() => {
+          setShowSplash(false);
+          // Initialize heavy modules after splash
+          initializeApp();
+        }} 
+      />
+    );
   }
 
   return <App />;
