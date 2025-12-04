@@ -2,7 +2,6 @@ import { useSettings } from '@/context/SettingsContext';
 import type { Account, Transaction, Category, AccountFilterType, TransactionFilterType, StatusFilterType, DateFilterType } from '@/types';
 import { useDashboardFilters } from '@/hooks/useDashboardFilters';
 import { useDashboardCalculations } from '@/hooks/useDashboardCalculations';
-import { DashboardHeader } from './dashboard/DashboardHeader';
 import { FilterCard } from './dashboard/FilterCard';
 import { BalanceCards } from './dashboard/BalanceCards';
 import { FinancialEvolutionChart } from './dashboard/FinancialEvolutionChart';
@@ -81,14 +80,7 @@ export function Dashboard({
   );
 
   return (
-    <div className="space-y-3 sm:space-y-4 fade-in max-w-screen-2xl mx-auto px-2 sm:px-0 pb-6 sm:pb-8">
-      <DashboardHeader
-        onTransfer={onTransfer}
-        onAddExpense={onAddExpense || onAddTransaction}
-        onAddIncome={onAddIncome || onAddTransaction}
-        onAddCreditExpense={onAddCreditExpense || onAddTransaction}
-      />
-
+    <div className="space-y-3 sm:space-y-4 fade-in max-w-screen-2xl mx-auto px-2 sm:px-0 pb-6 sm:pb-8 spacing-responsive-md">
       <div className="space-y-3 sm:space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           <div className="col-span-2 sm:col-span-1">

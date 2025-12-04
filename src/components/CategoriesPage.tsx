@@ -19,15 +19,23 @@ import { CategoryFilterChips } from "@/components/categories/CategoryFilterChips
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { useOfflineCategoryMutations } from "@/hooks/useTransactionHandlers";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-interface CategoriesPageProps {}
+interface CategoriesPageProps {
+  importModalOpen?: boolean;
+  onImportModalOpenChange?: (open: boolean) => void;
+  initialCategories?: Category[];
+}
 
 interface CategoriesFilters {
   searchTerm: string;
   filterType: "all" | "income" | "expense" | "both";
 }
 
-export function CategoriesPage({}: CategoriesPageProps) {
-  const [categories, setCategories] = useState<Category[]>([]);
+export function CategoriesPage({
+  importModalOpen: externalImportModalOpen,
+  onImportModalOpenChange,
+  initialCategories = [],
+}: CategoriesPageProps) {
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
   
   // Filters with persistence
   const [filters, setFilters] = usePersistedFilters<CategoriesFilters>(
@@ -46,11 +54,16 @@ export function CategoriesPage({}: CategoriesPageProps) {
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [internalImportModalOpen, setInternalImportModalOpen] = useState(false);
+  const importModalOpen = externalImportModalOpen ?? internalImportModalOpen;
+  const setImportModalOpen = (open: boolean) => {
+    setInternalImportModalOpen(open);
+    onImportModalOpenChange?.(open);
+  };
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialCategories.length === 0);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const { toast } = useToast();
   const isOnline = useOnlineStatus();
@@ -86,6 +99,14 @@ export function CategoriesPage({}: CategoriesPageProps) {
   };
 
   useEffect(() => {
+    // Se initialCategories foram passadas, use-as diretamente
+    if (initialCategories.length > 0) {
+      setCategories(initialCategories);
+      setLoading(false);
+      return;
+    }
+
+    // Caso contrário, carregue do banco
     const loadCategories = async () => {
       const { data } = await withErrorHandling(
         async () => {
@@ -110,7 +131,7 @@ export function CategoriesPage({}: CategoriesPageProps) {
     };
 
     loadCategories();
-  }, []);
+  }, [initialCategories]);
 
   const handleAddCategory = async (categoryData: Omit<Category, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     if (!isOnline) {
@@ -369,50 +390,20 @@ export function CategoriesPage({}: CategoriesPageProps) {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-muted rounded w-48 mb-2"></div>
-          <div className="h-4 bg-muted rounded w-64"></div>
+      <div className="spacing-responsive-md fade-in pb-6 sm:pb-8 pt-32">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
+          <div className="h-24 bg-muted rounded-xl animate-pulse"></div>
+          <div className="h-24 bg-muted rounded-xl animate-pulse"></div>
+          <div className="h-24 bg-muted rounded-xl animate-pulse"></div>
+          <div className="h-24 bg-muted rounded-xl animate-pulse"></div>
         </div>
+        <div className="h-32 bg-muted rounded-xl animate-pulse"></div>
       </div>
     );
   }
 
   return (
     <div className="spacing-responsive-md fade-in pb-6 sm:pb-8">
-      {/* Header */}
-      <div className="flex flex-col gap-3 mb-4">
-        <div className="grid grid-cols-2 gap-2 w-full md:grid-cols-3 lg:flex lg:flex-nowrap lg:gap-2 lg:w-auto lg:ml-auto">
-          <Button 
-            variant="outline" 
-            onClick={() => setImportModalOpen(true)}
-            className="gap-1.5 apple-interaction h-9 text-body px-3"
-          >
-            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate">Importar</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={exportToExcel}
-            className="gap-1.5 apple-interaction h-9 text-body px-3"
-            disabled={categories.length === 0}
-          >
-            <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate">Exportar</span>
-          </Button>
-          <Button 
-            onClick={() => setAddModalOpen(true)} 
-            variant="outline"
-            className="gap-1.5 apple-interaction h-9 text-body col-span-2 md:col-span-1 border-warning text-warning hover:bg-warning hover:text-warning-foreground px-2 sm:px-3"
-          >
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate whitespace-nowrap">
-              <span className="hidden sm:inline">Adicionar Categoria</span>
-              <span className="sm:hidden">Adicionar</span>
-            </span>
-          </Button>
-        </div>
-      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">

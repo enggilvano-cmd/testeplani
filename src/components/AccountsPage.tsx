@@ -51,6 +51,8 @@ interface AccountsPageProps {
   onTransfer?: () => void;
   onImportAccounts?: (accounts: ImportAccountData[], accountsToReplace: string[]) => void;
   initialFilterType?: "all" | "checking" | "savings" | "credit" | "investment" | "meal_voucher";
+  importModalOpen?: boolean;
+  onImportModalOpenChange?: (open: boolean) => void;
 }
 
 export function AccountsPage({
@@ -61,6 +63,8 @@ export function AccountsPage({
   onTransfer,
   onImportAccounts,
   initialFilterType = "all",
+  importModalOpen: externalImportModalOpen,
+  onImportModalOpenChange,
 }: AccountsPageProps) {
   const { accounts } = useAccounts();
   const { formatCurrency } = useSettings();
@@ -83,7 +87,12 @@ export function AccountsPage({
   const setFilterType = (value: typeof filters.filterType) => setFilters((prev) => ({ ...prev, filterType: value }));
   const setHideZeroBalance = (value: boolean) => setFilters((prev) => ({ ...prev, hideZeroBalance: value }));
 
-  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [internalImportModalOpen, setInternalImportModalOpen] = useState(false);
+  const importModalOpen = externalImportModalOpen ?? internalImportModalOpen;
+  const setImportModalOpen = (open: boolean) => {
+    setInternalImportModalOpen(open);
+    onImportModalOpenChange?.(open);
+  };
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -255,52 +264,6 @@ export function AccountsPage({
 
   return (
     <div className="spacing-responsive-md fade-in pb-6 sm:pb-8">
-      {/* Header */}
-      <div className="flex flex-col gap-3 mb-4">
-        <div className="grid grid-cols-2 gap-2 w-full md:grid-cols-4 lg:flex lg:flex-nowrap lg:gap-2 lg:w-auto lg:ml-auto">
-          <Button
-            onClick={() => setImportModalOpen(true)}
-            variant="outline"
-            className="gap-1.5 apple-interaction h-9 text-body px-3"
-          >
-            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate">Importar</span>
-          </Button>
-          <Button
-            onClick={exportToExcel}
-            variant="outline"
-            className="gap-1.5 apple-interaction h-9 text-body px-3"
-            disabled={accounts.length === 0}
-          >
-            <FileDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate">Exportar</span>
-          </Button>
-          {onTransfer && (
-            <Button
-              onClick={onTransfer}
-              variant="outline"
-              className="gap-1.5 apple-interaction h-9 text-body px-2 sm:px-3"
-            >
-              <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-              <span className="truncate whitespace-nowrap">
-                <span className="hidden sm:inline">Transferência</span>
-                <span className="sm:hidden">Transfer</span>
-              </span>
-            </Button>
-          )}
-          <Button
-            onClick={onAddAccount}
-            variant="outline"
-            className="gap-1.5 apple-interaction h-9 text-body border-warning text-warning hover:bg-warning hover:text-warning-foreground px-2 sm:px-3"
-          >
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate whitespace-nowrap">
-              <span className="hidden sm:inline">Adicionar Conta</span>
-              <span className="sm:hidden">Adicionar</span>
-            </span>
-          </Button>
-        </div>
-      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">

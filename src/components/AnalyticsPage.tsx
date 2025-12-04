@@ -1292,22 +1292,9 @@ export default function AnalyticsPage({
   }, [overdraftUsedData]);
 
   return (
-    <div ref={contentRef} className="spacing-responsive-lg fade-in pb-6 sm:pb-8">{/*  Header */}
-      <div className="flex flex-col gap-3">
-        <div className="grid grid-cols-1 gap-2 w-full md:grid-cols-1 lg:flex lg:flex-nowrap lg:gap-2 lg:w-auto lg:ml-auto">
-          <Button
-            variant="outline"
-            onClick={handleExportPDF}
-            className="gap-1.5 apple-interaction h-9 text-xs sm:text-sm px-3"
-          >
-            <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="truncate whitespace-nowrap">Exportar PDF</span>
-          </Button>
-        </div>
-      </div>
-
+    <div ref={contentRef} className="spacing-responsive-md fade-in pb-6 sm:pb-8">
       {/* Summary Cards */}
-      <div className="analytics-section grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 sm:mt-8">
+      <div className="analytics-section grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="financial-card">
           <CardContent className="p-2 sm:p-3">
             <div className="flex flex-col items-center gap-2 text-center">

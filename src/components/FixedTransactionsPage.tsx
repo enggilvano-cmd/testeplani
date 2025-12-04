@@ -46,7 +46,13 @@ interface FixedTransactionsFilters {
   isProvision: string;
 }
 
-export function FixedTransactionsPage() {
+export function FixedTransactionsPage({
+  importModalOpen: externalImportModalOpen,
+  onImportModalOpenChange,
+}: {
+  importModalOpen?: boolean;
+  onImportModalOpenChange?: (open: boolean) => void;
+} = {}) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   
@@ -92,7 +98,12 @@ export function FixedTransactionsPage() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
-  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [internalImportModalOpen, setInternalImportModalOpen] = useState(false);
+  const importModalOpen = externalImportModalOpen ?? internalImportModalOpen;
+  const setImportModalOpen = (open: boolean) => {
+    setInternalImportModalOpen(open);
+    onImportModalOpenChange?.(open);
+  };
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -933,12 +944,6 @@ export function FixedTransactionsPage() {
 
   return (
     <div className="spacing-responsive-md fade-in pb-6 sm:pb-8">
-      <FixedTransactionPageActions
-        onImport={() => setImportModalOpen(true)}
-        onExport={handleExportToExcel}
-        onAdd={() => setAddModalOpen(true)}
-        hasTransactions={transactions.length > 0}
-      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">

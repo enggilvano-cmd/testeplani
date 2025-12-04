@@ -1,6 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Dashboard } from "@/components/Dashboard";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { TransactionHeader } from "@/components/transactions/TransactionHeader";
+import { AccountsHeader } from "@/components/accounts/AccountsHeader";
+import { CategoriesHeader } from "@/components/categories/CategoriesHeader";
+import { FixedTransactionsHeader } from "@/components/fixedtransactions/FixedTransactionsHeader";
+import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { AccountsPage } from "@/components/AccountsPage";
 import { CreditBillsPage } from "@/components/CreditBillsPage";
 import { TransactionsPage } from "@/components/TransactionsPage";
@@ -15,6 +21,7 @@ import BybitPage from "@/pages/BybitPage";
 import { useSettings } from "@/context/SettingsContext";
 import { AddAccountModal } from "@/components/AddAccountModal";
 import { AddTransactionModal } from "@/components/AddTransactionModal";
+import { ImportTransactionsModal } from "@/components/ImportTransactionsModal";
 import { EditAccountModal } from "@/components/EditAccountModal";
 import { EditTransactionModal } from "@/components/EditTransactionModal";
 import { TransferModal } from "@/components/TransferModal";
@@ -229,6 +236,12 @@ const PlaniFlowApp = () => {
   // Modal states
   const [addAccountModalOpen, setAddAccountModalOpen] = useState(false);
   const [addTransactionModalOpen, setAddTransactionModalOpen] = useState(false);
+  const [importTransactionsModalOpen, setImportTransactionsModalOpen] = useState(false);
+  const [importAccountsModalOpen, setImportAccountsModalOpen] = useState(false);
+  const [importCategoriesModalOpen, setImportCategoriesModalOpen] = useState(false);
+  const [addCategoryModalOpen, setAddCategoryModalOpen] = useState(false);
+  const [importFixedTransactionsModalOpen, setImportFixedTransactionsModalOpen] = useState(false);
+  const [addFixedTransactionModalOpen, setAddFixedTransactionModalOpen] = useState(false);
   const [transactionInitialType, setTransactionInitialType] = useState<"income" | "expense" | "">("");
   const [transactionInitialAccountType, setTransactionInitialAccountType] = useState<"credit" | "checking" | "">("");
   const [transactionLockType, setTransactionLockType] = useState(false);
@@ -498,6 +511,8 @@ const PlaniFlowApp = () => {
             onTransfer={() => setTransferModalOpen(true)}
             onImportAccounts={handleImportAccounts}
             initialFilterType={accountFilterType}
+            importModalOpen={importAccountsModalOpen}
+            onImportModalOpenChange={setImportAccountsModalOpen}
           />
         );
       case "credit-bills":
@@ -559,9 +574,16 @@ const PlaniFlowApp = () => {
           />
         );
       case "fixed":
-        return <FixedTransactionsPage />;
+        return <FixedTransactionsPage 
+          importModalOpen={importFixedTransactionsModalOpen}
+          onImportModalOpenChange={setImportFixedTransactionsModalOpen}
+        />;
       case "categories":
-        return <CategoriesPage />;
+        return <CategoriesPage 
+          importModalOpen={importCategoriesModalOpen}
+          onImportModalOpenChange={setImportCategoriesModalOpen}
+          initialCategories={categories}
+        />;
       case "analytics":
         return (
           <AnalyticsPage 
@@ -599,6 +621,98 @@ const PlaniFlowApp = () => {
       onNavigate={handleNavigate}
       onClearAllData={handleClearAllData}
       loading={loadingData}
+      pageHeaderButtons={
+        currentPage === 'dashboard' ? (
+          <DashboardHeader
+            onTransfer={() => setTransferModalOpen(true)}
+            onAddExpense={() => {
+              setTransactionInitialType("expense");
+              setTransactionInitialAccountType("checking");
+              setTransactionLockType(true);
+              setAddTransactionModalOpen(true);
+            }}
+            onAddIncome={() => {
+              setTransactionInitialType("income");
+              setTransactionInitialAccountType("checking");
+              setTransactionLockType(true);
+              setAddTransactionModalOpen(true);
+            }}
+            onAddCreditExpense={() => {
+              setTransactionInitialType("expense");
+              setTransactionInitialAccountType("credit");
+              setTransactionLockType(false);
+              setAddTransactionModalOpen(true);
+            }}
+            isHeaderVersion={true}
+          />
+        ) : currentPage === 'transactions' ? (
+          <TransactionHeader
+            onAddTransaction={() => {
+              setTransactionInitialType("expense");
+              setTransactionInitialAccountType("checking");
+              setTransactionLockType(true);
+              setAddTransactionModalOpen(true);
+            }}
+            onExport={() => {
+              // Implementar export
+              console.log("Export transactions");
+            }}
+            onImport={() => setImportTransactionsModalOpen(true)}
+            isHeaderVersion={true}
+          />
+        ) : currentPage === 'accounts' ? (
+          <AccountsHeader
+            onAddAccount={() => setAddAccountModalOpen(true)}
+            onTransfer={() => setTransferModalOpen(true)}
+            onImport={() => setImportAccountsModalOpen(true)}
+            isHeaderVersion={true}
+          />
+        ) : currentPage === 'categories' ? (
+          <CategoriesHeader
+            onAddCategory={() => setAddCategoryModalOpen(true)}
+            onImport={() => setImportCategoriesModalOpen(true)}
+            isHeaderVersion={true}
+            categories={categories}
+          />
+        ) : currentPage === 'fixed' ? (
+          <FixedTransactionsHeader
+            onAddFixedTransaction={() => setAddFixedTransactionModalOpen(true)}
+            onImport={() => setImportFixedTransactionsModalOpen(true)}
+            transactions={allTransactions}
+            accounts={accounts}
+            isHeaderVersion={true}
+          />
+        ) : currentPage === 'analytics' ? (
+          <AnalyticsHeader
+            onExportPDF={() => {
+              // Será chamado da página
+              const button = document.querySelector('[data-action="export-pdf"]') as HTMLButtonElement;
+              button?.click();
+            }}
+          />
+        ) : null
+      }
+      dashboardHeaderCallbacks={{
+        onTransfer: () => setTransferModalOpen(true),
+        onAddExpense: () => {
+          setTransactionInitialType("expense");
+          setTransactionInitialAccountType("checking");
+          setTransactionLockType(true);
+          setAddTransactionModalOpen(true);
+        },
+        onAddIncome: () => {
+          setTransactionInitialType("income");
+          setTransactionInitialAccountType("checking");
+          setTransactionLockType(true);
+          setAddTransactionModalOpen(true);
+        },
+        onAddCreditExpense: () => {
+          setTransactionInitialType("expense");
+          setTransactionInitialAccountType("credit");
+          setTransactionLockType(false);
+          setAddTransactionModalOpen(true);
+        },
+      }}
     >
       <MigrationWarning />
 
@@ -622,6 +736,14 @@ const PlaniFlowApp = () => {
           initialType={transactionInitialType}
           initialAccountType={transactionInitialAccountType}
           lockType={transactionLockType}
+        />
+      </FormErrorBoundary>
+
+      <FormErrorBoundary fallbackMessage="Erro ao abrir importação de transações">
+        <ImportTransactionsModal
+          open={importTransactionsModalOpen}
+          onOpenChange={setImportTransactionsModalOpen}
+          onImportTransactions={handleImportTransactions}
         />
       </FormErrorBoundary>
 

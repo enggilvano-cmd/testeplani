@@ -7,7 +7,6 @@ import { TransactionTableSkeleton } from "@/components/transactions/TransactionT
 import { TransactionList } from "@/components/transactions/TransactionList";
 import { TransactionStatsCards } from "@/components/transactions/TransactionStatsCards";
 import { TransactionFiltersBar } from "@/components/transactions/TransactionFiltersBar";
-import { TransactionPageActions } from "@/components/transactions/TransactionPageActions";
 import { ImportTransactionsModal } from "./ImportTransactionsModal";
 import { EditScope, TransactionScopeDialog } from "./TransactionScopeDialog";
 import { FixedTransactionScopeDialog, FixedScope } from "./FixedTransactionScopeDialog";
@@ -172,14 +171,7 @@ export function TransactionsPage({
   });
 
   return (
-    <div className="spacing-responsive-lg fade-in pb-6 sm:pb-8">
-      <TransactionPageActions
-        onImport={() => setImportModalOpen(true)}
-        onExport={exportToExcel}
-        onAdd={onAddTransaction}
-        hasTransactions={transactions.length > 0}
-      />
-
+    <div className="spacing-responsive-md fade-in pb-6 sm:pb-8">
       {isLoading ? (
         <StatCardsSkeletonGrid />
       ) : (

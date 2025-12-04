@@ -20,6 +20,7 @@ import { useOfflineAuth } from "@/hooks/useOfflineAuth";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InstallPWA } from "@/components/InstallPWA";
 import { useExpirationNotifications } from "@/hooks/useExpirationNotifications";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,6 +29,12 @@ interface LayoutProps {
   onPageChange?: (page: string) => void;
   onClearAllData?: () => Promise<void>;
   loading?: boolean;
+  dashboardHeaderCallbacks?: {
+    onTransfer: () => void;
+    onAddExpense: () => void;
+    onAddIncome: () => void;
+    onAddCreditExpense: () => void;
+  };
 }
 
 const getFirstName = (fullName?: string | null) => {
@@ -66,10 +73,10 @@ function AppSidebar({ currentPage, onPageChange }: { currentPage: string; onPage
       className={cn(
         "transition-all duration-300 ease-out",
         isMobile 
-          ? "fixed inset-y-0 left-0 w-[280px] max-w-[85vw] z-50" 
+          ? "fixed inset-y-0 left-0 w-[280px] max-w-[85vw] z-[70]" 
           : isCollapsed 
-            ? "w-[72px]" 
-            : "w-56 lg:w-64 xl:w-72"
+            ? "w-[72px] z-[70]" 
+            : "w-56 lg:w-64 xl:w-72 z-[70]"
       )}
       collapsible={isMobile ? "offcanvas" : "icon"}
       variant={isMobile ? "floating" : "sidebar"}
@@ -284,7 +291,7 @@ function AppSidebar({ currentPage, onPageChange }: { currentPage: string; onPage
   );
 }
 
-function LayoutContent({ children, currentPage, onPageChange, onNavigate }: LayoutProps) {
+function LayoutContent({ children, currentPage, onPageChange, onNavigate, dashboardHeaderCallbacks, pageHeaderButtons }: LayoutProps) {
   const isMobile = useIsMobile();
   const { profile, isAdmin, signOut } = useOfflineAuth();
   const { open } = useSidebar();
@@ -377,39 +384,90 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate }: Layo
             "flex-1 w-full overflow-x-hidden overflow-y-auto",
             "safe-bottom"
           )}>
-          {/* Desktop Logo Header */}
+          {/* Desktop Header Background - Fixed Bar with dynamic padding */}
           {!isMobile && (
-            <div className="flex justify-end items-center px-12 pt-3 pb-3 gap-4">
-              <div className="text-foreground">
-                <NotificationBell />
-              </div>
-              <div 
-                className="flex items-center gap-3 cursor-pointer transition-all duration-200 hover:scale-105"
-                onClick={() => handlePageChange('dashboard')}
-              >
-                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center shadow-lg">
-                  <BarChart3 className="h-6 w-6 text-yellow-400" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight text-foreground">
-                    PlaniFlow
-                  </h1>
-                  <p className="text-sm text-muted-foreground mt-1 font-medium">
-                    Gestão Financeira
-                  </p>
+            <div className={cn(
+              "fixed top-0 -z-10 h-32 transition-all duration-300",
+              open
+                ? "left-56 lg:left-64 xl:left-72"
+                : "left-[72px]"
+            )} style={{right: 0}} />
+          )}
+          
+          {/* Desktop Logo Header with dynamic padding - Using same wrapper as content */}
+          {!isMobile && (
+            <div className={cn(
+              "fixed top-0 z-10 h-32 transition-all duration-300",
+              open
+                ? "left-56 lg:left-64 xl:left-72"
+                : "left-[72px]"
+            )} style={{right: '40px'}}>
+              <div className="h-full w-full flex items-center justify-center pt-3 pb-2 relative z-20">
+                {/* Background container for buttons and logo - centered */}
+                
+                <div className="h-20 financial-card flex items-center gap-8"
+                  style={{
+                    padding: '12px 16px'
+                  }}>
+                  <div className="flex items-center gap-4 h-full">
+                    {currentPage === 'dashboard' && dashboardHeaderCallbacks && (
+                      <DashboardHeader
+                        onTransfer={dashboardHeaderCallbacks.onTransfer}
+                        onAddExpense={dashboardHeaderCallbacks.onAddExpense}
+                        onAddIncome={dashboardHeaderCallbacks.onAddIncome}
+                        onAddCreditExpense={dashboardHeaderCallbacks.onAddCreditExpense}
+                        isHeaderVersion={true}
+                      />
+                    )}
+                    {currentPage !== 'dashboard' && pageHeaderButtons && (
+                      pageHeaderButtons
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 cursor-pointer transition-all duration-200 hover:scale-105"
+                    onClick={() => handlePageChange('dashboard')}
+                  >
+                    <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center shadow-lg">
+                      <BarChart3 className="h-6 w-6 text-yellow-400" />
+                    </div>
+                    <div>
+                      <h1 className="text-xl font-bold tracking-tight text-foreground">
+                        PlaniFlow
+                      </h1>
+                      <p className="text-sm text-muted-foreground mt-1 font-medium">
+                        Gestão Financeira
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-foreground">
+                    <NotificationBell />
+                  </div>
                 </div>
               </div>
             </div>
           )}
           
+          {/* Mobile Header Buttons */}
+          {isMobile && pageHeaderButtons && (
+            <div className="fixed top-14 left-0 right-0 z-40 flex items-center justify-center gap-1 px-2 py-0.5 border-b">
+              <div className="flex items-center gap-1 [&>button]:h-8 [&>button]:text-xs [&>button]:px-2">
+                {pageHeaderButtons}
+              </div>
+            </div>
+          )}
+          
           <div className={cn(
-            "w-full h-full",
+            "w-full h-full transition-all duration-300",
             isMobile 
-              ? "px-3 py-4" 
-              : open
-                ? "px-12 pt-4 pb-5 md:pl-0 md:pr-6 md:pt-4 md:pb-4 lg:pl-16 lg:pr-10 lg:pt-4 lg:pb-12"
-                : "px-12 pt-4 pb-5 md:px-6 md:pt-4 md:pb-4 lg:pl-8 lg:pr-10 lg:pt-4 lg:pb-12"
-          )}>
+              ? "px-3 py-1" 
+              : "pt-32 pb-5 md:pt-32 md:pb-4 lg:pt-32 lg:pb-12"
+          )}
+          style={!isMobile ? {
+            paddingLeft: '48px',
+            paddingRight: '40px'
+          } : undefined}
+          >
             <div className={cn(
               "mx-auto w-full",
               isMobile 
@@ -425,7 +483,7 @@ function LayoutContent({ children, currentPage, onPageChange, onNavigate }: Layo
   );
 }
 
-export function Layout({ children, currentPage, onPageChange, onNavigate, ...rest }: LayoutProps) {
+export function Layout({ children, currentPage, onPageChange, onNavigate, dashboardHeaderCallbacks, ...rest }: LayoutProps) {
   const isMobile = useIsMobile();
   useExpirationNotifications();
   
@@ -436,6 +494,7 @@ export function Layout({ children, currentPage, onPageChange, onNavigate, ...res
           currentPage={currentPage} 
           onPageChange={onPageChange} 
           onNavigate={onNavigate}
+          dashboardHeaderCallbacks={dashboardHeaderCallbacks}
           {...rest}
         >
           {children}
