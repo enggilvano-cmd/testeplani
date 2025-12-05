@@ -317,85 +317,73 @@ export function CreditBillsPage({ onPayCreditCard, onReversePayment }: CreditBil
   return (
     <div className="spacing-responsive-md fade-in pb-6 sm:pb-8">
 
-      {/* CARDS DE TOTAIS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-        {/* Card Fatura Atual */}
-        <Card className="financial-card financial-card-compact-top">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 -mt-[60px] lg:mt-0">
+        <Card className="financial-card">
           <CardContent className="p-4">
             <div className="flex flex-col items-center gap-2 text-center">
-              <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-                <CalendarDays className="h-6 w-6 text-destructive" />
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <DollarSign className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <p className="text-caption font-medium">
                   Fatura Atual
                 </p>
-                <div className="balance-text balance-negative">
-                  {/* BUGFIX: Corrigido para mostrar o valor correto, mesmo se for crédito (negativo) */}
-                  {formatCents(Math.max(0, totalSummary.currentBill))}
+                <div className="balance-text">
+                  {formatCents(totalSummary.currentBill)}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Card Próxima Fatura */}
+        
         <Card className="financial-card">
           <CardContent className="p-4">
             <div className="flex flex-col items-center gap-2 text-center">
-              <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-muted-foreground" />
+              <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+                <CalendarDays className="h-6 w-6 text-warning" />
               </div>
               <div>
                 <p className="text-caption font-medium">
                   Próxima Fatura
                 </p>
-                <div className="balance-text text-muted-foreground">
+                <div className="balance-text balance-warning">
                   {formatCents(totalSummary.nextBill)}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Card Limite Usado */}
+        
         <Card className="financial-card">
           <CardContent className="p-4">
             <div className="flex flex-col items-center gap-2 text-center">
-              <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                <CreditCard className="h-6 w-6 text-warning" />
+              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-destructive" />
               </div>
               <div>
                 <p className="text-caption font-medium">
                   Limite Usado
                 </p>
-                <div className="balance-text text-warning">
+                <div className="balance-text balance-negative">
                   {formatCents(totalSummary.usedLimit)}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Card Limite Disponível */}
+        
         <Card className="financial-card">
           <CardContent className="p-4">
             <div className="flex flex-col items-center gap-2 text-center">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-primary" />
+              <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+                <CreditCard className="h-6 w-6 text-success" />
               </div>
               <div>
                 <p className="text-caption font-medium">
                   Limite Disponível
                 </p>
-                <div
-                  className={cn(
-                    "balance-text",
-                    totalSummary.availableLimit >= 0
-                      ? "balance-positive"
-                      : "balance-negative"
-                  )}
-                >
+                <div className="balance-text balance-positive">
                   {formatCents(totalSummary.availableLimit)}
                 </div>
               </div>
@@ -404,10 +392,9 @@ export function CreditBillsPage({ onPayCreditCard, onReversePayment }: CreditBil
         </Card>
       </div>
 
-      {/* SEÇÃO DE FILTROS - ESTILO CHIPS */}
-      <Card>
+      {/* Filters Card */}
+      <Card className="mb-4">
         <CardContent className="p-4 space-y-4">
-          {/* Top bar: Filter button, chips, and search */}
           <div className="flex flex-col gap-4">
             {/* Filter button and active chips */}
             <div className="flex flex-wrap items-center gap-3">
@@ -472,23 +459,20 @@ export function CreditBillsPage({ onPayCreditCard, onReversePayment }: CreditBil
         </CardContent>
       </Card>
 
-      {/* RENDERIZAÇÃO DOS CARDS */}
+      {/* Bills Grid */}
       {billDetails.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p className="text-sm font-medium">
-            {searchTerm
+        <div className="col-span-full text-center py-12">
+          <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-headline font-semibold mb-2">Nenhuma fatura encontrada</h3>
+          <p className="text-body text-muted-foreground mb-4">
+            {searchTerm || Object.values(filters).some(f => f !== 'all' && f !== false && f !== '' && f !== 0)
               ? "Nenhum resultado encontrado"
-              : "Nenhuma fatura de cartão encontrada"}
-          </p>
-          <p className="text-xs">
-            {searchTerm
-              ? "Tente novamente com outros termos"
-              : "Adicione sua primeira conta para começar"}
+              : "Adicione sua primeira conta de cartão de crédito para começar"
+            }
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 -mt-[60px] lg:mt-0">
           {billDetails.map((details) => {
             const accountTransactions = allTransactions.filter(
               (t) => t.account_id === details.account.id

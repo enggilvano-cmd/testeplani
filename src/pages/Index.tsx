@@ -20,6 +20,7 @@ import { SettingsPage } from "@/components/SettingsPage";
 import BybitPage from "@/pages/BybitPage";
 import { useSettings } from "@/context/SettingsContext";
 import { AddAccountModal } from "@/components/AddAccountModal";
+import { AddCategoryModal } from "@/components/AddCategoryModal";
 import { AddTransactionModal } from "@/components/AddTransactionModal";
 import { ImportTransactionsModal } from "@/components/ImportTransactionsModal";
 import { EditAccountModal } from "@/components/EditAccountModal";
@@ -38,7 +39,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryClient";
 import { useAccountHandlers } from "@/hooks/useAccountHandlers";
-import { useTransactionHandlers, useOfflineTransactionMutations, useOfflineTransferMutations, useOfflineCreditPaymentMutations } from "@/hooks/useTransactionHandlers";
+import { useTransactionHandlers, useOfflineTransactionMutations, useOfflineTransferMutations, useOfflineCreditPaymentMutations, useOfflineCategoryMutations } from "@/hooks/useTransactionHandlers";
 import { TransactionScopeDialog, EditScope } from "@/components/TransactionScopeDialog";
 import { MarkAsPaidModal } from "@/components/MarkAsPaidModal";
 import { FormErrorBoundary } from "@/components/ui/form-error-boundary";
@@ -278,6 +279,7 @@ const PlaniFlowApp = () => {
   } = useOfflineTransactionMutations();
   const { handleTransfer } = useOfflineTransferMutations();
   const { handleCreditPayment, handleReversePayment } = useOfflineCreditPaymentMutations();
+  const { handleAddCategory } = useOfflineCategoryMutations();
 
   // --- LÓGICA DE LIMPEZA DE DADOS OFFLINE-FIRST ---
   const handleClearAllData = async () => {
@@ -744,6 +746,14 @@ const PlaniFlowApp = () => {
         <AddAccountModal
           open={addAccountModalOpen}
           onOpenChange={setAddAccountModalOpen}
+        />
+      </FormErrorBoundary>
+
+      <FormErrorBoundary fallbackMessage="Erro ao abrir formulário de categoria">
+        <AddCategoryModal
+          open={addCategoryModalOpen}
+          onOpenChange={setAddCategoryModalOpen}
+          onAddCategory={handleAddCategory}
         />
       </FormErrorBoundary>
 

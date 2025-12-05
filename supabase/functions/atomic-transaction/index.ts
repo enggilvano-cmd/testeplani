@@ -77,6 +77,21 @@ Deno.serve(async (req) => {
 
     const transaction = validation.data;
 
+    // Verificar se usuário tem plano de contas inicializado
+    const { data: chartAccounts } = await supabaseClient
+      .from('chart_of_accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1);
+
+    // Se não tem plano de contas, inicializar
+    if (!chartAccounts || chartAccounts.length === 0) {
+      logEvent('info', 'Initializing chart of accounts for user', { userId: user.id });
+      await supabaseClient.rpc('initialize_chart_of_accounts', {
+        p_user_id: user.id
+      });
+    }
+
     // Usar função PL/pgSQL atômica com retry
     const { data: result, error: functionError } = await withRetry(
       () => supabaseClient.rpc('atomic_create_transaction', {
