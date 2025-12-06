@@ -44,6 +44,12 @@ export function useOfflineTransferMutations() {
           // ✅ Invalidar queries para refetch imediato
           queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
           queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+
+          // Retornar contas simuladas para modo offline
+          const accounts = queryClient.getQueryData<any[]>(queryKeys.accounts) || [];
+          const fromAccount = accounts.find(acc => acc.id === fromAccountId);
+          const toAccount = accounts.find(acc => acc.id === toAccountId);
+          return { fromAccount, toAccount };
         } catch (error) {
           logger.error('Failed to queue transfer:', error);
           toast({
@@ -57,12 +63,13 @@ export function useOfflineTransferMutations() {
 
       if (isOnline) {
         try {
-          return await onlineMutations.handleTransfer(
+          const result = await onlineMutations.handleTransfer(
             fromAccountId,
             toAccountId,
             amount,
             date
           );
+          return result;
         } catch (error) {
           const message = getErrorMessage(error);
           if (
@@ -74,14 +81,13 @@ export function useOfflineTransferMutations() {
             message.toLowerCase().includes('connection refused')
           ) {
             logger.warn('Network/Edge Function error ao registrar transferência, usando modo offline.', error);
-            await enqueueOfflineTransfer();
-            return;
+            return await enqueueOfflineTransfer();
           }
           throw error;
         }
       }
 
-      await enqueueOfflineTransfer();
+      return await enqueueOfflineTransfer();
     },
     [isOnline, onlineMutations, toast, queryClient]
   );

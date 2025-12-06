@@ -46,6 +46,9 @@ export function useTransferMutations() {
       // ✅ Invalidação imediata dispara refetch automático sem delay
       queryClient.invalidateQueries({ queryKey: queryKeys.transactionsBase });
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+
+      // Retornar as contas envolvidas na transferência
+      return { fromAccount, toAccount };
     } catch (error: unknown) {
       logger.error('Error processing transfer:', error);
       const errorMessage = getErrorMessage(error);

@@ -8,6 +8,119 @@ import { logger } from '@/lib/logger';
 import { queryKeys } from '@/lib/queryClient';
 import { getErrorMessage } from '@/lib/errorUtils';
 
+type DetectedTransferPair = {
+  expense: ImportTransactionData;
+  income: ImportTransactionData;
+};
+
+function detectTransferPairs(transactions: ImportTransactionData[]) {
+  const pairs: DetectedTransferPair[] = [];
+  const usedIndexes = new Set<number>();
+
+  logger.info('[Pair Detection] Iniciando análise de transferências:', {
+    totalTransactions: transactions.length,
+    details: transactions.map((t, i) => ({
+      index: i,
+      type: t.type,
+      account_id: t.account_id,
+      to_account_id: t.to_account_id,
+      amount: t.amount,
+      date: t.date,
+      description: t.description
+    }))
+  });
+
+  // Estratégia: Qualquer EXPENSE ou TRANSFER com to_account_id é uma saída de transferência
+  // que deve gerar AMBOS os lados via atomic-transfer
+  // Pareamos com qualquer INCOME correspondente para evitar duplicação
+  transactions.forEach((expenseData, expenseIndex) => {
+    if (usedIndexes.has(expenseIndex)) return;
+
+    // Procurar por EXPENSE/TRANSFER com conta destino (saída de transferência)
+    const isTransferOutgoing = Boolean(expenseData.to_account_id) && 
+                              (expenseData.type === 'transfer' || expenseData.type === 'expense');
+    
+    if (!isTransferOutgoing) {
+      logger.info(`[Pair Detection] [${expenseIndex}] Pulando: tipo=${expenseData.type}, to_account_id=${expenseData.to_account_id}`);
+      return;
+    }
+
+    logger.info(`[Pair Detection] [${expenseIndex}] Encontrada possível saída: ${expenseData.description}`);
+
+    // Procurar por INCOME correspondente (opcional - pode ou não existir no arquivo)
+    const incomeIndex = transactions.findIndex((incomeData, index) => {
+      if (usedIndexes.has(index) || index === expenseIndex) return false;
+      if (incomeData.type !== 'income') return false;
+
+      const accountMatch = incomeData.account_id === expenseData.to_account_id;
+      const amountMatch = incomeData.amount === expenseData.amount;
+      const dateMatch = incomeData.date === expenseData.date;
+      const noDestination = !incomeData.to_account_id;
+
+      logger.info(`[Pair Detection] [${expenseIndex}] Checando income [${index}]:`, {
+        desc: incomeData.description,
+        account_match: accountMatch,
+        amount_match: amountMatch,
+        date_match: dateMatch,
+        no_destination: noDestination,
+        all_match: accountMatch && amountMatch && dateMatch && noDestination
+      });
+
+      // Match: receita na conta destino, mesmo valor e data (ou sem to_account_id)
+      return (
+        accountMatch &&
+        amountMatch &&
+        dateMatch &&
+        noDestination
+      );
+    });
+
+    usedIndexes.add(expenseIndex);
+    if (incomeIndex !== -1) {
+      logger.info(`[Pair Detection] ✅ PAR ENCONTRADO: [${expenseIndex}] + [${incomeIndex}]`);
+      usedIndexes.add(incomeIndex);
+    } else {
+      logger.info(`[Pair Detection] ⚠️ Nenhuma receita correspondente para [${expenseIndex}] - será criada via atomic-transfer`);
+    }
+    
+    pairs.push({ 
+      expense: expenseData, 
+      income: incomeIndex !== -1 ? transactions[incomeIndex] : {
+        // Se não encontrar receita, criar um "espelho" imaginário com os dados
+        description: expenseData.description,
+        amount: expenseData.amount,
+        date: expenseData.date,
+        type: 'income',
+        account_id: expenseData.to_account_id!,
+        status: expenseData.status,
+        category: 'Transferência'
+      } as ImportTransactionData
+    });
+  });
+
+  logger.info('[Pair Detection] Resultado final:', {
+    paresEncontrados: pairs.length,
+    detalhes: pairs.map(p => ({
+      from_account: p.expense.account_id,
+      to_account: p.expense.to_account_id,
+      amount: p.expense.amount
+    }))
+  });
+
+  const remaining = transactions.filter((_, index) => !usedIndexes.has(index));
+  logger.info('[Pair Detection] Linhas restantes:', {
+    count: remaining.length,
+    detalhes: remaining.map(t => ({
+      type: t.type,
+      description: t.description,
+      account_id: t.account_id,
+      to_account_id: t.to_account_id
+    }))
+  });
+
+  return { pairs, remaining };
+}
+
 export function useImportMutations() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -79,12 +192,73 @@ export function useImportMutations() {
         });
       }
 
-      // 3. Importar transações
-      const results = await Promise.all(
-        transactionsData.map(async (data) => {
-          const category_id = data.category ? categoryMap.get(data.category) || null : null;
+      // 3. Importar transações (com pareamento automático de transferências)
+      const { pairs: inferredTransferPairs, remaining: transactionsToProcess } = detectTransferPairs(transactionsData);
 
-          // Criar transação base
+      logger.info('[Import] Pareamento de transferências:', {
+        totalLinhas: transactionsData.length,
+        paresEncontrados: inferredTransferPairs.length,
+        linhasRestantes: transactionsToProcess.length,
+        detalhes: inferredTransferPairs.map((p, i) => ({
+          index: i,
+          from_account: p.expense.account_id,
+          to_account: p.expense.to_account_id,
+          amount: p.expense.amount,
+          date: p.expense.date,
+          desc_out: p.expense.description,
+          desc_in: p.income.description,
+        }))
+      });
+
+      if (inferredTransferPairs.length > 0) {
+        logger.info('[Import] Transferências inferidas para vincular automaticamente:', {
+          count: inferredTransferPairs.length
+        });
+      }
+
+      const inferredTransfersPromises = inferredTransferPairs.map(async (pair) => {
+        const status = pair.expense.status === 'pending' || pair.income.status === 'pending'
+          ? 'pending'
+          : (pair.expense.status || pair.income.status || 'completed');
+
+        logger.info('[Import] Vinculando transferência inferida:', {
+          from: pair.expense.account_id,
+          to: pair.income.account_id,
+          amount: pair.expense.amount,
+          description_out: pair.expense.description,
+          description_in: pair.income.description
+        });
+
+        const result = await supabase.functions.invoke('atomic-transfer', {
+          body: {
+            transfer: {
+              from_account_id: pair.expense.account_id,
+              to_account_id: pair.income.account_id,
+              amount: pair.expense.amount,
+              date: pair.expense.date,
+              outgoing_description: pair.expense.description,
+              incoming_description: pair.income.description,
+              status,
+            }
+          }
+        });
+
+        if (result.error) {
+          logger.error('[Import] Erro ao vincular transferência inferida:', result.error);
+        } else {
+          logger.info('[Import] Transferência inferida vinculada com sucesso:', result.data);
+        }
+
+        return { ...result, transactionData: pair.expense, createdCount: result.error ? 0 : 2 };
+      });
+
+      const singleTransactionsPromises = transactionsToProcess.map(async (data) => {
+        const category_id = data.category ? categoryMap.get(data.category) || null : null;
+
+        // IMPORTANTE: Despesas/receitas normais (sem to_account_id)
+        // Receitas com to_account_id (conta destino) NÃO devem chegar aqui
+        if (!data.to_account_id && (data.type === 'income' || data.type === 'expense')) {
+          // Transação simples, criar normalmente
           const result = await supabase.functions.invoke('atomic-transaction', {
             body: {
               transaction: {
@@ -100,7 +274,7 @@ export function useImportMutations() {
           });
 
           if (result.error) {
-            return { ...result, transactionData: data };
+            return { ...result, transactionData: data, createdCount: 0 };
           }
 
           // Se tem parcelas ou invoice_month ou outros campos extras, atualizar
@@ -134,9 +308,24 @@ export function useImportMutations() {
             }
           }
 
-          return { ...result, transactionData: data };
-        })
-      );
+          return { ...result, transactionData: data, createdCount: 1 };
+        } else {
+          // Transação não reconhecida (receita com to_account_id ou outro tipo)
+          logger.warn('[Import] Transação ignorada (tipo não suportado):', {
+            type: data.type,
+            to_account_id: data.to_account_id,
+            description: data.description
+          });
+          return { error: 'Tipo de transação não suportado neste contexto', transactionData: data, createdCount: 0 };
+        }
+      });
+
+      const results = await Promise.all([
+        ...inferredTransfersPromises,
+        ...singleTransactionsPromises,
+      ]);
+
+      const createdTransactionsCount = results.reduce((total, current) => total + (current.createdCount ?? 0), 0);
 
       const errors = results.filter(r => r.error);
       if (errors.length > 0) {
@@ -173,7 +362,7 @@ export function useImportMutations() {
       
       toast({
         title: 'Importação concluída',
-        description: `${results.length} transações importadas${transactionsToReplace.length > 0 ? ` (${transactionsToReplace.length} substituídas)` : ''} com sucesso`,
+        description: `${createdTransactionsCount} transações importadas${transactionsToReplace.length > 0 ? ` (${transactionsToReplace.length} substituídas)` : ''} com sucesso`,
       });
     } catch (error: unknown) {
       logger.error('Error importing transactions:', error);

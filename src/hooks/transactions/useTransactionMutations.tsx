@@ -322,6 +322,8 @@ export function useTransactionMutations() {
   ) => {
     if (!user) return;
 
+    logger.info('[Delete] Iniciando exclusão de transação:', { transactionId, editScope });
+
     // Snapshot
     const previousAccounts = queryClient.getQueryData<Account[]>(queryKeys.accounts);
     const previousTransactions = queryClient.getQueriesData({ queryKey: queryKeys.transactionsBase });
@@ -356,19 +358,49 @@ export function useTransactionMutations() {
             queryClient.setQueryData<Account[]>(queryKeys.accounts, (old) => {
               if (!old) return [];
               return old.map(acc => {
+                // Reverter saldo da conta de origem
                 if (acc.id === originalTransaction!.account_id) {
-                   if (originalTransaction!.type === 'expense') acc.balance += originalTransaction!.amount;
-                   else if (originalTransaction!.type === 'income') acc.balance -= originalTransaction!.amount;
+                   if (originalTransaction!.type === 'expense') acc.balance += Math.abs(originalTransaction!.amount);
+                   else if (originalTransaction!.type === 'income') acc.balance -= Math.abs(originalTransaction!.amount);
+                }
+                // Se for transferência, reverter saldo da conta de destino também
+                if (originalTransaction!.to_account_id && acc.id === originalTransaction!.to_account_id) {
+                  // A conta destino recebeu (income), então precisa remover
+                  acc.balance -= Math.abs(originalTransaction!.amount);
                 }
                 return acc;
               });
             });
            }
 
-           // 2. Remove from list
+           // 2. Remove from list (incluindo transação vinculada se for transferência)
            queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
             if (!oldData || !Array.isArray(oldData)) return oldData;
-            return oldData.filter((tx: any) => tx.id !== transactionId);
+            
+            // Verificar se é transferência e tem linked_transaction_id
+            const linkedId = originalTransaction!.linked_transaction_id;
+            
+            logger.info('[Delete] Filtrando cache local:', {
+              transactionId,
+              linkedId,
+              hadLink: !!linkedId,
+              totalBefore: oldData.length
+            });
+            
+            const result = oldData.filter((tx: any) => {
+              if (tx.id === transactionId) {
+                logger.info('[Delete] Removendo transação principal:', transactionId);
+                return false;
+              }
+              if (linkedId && tx.id === linkedId) {
+                logger.info('[Delete] Removendo transação vinculada:', linkedId);
+                return false;
+              }
+              return true;
+            });
+            
+            logger.info('[Delete] Cache filtrado:', { totalAfter: result.length });
+            return result;
           });
         }
       }

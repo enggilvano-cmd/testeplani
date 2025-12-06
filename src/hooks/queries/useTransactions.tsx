@@ -116,7 +116,8 @@ export function useTransactions(params: UseTransactionsParams = {}) {
       // Type
       if (type !== 'all') {
         if (type === 'transfer') {
-          if (!t.to_account_id) return false;
+          // Incluir AMBAS as transações da transferência
+          if (!t.to_account_id && !t.linked_transaction_id) return false;
         } else {
           if (t.type !== type || t.to_account_id) return false;
         }
@@ -191,7 +192,8 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
       if (type !== 'all') {
         if (type === 'transfer') {
-          query = query.not('to_account_id', 'is', null);
+          // Incluir AMBAS as transações da transferência (count query)
+          query = query.or('to_account_id.not.is.null,and(type.eq.income,linked_transaction_id.not.is.null)');
         } else {
           query = query.eq('type', type).is('to_account_id', null);
         }
@@ -327,6 +329,15 @@ export function useTransactions(params: UseTransactionsParams = {}) {
             name,
             type,
             color
+          ),
+          linked_transactions:linked_transaction_id (
+            account_id,
+            accounts:account_id (
+              id,
+              name,
+              type,
+              color
+            )
           )
         `)
         .eq('user_id', user.id)
@@ -342,7 +353,10 @@ export function useTransactions(params: UseTransactionsParams = {}) {
 
       if (type !== 'all') {
         if (type === 'transfer') {
-          query = query.not('to_account_id', 'is', null);
+          // Incluir AMBAS as transações da transferência:
+          // 1. Saída: type='transfer' com to_account_id
+          // 2. Entrada: type='income' com linked_transaction_id
+          query = query.or('to_account_id.not.is.null,and(type.eq.income,linked_transaction_id.not.is.null)');
         } else {
           query = query.eq('type', type).is('to_account_id', null);
         }

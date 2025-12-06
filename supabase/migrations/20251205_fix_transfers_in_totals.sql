@@ -1,15 +1,11 @@
--- Remove todas as versões antigas de get_transactions_totals e cria apenas uma versão correta
--- com suporte aos filtros is_fixed e is_provision
+-- Corrigir get_transactions_totals para excluir completamente transferências dos totais
+-- Problema: Transferências do tipo 'transfer' estão sendo contadas como despesas
+-- Solução: Excluir todas as transações do tipo 'transfer' dos cálculos de receitas e despesas
 
--- Droppar todas as sobrecargas da função
-DROP FUNCTION IF EXISTS public.get_transactions_totals(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, DATE, DATE, TEXT);
-DROP FUNCTION IF EXISTS public.get_transactions_totals(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN, BOOLEAN, DATE, DATE, TEXT);
-DROP FUNCTION IF EXISTS public.get_transactions_totals(UUID, TEXT, TEXT, TEXT, DATE, DATE, TEXT, TEXT, TEXT);
-DROP FUNCTION IF EXISTS public.get_transactions_totals(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, DATE, DATE);
-DROP FUNCTION IF EXISTS public.get_transactions_totals(UUID, TEXT, TEXT, TEXT, TEXT, TEXT);
-DROP FUNCTION IF EXISTS public.get_transactions_totals(UUID);
+-- Remover todas as versões anteriores da função
+DROP FUNCTION IF EXISTS public.get_transactions_totals(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN, BOOLEAN, DATE, DATE, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.get_transactions_totals CASCADE;
 
--- Criar ÚNICA versão correta com todos os filtros
 CREATE OR REPLACE FUNCTION public.get_transactions_totals(
   p_user_id UUID,
   p_type TEXT DEFAULT 'all',
@@ -42,12 +38,13 @@ BEGIN
     FROM transactions t
     INNER JOIN accounts a ON t.account_id = a.id
     WHERE t.user_id = p_user_id
+      -- EXCLUIR TODAS AS TRANSFERÊNCIAS dos cálculos de receitas/despesas
+      AND t.type != 'transfer'
       -- Excluir APENAS receitas espelho de transferências (income com linked_transaction_id)
-      -- Mas PERMITIR despesas vinculadas (expense com to_account_id)
       AND NOT (t.type = 'income' AND t.linked_transaction_id IS NOT NULL)
       -- Excluir apenas o PAI das transações fixas
       AND (t.parent_transaction_id IS NOT NULL OR t.is_fixed IS NOT TRUE OR t.is_fixed IS NULL)
-      -- NOVA REGRA: Excluir provisões estouradas (saldo positivo)
+      -- Excluir provisões estouradas (saldo positivo)
       AND NOT (t.is_provision IS TRUE AND t.amount > 0)
       -- Filtros de is_fixed e is_provision
       AND (p_is_fixed IS NULL OR t.is_fixed = p_is_fixed)
@@ -61,6 +58,8 @@ BEGIN
       AND (p_date_from IS NULL OR t.date >= p_date_from)
       AND (p_date_to IS NULL OR t.date <= p_date_to)
       AND (p_search IS NULL OR p_search = '' OR LOWER(t.description) LIKE '%' || LOWER(p_search) || '%')
+      -- Sempre excluir Saldo Inicial
+      AND t.description != 'Saldo Inicial'
   )
   SELECT 
     COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_income,
@@ -76,6 +75,7 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
 COMMENT ON FUNCTION public.get_transactions_totals IS 
 'Calculate total income, expenses, and balance for transactions with comprehensive filtering.
+Transfers (type = transfer) are completely excluded from income/expense totals.
 Parameters:
 - p_user_id: User ID (required)
 - p_type: Filter by transaction type (all, income, expense, transfer)
@@ -88,3 +88,7 @@ Parameters:
 - p_date_from: Filter from date (NULL for no filter)
 - p_date_to: Filter to date (NULL for no filter)
 - p_search: Search in description (NULL or empty for no filter)';
+
+-- Garantir permissões
+GRANT EXECUTE ON FUNCTION public.get_transactions_totals TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_transactions_totals TO service_role;

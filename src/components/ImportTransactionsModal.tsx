@@ -109,8 +109,7 @@ export function ImportTransactionsModal({
     installments: ['Parcelas', 'Installments', 'Cuotas'],
     invoiceMonth: ['Mês Fatura', 'Invoice Month', 'Mes Factura'],
     isFixed: ['Fixa', 'Fixed', 'Fija'],
-    isProvision: ['Provisão', 'Provision', 'Provisión'],
-    linkedTransactionRef: ['ID Vinculado', 'Linked ID', 'ID Vinculado']
+    isProvision: ['Provisão', 'Provision', 'Provisión']
   } as const;
 
   const pick = (row: Record<string, unknown>, keys: readonly string[]) => {
@@ -264,21 +263,17 @@ export function ImportTransactionsModal({
     let toAccountId: string | undefined;
     if (parsedType === 'transfer') {
       if (contaDestino) {
+        // Transferência de saída: tem conta destino
         const toAccount = findAccountByName(contaDestino);
         if (toAccount) {
           toAccountId = toAccount.id;
         } else {
-          // Se não encontrar a conta destino, não invalida, mas avisa ou deixa null?
-          // Melhor invalidar se for transferência e tiver conta destino especificada mas não encontrada
           errors.push(`Conta destino '${contaDestino}' não encontrada.`);
           isValid = false;
         }
-      } else {
-        // Se for transferência e não tiver conta destino, é um problema?
-        // Sim, transferência precisa de destino.
-        errors.push('Transferência requer Conta Destino.');
-        isValid = false;
       }
+      // Se não tiver conta destino, é a transação de entrada da transferência
+      // Neste caso, será importada como 'income' normal (não precisa validar conta destino)
     }
 
     const statusStr = String(pick(row, HEADERS.status) || 'completed');
@@ -297,9 +292,6 @@ export function ImportTransactionsModal({
     
     const isProvisionStr = String(pick(row, HEADERS.isProvision) || '').toLowerCase();
     const isProvision = isProvisionStr === 'sim' || isProvisionStr === 'yes' || isProvisionStr === 'sí';
-    
-    // Capturar ID Vinculado (para vincular pares de transferência)
-    const linkedTransactionRef = String(pick(row, HEADERS.linkedTransactionRef) || '').trim();
 
     // Normalização de data para evitar diferenças de fuso horário
     const normalizeToUTCDate = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0));
@@ -370,7 +362,6 @@ export function ImportTransactionsModal({
       isDuplicate,
       existingTransactionId,
       resolution: isDuplicate ? 'skip' : 'add',
-      linkedTransactionRef: linkedTransactionRef || undefined,
     };
   };
 
@@ -451,13 +442,19 @@ export function ImportTransactionsModal({
         // Valores já estão em centavos e sempre positivos na validação
         const amount = Math.round(Math.abs(t.valor));
         
+        // Se é transferência mas não tem conta destino, é a transação de entrada (income)
+        let finalType = t.parsedType as 'income' | 'expense' | 'transfer';
+        if (finalType === 'transfer' && !t.toAccountId) {
+          finalType = 'income';
+        }
+        
         return {
           description: t.descricao.trim(),        
           // Edge function + função SQL definem o sinal com base no tipo
           // Portanto, SEMPRE enviamos amount positivo para passar na validação Zod
           amount,
           category: t.categoria.trim(),
-          type: t.parsedType as 'income' | 'expense' | 'transfer',
+          type: finalType,
           account_id: t.accountId as string,
           to_account_id: t.toAccountId,
           date: t.parsedDate?.toISOString().split('T')[0] as string,
@@ -570,8 +567,7 @@ export function ImportTransactionsModal({
         'Parcelas': '',
         'Mês Fatura': '',
         'Fixa': 'Não',
-        'Provisão': 'Não',
-        'ID Vinculado': ''
+        'Provisão': 'Não'
       },
       {
         'Data': '16/03/2024',
@@ -585,8 +581,7 @@ export function ImportTransactionsModal({
         'Parcelas': '',
         'Mês Fatura': '',
         'Fixa': 'Não',
-        'Provisão': 'Não',
-        'ID Vinculado': ''
+        'Provisão': 'Não'
       },
       {
         'Data': '17/03/2024',
@@ -600,23 +595,7 @@ export function ImportTransactionsModal({
         'Parcelas': '',
         'Mês Fatura': '',
         'Fixa': 'Não',
-        'Provisão': 'Não',
-        'ID Vinculado': 'transferencia-ref-1'
-      },
-      {
-        'Data': '17/03/2024',
-        'Descrição': 'Transferência de Conta Corrente',
-        'Categoria': 'Transferência',
-        'Tipo': 'Receita',
-        'Conta': savingsAccount,
-        'Conta Destino': '',
-        'Valor': 1000.00,
-        'Status': 'Concluída',
-        'Parcelas': '',
-        'Mês Fatura': '',
-        'Fixa': 'Não',
-        'Provisão': 'Não',
-        'ID Vinculado': 'transferencia-ref-1'
+        'Provisão': 'Não'
       },
       {
         'Data': '18/03/2024',
@@ -630,8 +609,7 @@ export function ImportTransactionsModal({
         'Parcelas': '1/3',
         'Mês Fatura': '2024-03',
         'Fixa': 'Não',
-        'Provisão': 'Não',
-        'ID Vinculado': ''
+        'Provisão': 'Não'
       },
       {
         'Data': '18/03/2024',
@@ -645,8 +623,7 @@ export function ImportTransactionsModal({
         'Parcelas': '2/3',
         'Mês Fatura': '2024-04',
         'Fixa': 'Não',
-        'Provisão': 'Não',
-        'ID Vinculado': ''
+        'Provisão': 'Não'
       },
       {
         'Data': '18/03/2024',
@@ -660,8 +637,7 @@ export function ImportTransactionsModal({
         'Parcelas': '3/3',
         'Mês Fatura': '2024-05',
         'Fixa': 'Não',
-        'Provisão': 'Não',
-        'ID Vinculado': ''
+        'Provisão': 'Não'
       }
     ];
 
@@ -682,8 +658,7 @@ export function ImportTransactionsModal({
       { wch: 12 },  // Parcelas
       { wch: 12 },  // Mês Fatura
       { wch: 12 },  // Fixa
-      { wch: 12 },  // Provisão
-      { wch: 36 }   // ID Vinculado
+      { wch: 12 }   // Provisão
     ];
     ws['!cols'] = colWidths;
 
@@ -888,7 +863,7 @@ export function ImportTransactionsModal({
                           </div>
                           <div>
                             <span className="text-muted-foreground">Valor:</span>
-                            <span className="ml-1 font-medium">R$ {transaction.valor.toFixed(2)}</span>
+                            <span className="ml-1 font-medium">R$ {(transaction.valor / 100).toFixed(2)}</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Tipo:</span>

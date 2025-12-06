@@ -89,24 +89,19 @@ export async function exportTransactionsToExcel(
 ) {
   const XLSX = await loadXLSX();
   
-  // Criar mapa de transações vinculadas para transferências
-  const linkedMap = new Map<string, ExportTransaction>();
-  transactions.forEach(t => {
-    if (t.linked_transaction_id) {
-      linkedMap.set(t.linked_transaction_id, t);
-    }
-  });
-  
-  const exportData = transactions.flatMap(transaction => {
+  const exportData = transactions.map(transaction => {
     const account = accounts.find(a => a.id === transaction.account_id);
     const category = categories.find(c => c.id === transaction.category_id);
     const toAccount = transaction.to_account_id ? accounts.find(a => a.id === transaction.to_account_id) : null;
+    
+    // Identificar se é transferência (saída com to_account_id OU entrada com linked_transaction_id)
+    const isTransfer = transaction.type === 'transfer' || (transaction.type === 'income' && transaction.linked_transaction_id);
 
-    const baseRow = {
+    return {
       'Data': format(new Date(transaction.date), 'dd/MM/yyyy', { locale: ptBR }),
       'Descrição': transaction.description,
-      'Categoria': category?.name || '-',
-      'Tipo': getTransactionTypeLabel(transaction.type),
+      'Categoria': isTransfer ? 'Transferência' : (category?.name || '-'),
+      'Tipo': isTransfer ? 'Transferência' : getTransactionTypeLabel(transaction.type),
       'Conta': account?.name || 'Desconhecida',
       'Conta Destino': toAccount?.name || '',
       'Valor': formatBRNumber(Math.abs(transaction.amount)),
@@ -116,41 +111,8 @@ export async function exportTransactionsToExcel(
         : '',
       'Mês Fatura': transaction.invoice_month || '',
       'Fixa': transaction.is_fixed ? 'Sim' : 'Não',
-      'Provisão': transaction.is_provision ? 'Sim' : 'Não',
-      'ID Vinculado': transaction.linked_transaction_id || ''
+      'Provisão': transaction.is_provision ? 'Sim' : 'Não'
     };
-
-    const result = [baseRow];
-
-    // Se é uma transferência (despesa com to_account_id), incluir também a transação vinculada (receita)
-    if (transaction.type === 'transfer' && transaction.to_account_id && transaction.linked_transaction_id) {
-      const linkedTransaction = linkedMap.get(transaction.linked_transaction_id);
-      if (linkedTransaction && linkedTransaction.type === 'income') {
-        const linkedAccount = accounts.find(a => a.id === linkedTransaction.account_id);
-        const linkedCategory = categories.find(c => c.id === linkedTransaction.category_id);
-
-        const linkedRow = {
-          'Data': format(new Date(linkedTransaction.date), 'dd/MM/yyyy', { locale: ptBR }),
-          'Descrição': linkedTransaction.description,
-          'Categoria': linkedCategory?.name || '-',
-          'Tipo': getTransactionTypeLabel(linkedTransaction.type),
-          'Conta': linkedAccount?.name || 'Desconhecida',
-          'Conta Destino': '',
-          'Valor': formatBRNumber(Math.abs(linkedTransaction.amount)),
-          'Status': linkedTransaction.status === 'completed' ? 'Concluída' : 'Pendente',
-          'Parcelas': linkedTransaction.installments 
-            ? `${linkedTransaction.current_installment}/${linkedTransaction.installments}`
-            : '',
-          'Mês Fatura': linkedTransaction.invoice_month || '',
-          'Fixa': linkedTransaction.is_fixed ? 'Sim' : 'Não',
-          'Provisão': linkedTransaction.is_provision ? 'Sim' : 'Não',
-          'ID Vinculado': linkedTransaction.linked_transaction_id || ''
-        };
-        result.push(linkedRow);
-      }
-    }
-
-    return result;
   });
 
   const ws = XLSX.utils.json_to_sheet(exportData);
@@ -170,8 +132,7 @@ export async function exportTransactionsToExcel(
     { wch: 12 },  // Parcelas
     { wch: 12 },  // Mês Fatura
     { wch: 12 },  // Fixa
-    { wch: 12 },  // Provisão
-    { wch: 36 },  // ID Vinculado (UUID é longo)
+    { wch: 12 }   // Provisão
   ];
   ws['!cols'] = colWidths;
 
@@ -225,12 +186,15 @@ export async function exportAllDataToExcel(
     const account = accounts.find(a => a.id === transaction.account_id);
     const category = categories.find(c => c.id === transaction.category_id);
     const toAccount = transaction.to_account_id ? accounts.find(a => a.id === transaction.to_account_id) : null;
+    
+    // Identificar se é transferência (saída com to_account_id OU entrada com linked_transaction_id)
+    const isTransfer = transaction.type === 'transfer' || (transaction.type === 'income' && transaction.linked_transaction_id);
 
     return {
       'Data': format(new Date(transaction.date), 'dd/MM/yyyy', { locale: ptBR }),
       'Descrição': transaction.description,
-      'Categoria': category?.name || '-',
-      'Tipo': getTransactionTypeLabel(transaction.type),
+      'Categoria': isTransfer ? 'Transferência' : (category?.name || '-'),
+      'Tipo': isTransfer ? 'Transferência' : getTransactionTypeLabel(transaction.type),
       'Conta': account?.name || 'Desconhecida',
       'Conta Destino': toAccount?.name || '',
       'Valor': formatBRNumber(Math.abs(transaction.amount)),

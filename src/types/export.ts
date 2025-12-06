@@ -32,10 +32,13 @@ export interface ExportTransaction {
   account_id: string;
   category_id?: string | null;
   to_account_id?: string | null;
+  linked_transaction_id?: string | null;
   installments?: number | null;
   current_installment?: number | null;
   invoice_month?: string | null;
   is_fixed?: boolean | null;
+  is_provision?: boolean | null;
+  parent_transaction_id?: string | null;
   created_at?: string;
 }
 

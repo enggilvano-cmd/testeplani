@@ -76,6 +76,15 @@ export interface Transaction {
     type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
     color: string;
   };
+  linked_transactions?: {
+    account_id: string;
+    accounts?: {
+      id: string;
+      name: string;
+      type: "checking" | "savings" | "credit" | "investment" | "meal_voucher";
+      color: string;
+    };
+  };
 }
 
 // Para o store, garantindo que a data seja um objeto Date

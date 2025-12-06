@@ -306,7 +306,17 @@ export function useOfflineTransactionMutations() {
           // ✅ Optimistic Update para Exclusão
           queryClient.setQueriesData({ queryKey: queryKeys.transactionsBase }, (oldData: any) => {
             if (!oldData || !Array.isArray(oldData)) return oldData;
-            return oldData.filter((tx: any) => tx.id !== transactionId);
+            
+            // Encontrar a transação para verificar se é uma transferência
+            const transaction = oldData.find((tx: any) => tx.id === transactionId);
+            const linkedId = transaction?.linked_transaction_id;
+            
+            // Remover a transação e sua vinculada (se for transferência)
+            return oldData.filter((tx: any) => {
+              if (tx.id === transactionId) return false;
+              if (linkedId && tx.id === linkedId) return false;
+              return true;
+            });
           });
 
         } catch (error) {

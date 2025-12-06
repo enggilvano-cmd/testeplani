@@ -235,14 +235,16 @@ export function useDashboardCalculations(
         }
 
         // Contar transações pendentes (despesas)
+        // Permitir despesas vinculadas (transferências com to_account_id)
+        // Excluir apenas renda espelho de transferências
         const { count: pendingExpCount, error: pendingExpCountError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('type', 'expense')
           .eq('status', 'pending')
-          .is('to_account_id', null)
-          .is('linked_transaction_id', null)
+          // Filtro: tem to_account_id (é transferência) OU não tem linked_transaction_id
+          .or('to_account_id.not.is.null,linked_transaction_id.is.null')
           // Excluir apenas o PAI das transações fixas (mantém as filhas)
           .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null')
           // Excluir transações de Saldo Inicial
@@ -255,13 +257,13 @@ export function useDashboardCalculations(
         }
 
         // Contar transações pendentes (receitas)
+        // Excluir APENAS receitas espelho de transferências (income com linked_transaction_id)
         const { count: pendingIncCount, error: pendingIncCountError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('type', 'income')
           .eq('status', 'pending')
-          .is('to_account_id', null)
           .is('linked_transaction_id', null)
           // Excluir apenas o PAI das transações fixas (mantém as filhas)
           .or('parent_transaction_id.not.is.null,is_fixed.neq.true,is_fixed.is.null')
