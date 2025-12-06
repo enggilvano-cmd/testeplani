@@ -49,9 +49,13 @@ interface FixedTransactionsFilters {
 export function FixedTransactionsPage({
   importModalOpen: externalImportModalOpen,
   onImportModalOpenChange,
+  addModalOpen: externalAddModalOpen,
+  onAddModalOpenChange,
 }: {
   importModalOpen?: boolean;
   onImportModalOpenChange?: (open: boolean) => void;
+  addModalOpen?: boolean;
+  onAddModalOpenChange?: (open: boolean) => void;
 } = {}) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -95,7 +99,12 @@ export function FixedTransactionsPage({
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [internalAddModalOpen, setInternalAddModalOpen] = useState(false);
+  const addModalOpen = externalAddModalOpen ?? internalAddModalOpen;
+  const setAddModalOpen = (open: boolean) => {
+    setInternalAddModalOpen(open);
+    onAddModalOpenChange?.(open);
+  };
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
   const [internalImportModalOpen, setInternalImportModalOpen] = useState(false);

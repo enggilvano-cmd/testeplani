@@ -109,9 +109,7 @@ export async function exportTransactionsToExcel(
       'Parcelas': transaction.installments 
         ? `${transaction.current_installment}/${transaction.installments}`
         : '',
-      'Mês Fatura': transaction.invoice_month || '',
-      'Fixa': transaction.is_fixed ? 'Sim' : 'Não',
-      'Provisão': transaction.is_provision ? 'Sim' : 'Não'
+      'Mês Fatura': transaction.invoice_month || ''
     };
   });
 
@@ -130,9 +128,7 @@ export async function exportTransactionsToExcel(
     { wch: 15 },  // Valor
     { wch: 12 },  // Status
     { wch: 12 },  // Parcelas
-    { wch: 12 },  // Mês Fatura
-    { wch: 12 },  // Fixa
-    { wch: 12 }   // Provisão
+    { wch: 12 }   // Mês Fatura
   ];
   ws['!cols'] = colWidths;
 
@@ -202,16 +198,14 @@ export async function exportAllDataToExcel(
       'Parcelas': transaction.installments 
         ? `${transaction.current_installment}/${transaction.installments}`
         : '',
-      'Mês Fatura': transaction.invoice_month || '',
-      'Fixa': transaction.is_fixed ? 'Sim' : 'Não',
-      'Provisão': transaction.is_provision ? 'Sim' : 'Não'
+      'Mês Fatura': transaction.invoice_month || ''
     };
   });
   const wsTransactions = XLSX.utils.json_to_sheet(transactionsData);
   wsTransactions['!cols'] = [
     { wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 15 },
     { wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
-    { wch: 12 }, { wch: 12 }, { wch: 12 }
+    { wch: 12 }
   ];
   XLSX.utils.book_append_sheet(wb, wsTransactions, 'Transações');
 

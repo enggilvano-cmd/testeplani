@@ -579,6 +579,8 @@ const PlaniFlowApp = () => {
         return <FixedTransactionsPage 
           importModalOpen={importFixedTransactionsModalOpen}
           onImportModalOpenChange={setImportFixedTransactionsModalOpen}
+          addModalOpen={addFixedTransactionModalOpen}
+          onAddModalOpenChange={setAddFixedTransactionModalOpen}
         />;
       case "categories":
         return <CategoriesPage 

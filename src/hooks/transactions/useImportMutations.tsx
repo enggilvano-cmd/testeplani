@@ -192,11 +192,41 @@ export function useImportMutations() {
         });
       }
 
-      // 3. Importar transações (com pareamento automático de transferências)
-      const { pairs: inferredTransferPairs, remaining: transactionsToProcess } = detectTransferPairs(transactionsData);
+      // 3. Agrupar parcelas antes de importar
+      const installmentGroups = new Map<string, ImportTransactionData[]>();
+      const nonInstallmentTransactions: ImportTransactionData[] = [];
+
+      transactionsData.forEach((data) => {
+        if (data.installments && data.current_installment && data.installments > 1) {
+          // Criar chave única baseada em descrição base, conta, valor
+          const descBase = data.description.replace(/\s*-\s*Parcela\s*\d+.*$/i, '').trim();
+          const groupKey = `${descBase}|${data.account_id}|${data.amount}|${data.installments}`;
+          
+          if (!installmentGroups.has(groupKey)) {
+            installmentGroups.set(groupKey, []);
+          }
+          installmentGroups.get(groupKey)!.push(data);
+        } else {
+          nonInstallmentTransactions.push(data);
+        }
+      });
+
+      // Ordenar parcelas dentro de cada grupo
+      installmentGroups.forEach((group) => {
+        group.sort((a, b) => (a.current_installment || 0) - (b.current_installment || 0));
+      });
+
+      logger.info('[Import] Análise de parcelamentos:', {
+        totalLinhas: transactionsData.length,
+        gruposParcelados: installmentGroups.size,
+        transacoesSimples: nonInstallmentTransactions.length
+      });
+
+      // 4. Importar transações (com pareamento automático de transferências)
+      const { pairs: inferredTransferPairs, remaining: transactionsToProcess } = detectTransferPairs(nonInstallmentTransactions);
 
       logger.info('[Import] Pareamento de transferências:', {
-        totalLinhas: transactionsData.length,
+        totalLinhas: nonInstallmentTransactions.length,
         paresEncontrados: inferredTransferPairs.length,
         linhasRestantes: transactionsToProcess.length,
         detalhes: inferredTransferPairs.map((p, i) => ({
@@ -250,6 +280,79 @@ export function useImportMutations() {
         }
 
         return { ...result, transactionData: pair.expense, createdCount: result.error ? 0 : 2 };
+      });
+
+      // Processar grupos de parcelas
+      const installmentGroupsPromises = Array.from(installmentGroups.values()).map(async (group) => {
+        if (group.length === 0) return { createdCount: 0 };
+        
+        const category_id = group[0].category ? categoryMap.get(group[0].category) || null : null;
+        let parent_transaction_id: string | null = null;
+        let createdCount = 0;
+
+        for (const data of group) {
+          const result = await supabase.functions.invoke('atomic-transaction', {
+            body: {
+              transaction: {
+                description: data.description,
+                amount: data.amount,
+                date: data.date,
+                type: data.type,
+                category_id: category_id,
+                account_id: data.account_id,
+                status: data.status || 'completed',
+              }
+            }
+          });
+
+          if (result.error) {
+            logger.error('[Import] Erro ao criar parcela:', { error: result.error, data });
+            return { ...result, transactionData: data, createdCount };
+          }
+
+          const responseData = result.data as { transaction?: { id: string } };
+          const transactionId = responseData?.transaction?.id;
+
+          if (transactionId) {
+            // A primeira parcela define o parent_transaction_id
+            if (!parent_transaction_id) {
+              parent_transaction_id = transactionId;
+            }
+
+            const updates: Record<string, unknown> = {
+              installments: data.installments,
+              current_installment: data.current_installment,
+              parent_transaction_id: parent_transaction_id
+            };
+
+            if (data.invoice_month) {
+              updates.invoice_month = data.invoice_month;
+              updates.invoice_month_overridden = true;
+            }
+            
+            if (data.is_fixed !== undefined) updates.is_fixed = data.is_fixed;
+            if (data.is_provision !== undefined) updates.is_provision = data.is_provision;
+
+            const { error: updateError } = await supabase
+              .from('transactions')
+              .update(updates)
+              .eq('id', transactionId);
+
+            if (updateError) {
+              logger.error('[Import] Erro ao atualizar metadados da parcela:', updateError);
+            } else {
+              createdCount++;
+            }
+          }
+        }
+
+        logger.info('[Import] Grupo de parcelas processado:', {
+          totalParcelas: group.length,
+          criadas: createdCount,
+          parent_id: parent_transaction_id
+        });
+
+        return { createdCount };
       });
 
       const singleTransactionsPromises = transactionsToProcess.map(async (data) => {
@@ -322,6 +425,7 @@ export function useImportMutations() {
 
       const results = await Promise.all([
         ...inferredTransfersPromises,
+        ...installmentGroupsPromises,
         ...singleTransactionsPromises,
       ]);
 

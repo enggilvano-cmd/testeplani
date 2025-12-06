@@ -107,23 +107,34 @@ export function ImportTransactionsModal({
     amount: ['Valor', 'Amount', 'Valor'],
     status: ['Status', 'Status', 'Estado'],
     installments: ['Parcelas', 'Installments', 'Cuotas'],
-    invoiceMonth: ['Mês Fatura', 'Invoice Month', 'Mes Factura'],
-    isFixed: ['Fixa', 'Fixed', 'Fija'],
-    isProvision: ['Provisão', 'Provision', 'Provisión']
+    invoiceMonth: ['Mês Fatura', 'Invoice Month', 'Mes Factura']
   } as const;
 
   const pick = (row: Record<string, unknown>, keys: readonly string[]) => {
+    if (!row || typeof row !== 'object') return '';
+    if (!keys || !Array.isArray(keys)) return '';
+    
     // Mapa normalizado de chaves do Excel -> valor
     const keyMap = new Map<string, unknown>();
-    for (const k of Object.keys(row)) {
-      keyMap.set(normalizeKey(k), row[k]);
+    const rowKeys = Object.keys(row);
+    
+    for (const k of rowKeys) {
+      if (typeof k === 'string') {
+        keyMap.set(normalizeKey(k), row[k]);
+      }
     }
-    for (const key of keys) {
-      const candidates = [key, key.toLowerCase()];
-      for (const c of candidates) {
-        const nk = normalizeKey(c);
-        if (keyMap.has(nk)) {
-          return keyMap.get(nk);
+    
+    // Converter para array regular para garantir iterabilidade
+    const keysArray = Array.from(keys);
+    
+    for (const key of keysArray) {
+      if (typeof key === 'string') {
+        const candidates = [key, key.toLowerCase()];
+        for (const c of candidates) {
+          const nk = normalizeKey(c);
+          if (keyMap.has(nk)) {
+            return keyMap.get(nk);
+          }
         }
       }
     }
@@ -384,16 +395,102 @@ export function ImportTransactionsModal({
     try{
       const XLSX = await loadXLSX();
       
+      logger.info('[ImportTransactions] Iniciando leitura do arquivo:', {
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        fileType: selectedFile.type
+      });
+      
       const fileBuffer = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(fileBuffer, { type: 'array' });
+      
+      logger.info('[ImportTransactions] Workbook lido:', {
+        sheetCount: workbook.SheetNames?.length,
+        sheetNames: workbook.SheetNames
+      });
+      
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        toast({
+          title: 'Erro',
+          description: 'O arquivo não contém planilhas. Verifique se é um arquivo Excel válido.',
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rawData = XLSX.utils.sheet_to_json(sheet);
+      
+      if (!sheet) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível ler a planilha. Verifique se o arquivo não está corrompido.',
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
+      logger.info('[ImportTransactions] Convertendo planilha para JSON...');
+      const rawData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      
+      logger.info('[ImportTransactions] Dados convertidos:', {
+        isArray: Array.isArray(rawData),
+        length: Array.isArray(rawData) ? rawData.length : 0,
+        firstRow: Array.isArray(rawData) && rawData.length > 0 ? rawData[0] : null
+      });
 
-      if (rawData.length === 0) {
+      if (!Array.isArray(rawData) || rawData.length === 0) {
         toast({
           title: 'Erro',
           description: 'O arquivo está vazio. Adicione dados antes de importar',
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      // Validar se o arquivo tem as colunas necessárias
+      const firstRow = rawData[0] as Record<string, unknown>;
+      
+      if (!firstRow || typeof firstRow !== 'object') {
+        toast({
+          title: 'Formato inválido',
+          description: 'O arquivo não contém dados válidos. Verifique se está no formato Excel correto.',
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
+      const headers = Object.keys(firstRow).map(k => normalizeKey(String(k)));
+      
+      const requiredHeaders = [
+        normalizeKey('Data'),
+        normalizeKey('Descrição'),
+        normalizeKey('Categoria'),
+        normalizeKey('Tipo'),
+        normalizeKey('Conta'),
+        normalizeKey('Valor')
+      ];
+      
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+      
+      if (missingHeaders.length > 0) {
+        const missingNames = missingHeaders.map(h => {
+          if (h === normalizeKey('Data')) return 'Data';
+          if (h === normalizeKey('Descrição')) return 'Descrição';
+          if (h === normalizeKey('Categoria')) return 'Categoria';
+          if (h === normalizeKey('Tipo')) return 'Tipo';
+          if (h === normalizeKey('Conta')) return 'Conta';
+          if (h === normalizeKey('Valor')) return 'Valor';
+          return h;
+        });
+        
+        toast({
+          title: 'Formato inválido',
+          description: `Colunas obrigatórias ausentes: ${missingNames.join(', ')}. Baixe o modelo de exemplo para ver o formato correto.`,
           variant: "destructive"
         });
         setIsProcessing(false);
@@ -420,9 +517,29 @@ export function ImportTransactionsModal({
       });
 
     } catch (error) {
+      logger.error('[ImportTransactions] Erro ao processar arquivo:', { 
+        error, 
+        errorType: typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
+      
+      let errorMessage = 'Erro desconhecido ao processar o arquivo';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Mensagens de erro mais amigáveis para problemas comuns
+        if (errorMessage.includes('not iterable')) {
+          errorMessage = 'Formato de arquivo inválido. O arquivo pode estar corrompido ou em formato incompatível.';
+        } else if (errorMessage.includes('Cannot read')) {
+          errorMessage = 'Não foi possível ler o arquivo. Verifique se não está corrompido.';
+        }
+      }
+      
       toast({
-        title: 'Erro',
-        description: 'Erro ao ler o arquivo. Verifique o formato e tente novamente',
+        title: 'Erro ao ler arquivo',
+        description: `${errorMessage}. Tente baixar o modelo de exemplo e preencher os dados nele.`,
         variant: "destructive"
       });
     }
@@ -565,9 +682,7 @@ export function ImportTransactionsModal({
         'Valor': 5000.00,
         'Status': 'Concluída',
         'Parcelas': '',
-        'Mês Fatura': '',
-        'Fixa': 'Não',
-        'Provisão': 'Não'
+        'Mês Fatura': ''
       },
       {
         'Data': '16/03/2024',
@@ -579,9 +694,7 @@ export function ImportTransactionsModal({
         'Valor': 150.50,
         'Status': 'Concluída',
         'Parcelas': '',
-        'Mês Fatura': '',
-        'Fixa': 'Não',
-        'Provisão': 'Não'
+        'Mês Fatura': ''
       },
       {
         'Data': '17/03/2024',
@@ -593,9 +706,7 @@ export function ImportTransactionsModal({
         'Valor': 1000.00,
         'Status': 'Concluída',
         'Parcelas': '',
-        'Mês Fatura': '',
-        'Fixa': 'Não',
-        'Provisão': 'Não'
+        'Mês Fatura': ''
       },
       {
         'Data': '18/03/2024',
@@ -607,9 +718,7 @@ export function ImportTransactionsModal({
         'Valor': 400.00,
         'Status': 'Pendente',
         'Parcelas': '1/3',
-        'Mês Fatura': '2024-03',
-        'Fixa': 'Não',
-        'Provisão': 'Não'
+        'Mês Fatura': '2024-03'
       },
       {
         'Data': '18/03/2024',
@@ -621,9 +730,7 @@ export function ImportTransactionsModal({
         'Valor': 400.00,
         'Status': 'Pendente',
         'Parcelas': '2/3',
-        'Mês Fatura': '2024-04',
-        'Fixa': 'Não',
-        'Provisão': 'Não'
+        'Mês Fatura': '2024-04'
       },
       {
         'Data': '18/03/2024',
@@ -635,9 +742,7 @@ export function ImportTransactionsModal({
         'Valor': 400.00,
         'Status': 'Pendente',
         'Parcelas': '3/3',
-        'Mês Fatura': '2024-05',
-        'Fixa': 'Não',
-        'Provisão': 'Não'
+        'Mês Fatura': '2024-05'
       }
     ];
 
@@ -656,9 +761,7 @@ export function ImportTransactionsModal({
       { wch: 15 },  // Valor
       { wch: 12 },  // Status
       { wch: 12 },  // Parcelas
-      { wch: 12 },  // Mês Fatura
-      { wch: 12 },  // Fixa
-      { wch: 12 }   // Provisão
+      { wch: 12 }   // Mês Fatura
     ];
     ws['!cols'] = colWidths;
 
