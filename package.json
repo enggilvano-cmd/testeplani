@@ -8,9 +8,22 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
     "analyze": "npm run build && node scripts/bundle-analysis.js",
-    "bundle:report": "npm run build && npm run analyze"
+    "bundle:report": "npm run build && npm run analyze",
+    "prepare": "node -e \"try { require('husky').default() } catch (e) { if (e.code !== 'MODULE_NOT_FOUND') throw e }\"",
+    "pre-commit": "lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "git add"
+    ],
+    "*.{json,md}": [
+      "prettier --write",
+      "git add"
+    ]
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

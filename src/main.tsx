@@ -10,6 +10,15 @@ import { logger } from './lib/logger'
 // Lazy load heavy modules to reduce initial bundle
 const initializeApp = async () => {
   try {
+    // Track session start
+    try {
+      sessionStorage.setItem('session_start', Date.now().toString());
+      const pageLoads = parseInt(sessionStorage.getItem('page_loads') || '0');
+      sessionStorage.setItem('page_loads', (pageLoads + 1).toString());
+    } catch (e) {
+      // Ignore sessionStorage errors
+    }
+
     // Lazy load Sentry only if needed
     if (import.meta.env.PROD) {
       const { initSentry } = await import('./lib/sentry');

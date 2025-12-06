@@ -33,12 +33,43 @@ const STORE_NAME = 'operations-queue';
 
 class OfflineQueueManager {
   
+  // ✅ BUG FIX #3: Generate idempotent ID based on content hash
+  private generateIdempotentId(operation: Omit<QueuedOperation, 'id' | 'timestamp' | 'retries'>): string {
+    // Create deterministic ID based on operation content
+    const content = JSON.stringify({
+      type: operation.type,
+      data: operation.data,
+      // Don't include timestamp/random to make it deterministic
+    });
+    
+    // Simple hash function (for better security, use crypto.subtle.digest in production)
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    // Return hash as base36 string with type prefix
+    return `${operation.type}-${Math.abs(hash).toString(36)}`;
+  }
+  
   async enqueue(operation: Omit<QueuedOperation, 'id' | 'timestamp' | 'retries'>): Promise<void> {
     const db = await offlineDatabase.getDB();
 
+    // ✅ BUG FIX #3: Use content-based idempotent ID
+    const idempotentId = this.generateIdempotentId(operation);
+    
+    // Check if operation already exists
+    const existing = await this.getOperationById(idempotentId);
+    if (existing) {
+      logger.info('Operation already queued (idempotent check), skipping:', idempotentId);
+      return;
+    }
+
     const queuedOp: QueuedOperation = {
       ...operation,
-      id: `${operation.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: idempotentId,
       timestamp: Date.now(),
       retries: 0,
     };
@@ -75,6 +106,25 @@ class OfflineQueueManager {
 
       request.onerror = () => {
         logger.error('Failed to dequeue operation:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  async getOperationById(id: string): Promise<QueuedOperation | null> {
+    const db = await offlineDatabase.getDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(id);
+
+      request.onsuccess = () => {
+        resolve(request.result || null);
+      };
+
+      request.onerror = () => {
+        logger.error('Failed to get operation:', request.error);
         reject(request.error);
       };
     });

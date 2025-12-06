@@ -3,7 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
-import { setSentryUser } from '@/lib/sentry';
+import { setSentryUser, trackUserAction, setSentryContext } from '@/lib/sentry';
 import { getErrorMessage } from '@/types/errors';
 import { getTabSynchronizer } from '@/lib/tabSync';
 
@@ -331,6 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       logger.debug('Attempting to sign in user:', email);
+      trackUserAction('Sign In Attempt', 'auth', { email });
       
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -339,6 +340,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         logger.error('Sign in error:', error);
+        trackUserAction('Sign In Failed', 'auth', { email, error: error.message });
         toast({
           title: "Erro no login",
           description: error.message,
@@ -346,6 +348,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       } else {
         logger.success('Sign in successful');
+        trackUserAction('Sign In Success', 'auth', { email });
         toast({
           title: "Login realizado",
           description: "Bem-vindo de volta!",
@@ -356,6 +359,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error) || 'Erro desconhecido ao fazer login';
       logger.error('Sign in error:', error);
+      trackUserAction('Sign In Error', 'auth', { error: errorMessage });
       toast({
         title: "Erro no login",
         description: errorMessage,
@@ -368,6 +372,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, fullName: string, whatsapp?: string) => {
     try {
       logger.info('Attempting to sign up user:', email);
+      trackUserAction('Sign Up Attempt', 'auth', { email, fullName });
       
       const redirectUrl = `${window.location.origin}/`;
       
@@ -385,6 +390,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         logger.error('Sign up error:', error);
+        trackUserAction('Sign Up Failed', 'auth', { email, error: error.message });
         toast({
           title: "Erro no cadastro",
           description: error.message,
@@ -392,6 +398,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       } else {
         logger.success('Sign up successful');
+        trackUserAction('Sign Up Success', 'auth', { email });
         toast({
           title: "Cadastro realizado",
           description: "Verifique seu email para confirmar a conta.",
@@ -414,6 +421,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       logger.debug('Attempting to sign out');
+      trackUserAction('Sign Out', 'auth', { userId: user?.id });
       
       await logActivity('signed_out', 'auth');
       const { error } = await supabase.auth.signOut();

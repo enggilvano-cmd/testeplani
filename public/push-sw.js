@@ -1,3 +1,35 @@
+// ✅ BUG FIX #18: Service Worker versioning
+const SW_VERSION = '1.0.0';
+const CACHE_NAME = `plani-push-sw-v${SW_VERSION}`;
+
+console.log(`[Service Worker] Version ${SW_VERSION} initializing...`);
+
+// Install event - cache versioning
+self.addEventListener('install', function(event) {
+  console.log(`[Service Worker] Installing version ${SW_VERSION}`);
+  // Skip waiting to activate new version immediately
+  self.skipWaiting();
+});
+
+// Activate event - cleanup old caches
+self.addEventListener('activate', function(event) {
+  console.log(`[Service Worker] Activating version ${SW_VERSION}`);
+  event.waitUntil(
+    caches.keys().then(function(cacheNames) {
+      return Promise.all(
+        cacheNames.map(function(cacheName) {
+          if (cacheName !== CACHE_NAME && cacheName.startsWith('plani-push-sw-')) {
+            console.log(`[Service Worker] Deleting old cache: ${cacheName}`);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(function() {
+      // Take control of all clients immediately
+      return self.clients.claim();
+    })
+  );
+});
 
 // Listen for push events
 self.addEventListener('push', function(event) {

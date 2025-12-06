@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { logger } from './logger';
 
 type VirtualModule<T> = {
   loaded: boolean;
@@ -93,9 +94,9 @@ class VirtualImportManager {
       window.requestIdleCallback(async () => {
         try {
           await Promise.all(moduleNames.map(name => this.load(name)));
-          console.log(`🚀 Preloaded ${moduleNames.length} critical modules`);
+          logger.debug(`Preloaded ${moduleNames.length} critical modules`);
         } catch (error) {
-          console.warn('Failed to preload critical modules:', error);
+          logger.warn('Failed to preload critical modules:', error);
         }
       });
     }

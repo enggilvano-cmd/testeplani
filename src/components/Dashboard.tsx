@@ -2,6 +2,7 @@ import { useSettings } from '@/context/SettingsContext';
 import type { Account, Transaction, Category, AccountFilterType, TransactionFilterType, StatusFilterType, DateFilterType } from '@/types';
 import { useDashboardFilters } from '@/hooks/useDashboardFilters';
 import { useDashboardCalculations } from '@/hooks/useDashboardCalculations';
+import { useComponentPerformance } from '@/hooks/useComponentPerformance';
 import { FilterCard } from './dashboard/FilterCard';
 import { BalanceCards } from './dashboard/BalanceCards';
 import { FinancialEvolutionChart } from './dashboard/FinancialEvolutionChart';
@@ -46,6 +47,9 @@ export function Dashboard({
   onNavigateToTransactions,
 }: DashboardProps) {
   const { formatCurrency } = useSettings();
+  
+  // Track performance do Dashboard
+  useComponentPerformance('Dashboard', true);
 
   const {
     dateFilter,

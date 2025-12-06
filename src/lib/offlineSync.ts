@@ -6,50 +6,123 @@ import { getErrorMessage, handleError } from './errorUtils';
 import type { Transaction, Account, Category } from '@/types';
 import { toast } from 'sonner';
 import { queryClient, queryKeys } from './queryClient';
+import { getMonthsAgoUTC } from './timezone';
 
 const MAX_RETRIES = 5;
 const SYNC_MONTHS = 12; // Aligned with useTransactions.tsx (1 year history)
 const TEMP_ID_PREFIX = 'temp-'; // Normalization of temporary ID prefix
 const SYNC_TIMEOUT = 300000; // 5 minutes timeout per sync operation
 const OPERATION_LOCK_TIMEOUT = 60000; // 1 minute timeout per individual operation
+const CIRCUIT_BREAKER_THRESHOLD = 5; // Failures before opening circuit
+const CIRCUIT_BREAKER_TIMEOUT = 60000; // 1 minute before retry
 
 class OfflineSyncManager {
   private isSyncing = false;
   private syncPromise: Promise<void> | null = null;
   private operationLocks = new Map<string, { timestamp: number; promise: Promise<void> }>();
   private abortController: AbortController | null = null;
+  private circuitBreakerFailures = 0;
+  private circuitBreakerOpenUntil = 0;
+  private syncLockName = 'offline-sync-lock';
 
   async syncAll(): Promise<void> {
     if (!navigator.onLine) return;
     
-    // If already syncing, wait for current sync to complete
-    if (this.isSyncing && this.syncPromise) {
-      logger.info('Sync already in progress, waiting...');
-      try {
-        await this.syncPromise;
-      } catch (error) {
-        logger.warn('Previous sync failed, proceeding with new sync');
-      }
+    // ✅ BUG FIX #5: Circuit Breaker Pattern
+    if (this.isCircuitOpen()) {
+      logger.warn('Circuit breaker is open, skipping sync');
       return;
     }
+    
+    // ✅ BUG FIX #1: Race Condition - Use Web Locks API
+    if ('locks' in navigator) {
+      try {
+        await navigator.locks.request(this.syncLockName, { mode: 'exclusive', ifAvailable: true }, async (lock) => {
+          if (!lock) {
+            logger.info('Another sync is already in progress (locked)');
+            return;
+          }
+          logger.info('Acquired sync lock, starting sync...');
+          await this.performSyncWithCircuitBreaker();
+        });
+      } catch (error) {
+        logger.error('Error acquiring sync lock:', error);
+        this.recordCircuitBreakerFailure();
+      }
+    } else {
+      // Fallback for browsers without Web Locks API
+      if (this.isSyncing && this.syncPromise) {
+        logger.info('Sync already in progress, waiting...');
+        try {
+          await this.syncPromise;
+        } catch (error) {
+          logger.warn('Previous sync failed');
+        }
+        return;
+      }
 
-    if (this.isSyncing) return;
+      if (this.isSyncing) return;
 
-    this.isSyncing = true;
+      this.isSyncing = true;
+      this.syncPromise = this.performSyncWithCircuitBreaker();
+      
+      try {
+        await this.syncPromise;
+      } finally {
+        this.syncPromise = null;
+        this.isSyncing = false;
+      }
+    }
+  }
+
+  private isCircuitOpen(): boolean {
+    if (this.circuitBreakerFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+      const now = Date.now();
+      if (now < this.circuitBreakerOpenUntil) {
+        return true;
+      } else {
+        // Reset circuit breaker after timeout
+        logger.info('Circuit breaker timeout expired, resetting');
+        this.circuitBreakerFailures = 0;
+        this.circuitBreakerOpenUntil = 0;
+        return false;
+      }
+    }
+    return false;
+  }
+
+  private recordCircuitBreakerFailure(): void {
+    this.circuitBreakerFailures++;
+    if (this.circuitBreakerFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+      this.circuitBreakerOpenUntil = Date.now() + CIRCUIT_BREAKER_TIMEOUT;
+      logger.error(`Circuit breaker opened after ${CIRCUIT_BREAKER_THRESHOLD} failures. Will retry after ${CIRCUIT_BREAKER_TIMEOUT/1000}s`);
+      toast.error('Servidor temporariamente indisponível. Aguarde um momento.');
+    }
+  }
+
+  private recordCircuitBreakerSuccess(): void {
+    if (this.circuitBreakerFailures > 0) {
+      logger.info('Circuit breaker reset after successful operation');
+      this.circuitBreakerFailures = 0;
+      this.circuitBreakerOpenUntil = 0;
+    }
+  }
+
+  private async performSyncWithCircuitBreaker(): Promise<void> {
     this.abortController = new AbortController();
-    logger.info('Starting offline sync...');
     
     // Cleanup stale locks before starting
     this.cleanupStaleLocks();
-
-    this.syncPromise = this.performSync();
     
     try {
-      await this.syncPromise;
+      await this.performSync();
+      this.recordCircuitBreakerSuccess();
+    } catch (error) {
+      this.recordCircuitBreakerFailure();
+      throw error;
     } finally {
-      this.syncPromise = null;
-      this.isSyncing = false;
       this.abortController = null;
+      this.isSyncing = false;
     }
   }
 
@@ -138,9 +211,8 @@ class OfflineSyncManager {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const cutoffDate = new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - SYNC_MONTHS);
-      const dateFrom = cutoffDate.toISOString().split('T')[0];
+      // ✅ BUG FIX #12: Use UTC for consistent server sync
+      const dateFrom = getMonthsAgoUTC(SYNC_MONTHS);
 
       // Transactions - Fetch all with pagination to avoid data loss
       let allTransactions: Transaction[] = [];

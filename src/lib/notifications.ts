@@ -1,6 +1,7 @@
 // Notification utilities for reminders and alerts
 import { logger } from '@/lib/logger';
 import type { NotificationAccount } from '@/types/export';
+import { getTodayInUserTimezone, toUserTimezone } from '@/lib/timezone';
 
 export interface NotificationSettings {
   billReminders: boolean;
@@ -59,7 +60,9 @@ export function getDueDateReminders(
   billAmounts?: Record<string, number>
 ): Notification[] {
   const reminders: Notification[] = [];
-  const today = new Date();
+  // ✅ BUG FIX #12: Use user timezone
+  const todayStr = getTodayInUserTimezone();
+  const today = new Date(todayStr);
   const reminderDays = settings.dueDateReminders;
   
   accounts
@@ -118,8 +121,8 @@ export function getDueDateReminders(
 // Get low balance alerts
 export function getLowBalanceAlerts(accounts: NotificationAccount[], threshold: number = 100): Notification[] {
   const alerts: Notification[] = [];
-  const today = new Date();
-  const dateStr = today.toISOString().split('T')[0]; // Stable for the day
+  // ✅ BUG FIX #12: Use user timezone
+  const dateStr = getTodayInUserTimezone(); // Stable for the day
   
   accounts
     .filter(acc => acc.type !== "credit" && acc.balance > 0 && acc.balance <= threshold)
@@ -141,8 +144,10 @@ export function getLowBalanceAlerts(accounts: NotificationAccount[], threshold: 
 
 // Format notification for display
 export function formatNotificationTime(date: Date): string {
-  const now = new Date();
-  const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+  // ✅ BUG FIX #12: Use user timezone for comparison
+  const now = toUserTimezone(new Date());
+  const notificationDate = toUserTimezone(date);
+  const diffInMinutes = Math.floor((now.getTime() - notificationDate.getTime()) / (1000 * 60));
   
   if (diffInMinutes < 1) return "Agora";
   if (diffInMinutes < 60) return `${diffInMinutes}m atrás`;

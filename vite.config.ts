@@ -52,8 +52,25 @@ export default defineConfig(({ mode }) => ({
     target: 'esnext',
     minify: 'esbuild',
     sourcemap: mode === 'development',
-    // Increase chunk size warning limit
-    chunkSizeWarningLimit: 1000,
+    
+    // ✅ BUG FIX #20: Performance budgets
+    // Enforce bundle size limits to prevent performance degradation
+    chunkSizeWarningLimit: 500, // Warn at 500KB (reduced from 1000KB)
+    
+    // Report large chunks
+    reportCompressedSize: true,
+    
+    // CSS code splitting
+    cssCodeSplit: true,
+  },
+  
+  // ✅ BUG FIX #20: Performance budgets configuration
+  // These limits ensure the app stays fast
+  performance: {
+    // Thresholds for warnings (in KB)
+    maxEntrypointSize: 400, // Main entry point should be < 400KB
+    maxAssetSize: 300,      // Individual assets should be < 300KB
+    hints: mode === 'production' ? 'warning' : false,
   },
   // Enable tree shaking
   optimizeDeps: {

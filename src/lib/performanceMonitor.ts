@@ -2,6 +2,8 @@
  * Performance monitoring and optimization utilities
  */
 
+import { logger } from './logger';
+
 interface PerformanceMetrics {
   queryTime: number;
   cacheHits: number;
@@ -40,7 +42,7 @@ class PerformanceMonitor {
     
     // Log slow queries
     if (duration > 1000) { // 1 second threshold
-      console.warn(`Slow query detected: ${queryKey} took ${duration.toFixed(2)}ms`);
+      logger.warn(`Slow query detected: ${queryKey} took ${duration.toFixed(2)}ms`);
     }
   }
 
@@ -70,7 +72,7 @@ class PerformanceMonitor {
    */
   acquireConnection(connectionId: string): boolean {
     if (this.connectionPool.size >= this.MAX_POOL_SIZE) {
-      console.warn('Connection pool exhausted, rejecting connection');
+      logger.warn('Connection pool exhausted, rejecting connection');
       return false;
     }
     
@@ -198,10 +200,10 @@ export function trackCachePerformance<T>(
 ): T | undefined {
   if (data !== undefined) {
     performanceMonitor.trackCacheHit();
-    console.debug(`Cache hit for query: ${queryKey}`);
+    logger.debug(`Cache hit for query: ${queryKey}`);
   } else {
     performanceMonitor.trackCacheMiss();
-    console.debug(`Cache miss for query: ${queryKey}`);
+    logger.debug(`Cache miss for query: ${queryKey}`);
   }
   
   return data;

@@ -3,6 +3,8 @@
  * Monitors bundle size, lazy loading efficiency, and performance
  */
 
+import { logger } from './logger';
+
 interface BundleMetrics {
   initialBundle: number;
   lazyChunks: number;
@@ -44,7 +46,7 @@ class BundleAnalyzer {
     // Start monitoring
     this.startContinuousMonitoring();
 
-    console.log('📊 Bundle analyzer initialized');
+    logger.debug('Bundle analyzer initialized');
   }
 
   /**
@@ -57,7 +59,7 @@ class BundleAnalyzer {
     this.componentLoadTimes.set(componentName, startTime);
     this.metrics.loadedModules++;
 
-    console.log(`🎯 Component loaded: ${componentName} (${this.loadedComponents.size}/${this.metrics.totalModules})`);
+    logger.debug(`Component loaded: ${componentName} (${this.loadedComponents.size}/${this.metrics.totalModules})`);
   }
 
   /**
@@ -84,7 +86,7 @@ class BundleAnalyzer {
     this.metrics.initialBundle = jsSize;
     this.metrics.lazyChunks = chunkCount;
 
-    console.log(`📦 Bundle Analysis:`, {
+    logger.debug('Bundle Analysis:', {
       'JS Size': `${(jsSize / 1024).toFixed(1)}KB`,
       'CSS Size': `${(cssSize / 1024).toFixed(1)}KB`,
       'Lazy Chunks': chunkCount,

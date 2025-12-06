@@ -9,6 +9,7 @@ import { SettingsProvider } from "@/context/SettingsContext";
 import { BybitProvider } from "@/context/BybitContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { ReloadPrompt } from "@/components/ReloadPrompt";
 import { OfflineSyncIndicator } from "@/components/OfflineSyncIndicator";
 import { queryClient } from './lib/queryClient';
@@ -46,12 +47,21 @@ const App = () => {
                 <BrowserRouter>
                   <Suspense fallback={<PageLoader />}>
                     <Routes>
-                      <Route path="/auth" element={<Auth />} />
+                      <Route 
+                        path="/auth" 
+                        element={
+                          <RouteErrorBoundary routeName="Autenticação">
+                            <Auth />
+                          </RouteErrorBoundary>
+                        } 
+                      />
                       <Route 
                         path="/" 
                         element={
                           <ProtectedRoute>
-                            <Index />
+                            <RouteErrorBoundary routeName="Dashboard">
+                              <Index />
+                            </RouteErrorBoundary>
                           </ProtectedRoute>
                         } 
                       />
@@ -59,12 +69,28 @@ const App = () => {
                         path="/bybit"
                         element={
                           <ProtectedRoute>
-                            <BybitPage />
+                            <RouteErrorBoundary routeName="Bybit">
+                              <BybitPage />
+                            </RouteErrorBoundary>
                           </ProtectedRoute>
                         }
                       />
-                      <Route path="/debug-pwa" element={<PWADebug />} />
-                      <Route path="*" element={<NotFound />} />
+                      <Route 
+                        path="/debug-pwa" 
+                        element={
+                          <RouteErrorBoundary routeName="PWA Debug">
+                            <PWADebug />
+                          </RouteErrorBoundary>
+                        } 
+                      />
+                      <Route 
+                        path="*" 
+                        element={
+                          <RouteErrorBoundary routeName="Página Não Encontrada">
+                            <NotFound />
+                          </RouteErrorBoundary>
+                        } 
+                      />
                     </Routes>
                   </Suspense>
                 </BrowserRouter>

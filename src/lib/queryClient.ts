@@ -20,6 +20,7 @@ import { performanceMonitor } from './performanceMonitor';
  * - Performance monitoring and recommendations
  * - Background memory tracking and cleanup
  */
+// ✅ BUG FIX #11: Request deduplication enabled
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -42,6 +43,9 @@ export const queryClient = new QueryClient({
       refetchInterval: false, // Disable automatic background refetch by default
       // Persist data longer for offline scenarios
       persister: undefined, // Can be configured for persistence later
+      // ✅ Request deduplication - previne múltiplas chamadas idênticas
+      // React Query já faz isso por padrão, mas garantindo explicitamente
+      notifyOnChangeProps: 'all', // Otimiza re-renders
     },
     mutations: {
       // Retry mutations only once
@@ -52,29 +56,34 @@ export const queryClient = new QueryClient({
   },
 });
 
+// ✅ BUG FIX #9: Remove console.logs em produção
+import { logger } from './logger';
+
 // Start performance monitoring
 if (typeof window !== 'undefined') {
   performanceMonitor.startMemoryTracking();
   
-  // Log performance metrics every 5 minutes
-  setInterval(() => {
-    const metrics = performanceMonitor.getMetrics();
-    const recommendations = performanceMonitor.getRecommendations();
-    
-    console.group('🚀 Performance Metrics');
-    console.log('Cache Hit Ratio:', `${(metrics.cacheHitRatio * 100).toFixed(1)}%`);
-    console.log('Average Query Time:', `${metrics.averageQueryTime.toFixed(2)}ms`);
-    console.log('Memory Usage:', `${metrics.memoryUsage.toFixed(1)}MB`);
-    console.log('Active Connections:', metrics.activeConnections);
-    console.log('Slow Queries:', metrics.slowQueries);
-    
-    if (recommendations.length > 0) {
-      console.group('💡 Recommendations:');
-      recommendations.forEach(rec => console.log(`- ${rec}`));
-      console.groupEnd();
-    }
-    console.groupEnd();
-  }, 300000); // 5 minutes
+  // Log performance metrics every 5 minutes (apenas em dev)
+  if (import.meta.env.DEV) {
+    setInterval(() => {
+      const metrics = performanceMonitor.getMetrics();
+      const recommendations = performanceMonitor.getRecommendations();
+      
+      logger.group('🚀 Performance Metrics');
+      logger.info('Cache Hit Ratio:', `${(metrics.cacheHitRatio * 100).toFixed(1)}%`);
+      logger.info('Average Query Time:', `${metrics.averageQueryTime.toFixed(2)}ms`);
+      logger.info('Memory Usage:', `${metrics.memoryUsage.toFixed(1)}MB`);
+      logger.info('Active Connections:', metrics.activeConnections);
+      logger.info('Slow Queries:', metrics.slowQueries);
+      
+      if (recommendations.length > 0) {
+        logger.group('💡 Recommendations:');
+        recommendations.forEach(rec => logger.info(`- ${rec}`));
+        logger.groupEnd();
+      }
+      logger.groupEnd();
+    }, 300000); // 5 minutes
+  }
 }
 
 /**

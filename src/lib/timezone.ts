@@ -128,3 +128,29 @@ export const isDateInRange = (
   const end = normalizeFormDate(endDate);
   return d >= start && d <= end;
 };
+
+/**
+ * ✅ BUG FIX #12: UTC helpers for consistent server sync
+ * Obtém data atual em UTC para sync com servidor
+ */
+export const getNowUTC = (): Date => {
+  return new Date();
+};
+
+/**
+ * ✅ BUG FIX #12: Calcula cutoff date em UTC para sync
+ * Usado em operações de sincronização com servidor
+ */
+export const getMonthsAgoUTC = (months: number): string => {
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - months);
+  return cutoff.toISOString().split('T')[0];
+};
+
+/**
+ * ✅ BUG FIX #12: Formata data UTC como YYYY-MM-DD
+ */
+export const formatUTCDate = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};

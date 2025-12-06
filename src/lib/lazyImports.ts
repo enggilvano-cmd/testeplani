@@ -3,6 +3,8 @@
  * Reduces initial bundle size by ~2MB
  */
 
+import { logger } from './logger';
+
 let xlsxModule: typeof import('xlsx') | null = null;
 let jsPDFModule: typeof import('jspdf') | null = null;
 let htmlToImageModule: typeof import('html-to-image') | null = null;
@@ -96,9 +98,9 @@ export function preloadCriticalLibraries(): void {
           loadDateFns(),
           loadLucideIcons(['Calendar', 'DollarSign', 'TrendingUp', 'Settings'])
         ]);
-        console.log('🚀 Critical libraries preloaded during idle time');
+        logger.debug('Critical libraries preloaded during idle time');
       } catch (error) {
-        console.warn('Failed to preload libraries:', error);
+        logger.warn('Failed to preload libraries:', error);
       }
     });
   }

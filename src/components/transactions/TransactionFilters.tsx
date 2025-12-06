@@ -13,6 +13,8 @@ import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useState, useEffect } from "react";
 
 interface TransactionFiltersProps {
   searchTerm: string;
@@ -53,6 +55,22 @@ export function TransactionFilters({
   onCustomEndDateChange,
   t,
 }: TransactionFiltersProps) {
+  // Local search state with debounce (300ms)
+  const [localSearch, setLocalSearch] = useState(searchTerm);
+  const debouncedSearch = useDebounce(localSearch, 300);
+
+  // Update parent search when debounced value changes
+  useEffect(() => {
+    if (debouncedSearch !== searchTerm) {
+      onSearchChange(debouncedSearch);
+    }
+  }, [debouncedSearch, searchTerm, onSearchChange]);
+
+  // Sync local search with prop changes
+  useEffect(() => {
+    setLocalSearch(searchTerm);
+  }, [searchTerm]);
+
   return (
     <div className="space-y-4">
       {/* Search */}
@@ -60,8 +78,8 @@ export function TransactionFilters({
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
         <Input
           placeholder={t("transactions.searchPlaceholder")}
-          value={searchTerm}
-          onChange={(e) => onSearchChange(e.target.value)}
+          value={localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
           className="pl-10"
         />
       </div>

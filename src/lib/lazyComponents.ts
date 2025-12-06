@@ -4,6 +4,7 @@
  */
 
 import { lazy } from 'react';
+import { logger } from './logger';
 
 // Heavy data visualization components
 export const AnalyticsPage = lazy(() => 
@@ -73,6 +74,7 @@ export const getBundleStats = () => ({
   estimatedSavings: '~800KB',
   loadedComponents: new Set(),
   markLoaded: (componentName: string) => {
-    console.log(`🚀 Lazy component loaded: ${componentName}`);
+    // ✅ BUG FIX #9: Usar logger ao invés de console.log
+    logger.debug(`Lazy component loaded: ${componentName}`);
   }
 });

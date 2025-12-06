@@ -9,6 +9,60 @@ const corsHeaders = {
 };
 
 /**
+ * ✅ BUG FIX #21: API Documentation with JSDoc
+ * 
+ * @description Edge Function para criar transações atômicas com suporte a rate limiting e retry
+ * @endpoint POST /functions/v1/atomic-transaction
+ * @authentication Requer Bearer token no header Authorization
+ * 
+ * @requestBody
+ * {
+ *   description: string;      // Descrição da transação
+ *   amount: number;           // Valor em centavos (ex: 10000 = R$ 100,00)
+ *   date: string;             // Data no formato YYYY-MM-DD
+ *   type: 'income' | 'expense' | 'transfer'; // Tipo da transação
+ *   category_id: string;      // UUID da categoria
+ *   account_id: string;       // UUID da conta
+ *   status: 'pending' | 'completed'; // Status da transação
+ *   invoice_month?: string;   // Mês da fatura (YYYY-MM) para cartões de crédito
+ *   is_fixed?: boolean;       // Se é transação recorrente
+ * }
+ * 
+ * @response 201 Created
+ * {
+ *   transaction: Transaction; // Objeto da transação criada
+ * }
+ * 
+ * @response 400 Bad Request - Dados inválidos
+ * @response 401 Unauthorized - Token inválido ou expirado
+ * @response 429 Too Many Requests - Rate limit excedido
+ * @response 500 Internal Server Error - Erro no servidor
+ * 
+ * @rateLimit 30 requests por minuto por usuário
+ * @retry Até 3 tentativas com backoff exponencial
+ * 
+ * @example
+ * ```typescript
+ * const response = await fetch('https://your-project.supabase.co/functions/v1/atomic-transaction', {
+ *   method: 'POST',
+ *   headers: {
+ *     'Authorization': 'Bearer YOUR_TOKEN',
+ *     'Content-Type': 'application/json'
+ *   },
+ *   body: JSON.stringify({
+ *     description: 'Salário',
+ *     amount: 500000, // R$ 5.000,00
+ *     date: '2024-01-15',
+ *     type: 'income',
+ *     category_id: 'uuid-categoria',
+ *     account_id: 'uuid-conta',
+ *     status: 'completed'
+ *   })
+ * });
+ * ```
+ */
+
+/**
  * Structured logging para edge functions
  * Em produção, isso seria enviado para um serviço de logging centralizado (Sentry, DataDog, etc)
  */

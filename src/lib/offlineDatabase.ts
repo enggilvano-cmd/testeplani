@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import type { Transaction, Account, Category } from '@/types';
+import { getMonthsAgoUTC } from './timezone';
 
 const DB_NAME = 'planiflow-offline';
 // MUDANÇA CRÍTICA: Incrementado para 3 para forçar atualização da estrutura no navegador do usuário
@@ -13,8 +14,97 @@ const STORES = {
   METADATA: 'metadata',
 } as const;
 
+// ✅ BUG FIX #8: IndexedDB quota management
+const MAX_STORAGE_USAGE_PERCENT = 80; // Alert when 80% full
+const EVICTION_TARGET_PERCENT = 60; // Evict down to 60% when full
+
 class OfflineDatabase {
   private db: IDBDatabase | null = null;
+
+  /**
+   * ✅ BUG FIX #8: Check storage quota to prevent QuotaExceededError
+   */
+  async checkStorageQuota(): Promise<{ usage: number; quota: number; percent: number; available: boolean }> {
+    if (!('storage' in navigator && 'estimate' in navigator.storage)) {
+      // Fallback for browsers without Storage API
+      return { usage: 0, quota: Infinity, percent: 0, available: true };
+    }
+
+    try {
+      const estimate = await navigator.storage.estimate();
+      const usage = estimate.usage || 0;
+      const quota = estimate.quota || Infinity;
+      const percent = quota > 0 ? (usage / quota) * 100 : 0;
+      const available = percent < MAX_STORAGE_USAGE_PERCENT;
+
+      if (percent > MAX_STORAGE_USAGE_PERCENT) {
+        logger.warn(`Storage quota critical: ${percent.toFixed(1)}% used (${this.formatBytes(usage)} / ${this.formatBytes(quota)})`);
+      }
+
+      return { usage, quota, percent, available };
+    } catch (error) {
+      logger.error('Failed to check storage quota:', error);
+      return { usage: 0, quota: Infinity, percent: 0, available: true };
+    }
+  }
+
+  /**
+   * Format bytes to human readable format
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  /**
+   * ✅ BUG FIX #8: Evict old data when storage is full (LRU strategy)
+   */
+  async evictOldData(): Promise<void> {
+    if (!this.db) await this.init();
+
+    logger.info('Starting LRU eviction of old data...');
+
+    try {
+      // ✅ BUG FIX #12: Use UTC for eviction
+      // Evict old transactions (keep only last 6 months instead of 12)
+      const cutoffDateStr = getMonthsAgoUTC(6);
+      const cutoffTime = new Date(cutoffDateStr).getTime();
+
+      const transaction = this.db!.transaction([STORES.TRANSACTIONS], 'readwrite');
+      const store = transaction.objectStore(STORES.TRANSACTIONS);
+      const index = store.index('date');
+
+      let deletedCount = 0;
+      const request = index.openCursor();
+
+      await new Promise<void>((resolve, reject) => {
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (cursor) {
+            const tx = cursor.value as Transaction;
+            const txDate = new Date(tx.date).getTime();
+            
+            if (txDate < cutoffTime) {
+              cursor.delete();
+              deletedCount++;
+            }
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+
+        request.onerror = () => reject(request.error);
+      });
+
+      logger.info(`Evicted ${deletedCount} old transactions to free up space`);
+    } catch (error) {
+      logger.error('Failed to evict old data:', error);
+    }
+  }
 
   async init(): Promise<void> {
     if (this.db) return;
@@ -84,6 +174,19 @@ class OfflineDatabase {
   async syncTransactions(transactions: Transaction[], userId: string, dateFrom: string): Promise<void> {
     if (!this.db) await this.init();
 
+    // ✅ BUG FIX #8: Check quota before saving
+    const quota = await this.checkStorageQuota();
+    if (!quota.available) {
+      logger.warn('Storage quota exceeded, evicting old data...');
+      await this.evictOldData();
+      
+      // Check again after eviction
+      const quotaAfter = await this.checkStorageQuota();
+      if (!quotaAfter.available) {
+        throw new Error(`Storage quota exceeded: ${quotaAfter.percent.toFixed(1)}% used`);
+      }
+    }
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.TRANSACTIONS], 'readwrite');
       const store = transaction.objectStore(STORES.TRANSACTIONS);
@@ -94,6 +197,7 @@ class OfflineDatabase {
       request.onsuccess = () => {
         const localTxs = request.result as Transaction[];
         const serverIds = new Set(transactions.map(t => t.id));
+        // ✅ BUG FIX #12: dateFrom já está em UTC
         const cutoffTime = new Date(dateFrom).getTime();
 
         const toDelete = localTxs.filter(tx => {
@@ -275,9 +379,9 @@ class OfflineDatabase {
         const results: Transaction[] = [];
         let skipped = 0;
         let collected = 0;
-        const cutoffDate = new Date();
-        cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
-        const cutoffTime = cutoffDate.getTime();
+        // ✅ BUG FIX #12: Use UTC for filtering
+        const cutoffDateStr = getMonthsAgoUTC(monthsBack);
+        const cutoffTime = new Date(cutoffDateStr).getTime();
         
         const request = index.openCursor(IDBKeyRange.only(userId));
         
@@ -327,8 +431,9 @@ class OfflineDatabase {
         
         request.onsuccess = () => {
           const allTransactions = request.result || [];
-          const cutoffDate = new Date();
-          cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+          // ✅ BUG FIX #12: Use UTC for filtering
+          const cutoffDateStr = getMonthsAgoUTC(monthsBack);
+          const cutoffDate = new Date(cutoffDateStr);
           
           const filtered = allTransactions.filter(txData => {
             const txDate = new Date(txData.date);
@@ -417,9 +522,9 @@ class OfflineDatabase {
       const index = store.index('user_id');
       
       let count = 0;
-      const cutoffDate = new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
-      const cutoffTime = cutoffDate.getTime();
+      // ✅ BUG FIX #12: Use UTC for counting
+      const cutoffDateStr = getMonthsAgoUTC(monthsBack);
+      const cutoffTime = new Date(cutoffDateStr).getTime();
       
       const request = index.openCursor(IDBKeyRange.only(userId));
       

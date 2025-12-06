@@ -13,6 +13,10 @@ export function useRealtimeSubscription() {
     if (!user) return;
 
     logger.info('Setting up realtime subscriptions for user:', user.id);
+    
+    // ✅ BUG FIX #2: Track resources for proper cleanup
+    const eventListeners: Array<{ target: any; event: string; handler: any }> = [];
+    const timers: NodeJS.Timeout[] = [];
 
     // Função auxiliar para invalidar transações de forma robusta
     const invalidateTransactions = () => {
@@ -62,10 +66,11 @@ export function useRealtimeSubscription() {
           invalidateAccounts();
           
           // Retry de segurança após 500ms para garantir consistência
-          setTimeout(() => {
+          const timer1 = setTimeout(() => {
             invalidateTransactions();
             invalidateAccounts();
           }, 500);
+          timers.push(timer1);
         }
       )
       .on(
@@ -80,10 +85,11 @@ export function useRealtimeSubscription() {
           invalidateAccounts();
           invalidateTransactions();
           
-          setTimeout(() => {
+          const timer2 = setTimeout(() => {
             invalidateAccounts();
             invalidateTransactions();
           }, 500);
+          timers.push(timer2);
         }
       )
       .on(
@@ -121,7 +127,24 @@ export function useRealtimeSubscription() {
 
     return () => {
       logger.info('Cleaning up realtime subscriptions');
+      
+      // ✅ BUG FIX #2: Complete cleanup to prevent memory leaks
+      // Clear all timers
+      timers.forEach(timer => clearTimeout(timer));
+      
+      // Remove channel and all its listeners
       supabase.removeChannel(channel);
+      
+      // Clear event listeners array
+      eventListeners.forEach(({ target, event, handler }) => {
+        try {
+          target.removeEventListener(event, handler);
+        } catch (error) {
+          logger.warn('Failed to remove event listener:', error);
+        }
+      });
+      
+      logger.info('Realtime subscription cleanup complete');
     };
   }, [user, queryClient]);
 }

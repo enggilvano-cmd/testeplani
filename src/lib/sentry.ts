@@ -42,7 +42,7 @@ export const initSentry = () => {
     release: import.meta.env.VITE_APP_VERSION || 'unknown',
     
     // Before send hook to add additional context
-    beforeSend(event) {
+    beforeSend(event, hint) {
       // Filter out development errors
       if (import.meta.env.DEV) {
         return null;
@@ -52,7 +52,45 @@ export const initSentry = () => {
       event.tags = {
         ...event.tags,
         app_version: import.meta.env.VITE_APP_VERSION || 'unknown',
+        build_time: import.meta.env.VITE_BUILD_TIME || 'unknown',
+        git_commit: import.meta.env.VITE_GIT_COMMIT || 'unknown',
       };
+
+      // Add custom context
+      event.contexts = {
+        ...event.contexts,
+        app: {
+          name: 'Plani',
+          version: import.meta.env.VITE_APP_VERSION || 'unknown',
+          environment: import.meta.env.MODE,
+        },
+        runtime: {
+          name: 'browser',
+          version: navigator.userAgent,
+        },
+        device: {
+          online: navigator.onLine,
+          memory: (performance as any).memory?.usedJSHeapSize 
+            ? `${((performance as any).memory.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`
+            : 'unknown',
+        },
+      };
+
+      // Add session information
+      try {
+        const sessionStart = sessionStorage.getItem('session_start');
+        const sessionDuration = sessionStart 
+          ? Date.now() - parseInt(sessionStart)
+          : 0;
+        
+        event.contexts.session = {
+          start: sessionStart || 'unknown',
+          duration_ms: sessionDuration,
+          page_loads: parseInt(sessionStorage.getItem('page_loads') || '0'),
+        };
+      } catch (e) {
+        // Ignore sessionStorage errors
+      }
       
       return event;
     },
@@ -102,4 +140,34 @@ export const captureMessage = (message: string, level: Sentry.SeverityLevel = 'i
 // Helper to set context
 export const setSentryContext = (key: string, context: Record<string, unknown>) => {
   Sentry.setContext(key, context);
+};
+
+// Helper to set tags
+export const setSentryTags = (tags: Record<string, string | number | boolean>) => {
+  Sentry.setTags(tags);
+};
+
+// Helper to add performance measurement
+export const addPerformanceMeasurement = (name: string, duration: number, tags?: Record<string, string>) => {
+  addSentryBreadcrumb(
+    `Performance: ${name}`,
+    'performance',
+    duration > 1000 ? 'warning' : 'info',
+    { duration_ms: duration, ...tags }
+  );
+  
+  // Set tags para análise
+  if (tags) {
+    setSentryTags(tags);
+  }
+};
+
+// Helper para track user actions
+export const trackUserAction = (action: string, category: string, data?: Record<string, unknown>) => {
+  addSentryBreadcrumb(
+    action,
+    `user.${category}`,
+    'info',
+    data
+  );
 };

@@ -12,6 +12,7 @@ import { EditScope, TransactionScopeDialog } from "./TransactionScopeDialog";
 import { FixedTransactionScopeDialog, FixedScope } from "./FixedTransactionScopeDialog";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useTransactionsPageLogic } from "@/hooks/useTransactionsPageLogic";
+import { useComponentPerformance } from "@/hooks/useComponentPerformance";
 import type { Transaction, Account, Category, ImportTransactionData } from '@/types';
 import { ListErrorBoundary } from '@/components/ui/list-error-boundary';
 
@@ -118,6 +119,9 @@ export function TransactionsPage({
 }: TransactionsPageProps) {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const { settings, formatCurrency } = useSettings();
+  
+  // Track performance
+  useComponentPerformance('TransactionsPage', true);
 
   // Use custom hook for page logic
   const {

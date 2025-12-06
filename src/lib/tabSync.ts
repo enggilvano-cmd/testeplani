@@ -3,6 +3,8 @@
  * Sincroniza autenticação, logout e dados de usuário
  */
 
+import { logger } from './logger';
+
 export type BroadcastChannelMessage = 
   | { type: 'auth-change'; data: { userId: string | null; sessionId: string | null } }
   | { type: 'logout'; data: {} }
@@ -41,7 +43,7 @@ export class TabSynchronizer {
           this.notifyListeners(type, data);
         };
       } catch (error) {
-        console.warn('BroadcastChannel not available:', error);
+        logger.warn('BroadcastChannel not available:', error);
         this.isSupported = false;
       }
     }
@@ -68,7 +70,7 @@ export class TabSynchronizer {
    */
   broadcast(eventType: string, data: any): void {
     if (!this.isSupported || !this.channel) {
-      console.warn('BroadcastChannel not available, cannot broadcast');
+      logger.warn('BroadcastChannel not available, cannot broadcast');
       return;
     }
 

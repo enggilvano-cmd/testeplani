@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatNotificationTime } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import { cleanupPushNotifications, getPushNotificationResourceStats } from '@/lib/pushNotifications';
 
@@ -36,7 +37,7 @@ export function NotificationBell() {
       // Log resource usage for debugging
       const stats = getPushNotificationResourceStats();
       if (stats.activeContexts > 0) {
-        console.debug('NotificationBell unmounting, cleaning push resources:', stats);
+        logger.debug('NotificationBell unmounting, cleaning push resources:', stats);
         cleanupPushNotifications();
       }
     };

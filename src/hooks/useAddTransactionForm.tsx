@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/lib/logger";
+import { trackUserAction, setSentryContext } from "@/lib/sentry";
 import { getTodayString, createDateFromString, calculateInvoiceMonthByDue, addMonthsToDate } from "@/lib/dateUtils";
 import { Account, TransactionInput, InstallmentTransactionInput } from "@/types";
 import { addTransactionSchema } from "@/lib/validationSchemas";
@@ -212,6 +213,21 @@ export function useAddTransactionForm({
     }
 
     try {
+      trackUserAction('Transaction Create Attempt', 'transaction', {
+        type: formData.type,
+        isInstallment,
+        isFixed: formData.isFixed,
+        amount: formData.amount,
+        accountType: selectedAccount?.type,
+      });
+
+      setSentryContext('transaction', {
+        type: formData.type,
+        amount: formData.amount,
+        accountId: formData.account_id,
+        categoryId: formData.category_id,
+      });
+
       if (isInstallment) {
         await handleInstallmentTransaction(installments);
       } else if (formData.isFixed) {
@@ -220,12 +236,22 @@ export function useAddTransactionForm({
         await handleSingleTransaction();
       }
 
+      trackUserAction('Transaction Created Successfully', 'transaction', {
+        type: formData.type,
+        isInstallment,
+        installmentCount: isInstallment ? installments : undefined,
+      });
+
       // Reset form e fechar modal
       setFormData(initialFormState);
       setCustomInstallments("");
       onClose();
     } catch (error: unknown) {
       logger.error("Error creating transaction(s):", error);
+      trackUserAction('Transaction Create Failed', 'transaction', {
+        type: formData.type,
+        error: getErrorMessage(error),
+      });
       toast({
         title: "Erro",
         description: getErrorMessage(error) || "Erro ao criar transação",
